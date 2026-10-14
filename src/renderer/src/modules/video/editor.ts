@@ -44,6 +44,7 @@ import {
   setClipSpeed,
   clipEnd,
   setSpeedRamp,
+  findTopVideoTrack,
   freezeFrameAt,
   splitAt,
   timelineDuration,
@@ -57,6 +58,7 @@ import { parseProject, serializeProject } from './project';
 import { parseSubtitles, serializeSrt, serializeVtt } from './captions';
 import { DEFAULT_STILL_DURATION, DEFAULT_TITLE_DURATION, DEFAULT_VISUAL, TRANSITIONS, titlePreset } from './presets';
 import { RAMP_PRESETS, rampPreset, type RampPreset } from './keyframes';
+import { encodeLut, parseCube } from './grade';
 import { applyAIActions, describeProject, formatResults } from './aiActions';
 import { clipFrameSheets, lookSheet } from './ai/frames';
 import { AnalysisStore } from './analysisStore';
@@ -294,9 +296,11 @@ export function useVideoEditor(active: boolean) {
     if (projectFile) return openProject(projectFile);
     const subs = files.filter((f) => ['srt', 'vtt'].includes(fileExtension(f.name)));
     for (const f of subs) await importCaptionFile(f);
-    const mediaFiles = files.filter((f) => !subs.includes(f) && mediaKindOf(f));
-    const unknown = files.filter((f) => !subs.includes(f) && !mediaKindOf(f));
+    const cubes = files.filter((f) => fileExtension(f.name) === 'cube');
+    const mediaFiles = files.filter((f) => !subs.includes(f) && !cubes.includes(f) && mediaKindOf(f));
+    const unknown = files.filter((f) => !subs.includes(f) && !cubes.includes(f) && !mediaKindOf(f));
     if (unknown.length) toast.warning(t('Unsupported file type'), unknown.map((f) => f.name).join(', '));
+    if (cubes.length) await addLutFiles(cubes);
     if (!mediaFiles.length) return;
     setImporting((n) => n + mediaFiles.length);
     let refs: MediaRef[] = [];
@@ -310,7 +314,7 @@ export function useVideoEditor(active: boolean) {
     // beats, loud moments and scene changes for the AI assistant, in the background
     for (const r of refs) void analysis.ensure(r);
     for (const f of mediaFiles) stash.current.set(`${f.name}|${f.size}`, f);
-    const before = projectRef.current;
+    const before = doc.current();
     let p = addMediaRefs(before, refs);
     const wasEmpty = before.clips.length === 0;
     const target: { time: number; trackId: string | null; freeTrack?: boolean } | null = place === 'bin' ? null : place === 'auto' ? (wasEmpty ? { time: 0, trackId: null } : null) : place;
@@ -343,12 +347,50 @@ export function useVideoEditor(active: boolean) {
   };
 
   const importMedia = async () => {
-    const files = await pickFiles({ accept: MEDIA_ACCEPT, multiple: true });
+    const files = await pickFiles({ accept: `${MEDIA_ACCEPT},.cube`, multiple: true });
     if (files.length) await importFiles(files, 'auto');
   };
 
+  /** Adds color lookup tables from .cube files to the project; returns their ids. */
+  const addLutFiles = async (files: File[]): Promise<string[]> => {
+    const ids: string[] = [];
+    let p = doc.current();
+    for (const f of files) {
+      try {
+        if (f.size > 40 * 1024 * 1024) throw new Error('This LUT is too large.');
+        const lut = parseCube(await f.text());
+        const id = uid('lut_');
+        p = { ...p, luts: [...p.luts, { id, name: fileBaseName(f.name).slice(0, 80) || 'LUT', size: lut.size, data: encodeLut(lut) }] };
+        ids.push(id);
+      } catch (e) {
+        toast.error(t('Could not import {name}', { name: f.name }), t(e instanceof Error ? e.message : String(e)));
+      }
+    }
+    if (ids.length) {
+      doc.set(p, { label: t('Import LUT') });
+      toast.success(t('Added {count} LUT(s) — choose them under Color grade', { count: ids.length }));
+    }
+    return ids;
+  };
+  const importLut = async (): Promise<string[]> => {
+    const files = await pickFiles({ accept: '.cube', multiple: true });
+    return files.length ? addLutFiles(files) : [];
+  };
+
+  /** An adjustment layer from the playhead to the end of the timeline (or 5 s), above all pictures. */
+  const addAdjustment = () => {
+    const p0 = doc.current();
+    const start = playhead();
+    const end = timelineDuration(p0);
+    const duration = end - start > 0.5 ? end - start : 5;
+    const r = findTopVideoTrack(p0, start, start + duration);
+    const clip = makeClip('adjustment', r.trackId, start, duration, { name: t('Adjustment layer') });
+    change(insertClips(r.project, [clip]), { label: t('Add adjustment layer') });
+    setSelectionState([clip.id]);
+  };
+
   const open = async () => {
-    const files = await pickFiles({ accept: `.ultima,${MEDIA_ACCEPT},.srt,.vtt`, multiple: true });
+    const files = await pickFiles({ accept: `.ultima,${MEDIA_ACCEPT},.srt,.vtt,.cube`, multiple: true });
     if (files.length) await importFiles(files, 'auto');
   };
 
@@ -688,6 +730,8 @@ export function useVideoEditor(active: boolean) {
     setRamp,
     toggleReverse,
     freezeFrame,
+    addAdjustment,
+    importLut: () => void importLut(),
     resetEffects,
     renameClip: () => void renameClip(),
     addTrack: addTrackOf,
@@ -815,6 +859,8 @@ export function useVideoEditor(active: boolean) {
     convertMedia,
     onRelinked,
     addTitle,
+    addAdjustment,
+    importLut,
     addCaptionAtPlayhead,
     onAutoCaptions,
     applyCuts,

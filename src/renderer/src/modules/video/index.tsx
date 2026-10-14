@@ -207,7 +207,7 @@ export default function VideoModule({ active }: ModuleProps) {
         onConvert={(id) => void ed.convertMedia(id)}
       />
     ) : ed.leftTab === 'graphics' ? (
-      <GraphicsPanel onAdd={(id) => ed.addTitle(id)} />
+      <GraphicsPanel onAdd={(id) => ed.addTitle(id)} onAddAdjustment={ed.addAdjustment} />
     ) : (
       <CaptionsPanel
         project={project}
@@ -264,6 +264,7 @@ export default function VideoModule({ active }: ModuleProps) {
             change={ed.change}
             commit={ed.commit}
             onOpenSettings={actions.projectSettings}
+            onImportLut={ed.importLut}
             onLink={actions.link}
             onUnlink={actions.unlink}
             onSeek={ed.seek}

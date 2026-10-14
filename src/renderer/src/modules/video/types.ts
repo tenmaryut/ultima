@@ -7,9 +7,25 @@
  */
 
 export type TrackKind = 'video' | 'audio' | 'caption';
-export type ClipKind = 'video' | 'audio' | 'image' | 'title' | 'caption';
+/** "adjustment": a layer without a picture whose color and effects apply to everything below it. */
+export type ClipKind = 'video' | 'audio' | 'image' | 'title' | 'caption' | 'adjustment';
 export type MediaKind = 'video' | 'audio' | 'image';
-export type TransitionKind = 'dissolve' | 'dipBlack' | 'dipWhite' | 'wipeLeft' | 'wipeRight' | 'slide' | 'zoom';
+export type TransitionKind =
+  | 'dissolve'
+  | 'dipBlack'
+  | 'dipWhite'
+  | 'wipeLeft'
+  | 'wipeRight'
+  | 'slide'
+  | 'zoom'
+  | 'flash'
+  | 'whipLeft'
+  | 'whipRight'
+  | 'spin'
+  | 'zoomBlur'
+  | 'glitch'
+  | 'lumaFade'
+  | 'blurDissolve';
 export type TitleAnimation = 'none' | 'fade' | 'slideUp' | 'pop' | 'typewriter';
 export type TextAlign = 'left' | 'center' | 'right';
 
@@ -91,6 +107,113 @@ export interface VisualProps {
   chromaSimilarity: number;
   /** 0-1 */
   chromaSmoothness: number;
+  /** Camera shake: strength in project px (0 = off) and shakes per second. */
+  shake: number;
+  shakeSpeed: number;
+  /** Glow (bloom) of bright areas 0-1, and its radius in project px. */
+  glow: number;
+  glowRadius: number;
+  /** Chromatic aberration: red and blue pushed apart by this many project px. */
+  rgbSplit: number;
+  /** Motion blur streak length in project px, and its direction in degrees (0 = horizontal). */
+  motionBlur: number;
+  motionBlurAngle: number;
+  /** Radial (zoom) blur 0-1. */
+  zoomBlur: number;
+  /** Dark edges 0-1. */
+  vignette: number;
+  /** 0-1 */
+  sharpen: number;
+  /** Film grain 0-1. */
+  grain: number;
+  /** Black bars at the top and bottom of the frame: fraction of the frame height each (0-0.3). */
+  letterbox: number;
+}
+
+/** How a clip's picture mixes with what is below it. */
+export type BlendMode =
+  | 'normal'
+  | 'multiply'
+  | 'screen'
+  | 'overlay'
+  | 'darken'
+  | 'lighten'
+  | 'colorDodge'
+  | 'colorBurn'
+  | 'hardLight'
+  | 'softLight'
+  | 'difference'
+  | 'exclusion'
+  | 'hue'
+  | 'saturation'
+  | 'color'
+  | 'luminosity'
+  | 'add';
+
+export type MaskShape = 'rectangle' | 'ellipse' | 'linear';
+
+/** Shows only part of a clip. Positions are fractions of the clip's (uncropped) picture, so the mask moves with it. */
+export interface ClipMask {
+  shape: MaskShape;
+  /** Center (0-1). For "linear": a point on the edge. */
+  x: number;
+  y: number;
+  /** Size (0-2) — rectangle and ellipse. */
+  w: number;
+  h: number;
+  /** Degrees. For "linear": the direction the visible side faces (0 = left part visible… 90 = top). */
+  rotation: number;
+  /** Soft edge, fraction of the picture's shorter side (0-0.5). */
+  feather: number;
+  /** Shows the outside instead. */
+  invert: boolean;
+}
+
+export type LookId =
+  | 'cinematic'
+  | 'tealOrange'
+  | 'warm'
+  | 'cool'
+  | 'vintage'
+  | 'faded'
+  | 'bw'
+  | 'noir'
+  | 'sepia'
+  | 'vivid'
+  | 'cyberpunk'
+  | 'moody'
+  | 'golden'
+  | 'bleach'
+  | 'pastel'
+  | 'night';
+
+export type HueRange = 'red' | 'orange' | 'yellow' | 'green' | 'aqua' | 'blue' | 'purple' | 'magenta';
+export type CurveChannel = 'master' | 'r' | 'g' | 'b';
+/** [input, output], both 0-1. */
+export type CurvePoint = [number, number];
+
+/** Color grading beyond the basic sliders. */
+export interface ColorGrade {
+  /** A built-in look and how strong it is (0-1). */
+  look?: LookId;
+  lookAmount: number;
+  /** An imported .cube LUT (id in `Project.luts`) and how strong it is (0-1). */
+  lut?: string;
+  lutAmount: number;
+  /** Tone curves (points sorted by input). */
+  curves?: Partial<Record<CurveChannel, CurvePoint[]>>;
+  /** Per color range: hue shift (degrees, -30..30), saturation and luminance (-100..100). */
+  hsl?: Partial<Record<HueRange, { h: number; s: number; l: number }>>;
+}
+
+/** A 3D color lookup table imported from a .cube file. */
+export interface LutAsset {
+  id: string;
+  name: string;
+  /** Points per side (2-65). */
+  size: number;
+  /** Base64 of size³ × 3 little-endian Uint16 values (0-65535), red changing fastest. */
+  data: string;
 }
 
 export interface TitleStyle {
@@ -129,7 +252,28 @@ export interface Keyframe {
 }
 
 /** Animatable clip properties (visual ones and the volume in dB). */
-export type KeyProp = 'x' | 'y' | 'scale' | 'rotation' | 'opacity' | 'blur' | 'brightness' | 'contrast' | 'saturation' | 'hue' | 'temperature' | 'volume';
+export type KeyProp =
+  | 'x'
+  | 'y'
+  | 'scale'
+  | 'rotation'
+  | 'opacity'
+  | 'blur'
+  | 'brightness'
+  | 'contrast'
+  | 'saturation'
+  | 'hue'
+  | 'temperature'
+  | 'shake'
+  | 'glow'
+  | 'rgbSplit'
+  | 'motionBlur'
+  | 'zoomBlur'
+  | 'vignette'
+  | 'sharpen'
+  | 'grain'
+  | 'letterbox'
+  | 'volume';
 
 export interface Clip {
   id: string;
@@ -157,7 +301,13 @@ export interface Clip {
   linkId?: string;
   /** Transition into this clip at its start. */
   transition?: Transition;
+  /** Animation out of this clip at its end (the reverse of a transition in). */
+  transitionOut?: Transition;
   visual?: VisualProps;
+  /** Visual clips: how the picture mixes with what is below (default normal). */
+  blend?: BlendMode;
+  mask?: ClipMask;
+  grade?: ColorGrade;
   title?: TitleStyle;
   /** Caption text. */
   text?: string;
@@ -207,6 +357,8 @@ export interface Project {
   /** In/out work area (export range, loop range). */
   workArea: { start: number; end: number } | null;
   captionStyle: CaptionStyle;
+  /** Imported color lookup tables. */
+  luts: LutAsset[];
 }
 
 export interface TimeRange {

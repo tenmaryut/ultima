@@ -27,6 +27,7 @@ export function createProject(settings: Partial<ProjectSettings> = {}, name = 'U
     markers: [],
     workArea: null,
     captionStyle: defaultCaptionStyle(s.height),
+    luts: [],
   };
 }
 
@@ -38,7 +39,7 @@ export function trackKindForClip(kind: ClipKind): TrackKind {
   return 'video';
 }
 
-export const isVisualClip = (c: Clip) => c.kind === 'video' || c.kind === 'image' || c.kind === 'title';
+export const isVisualClip = (c: Clip) => c.kind === 'video' || c.kind === 'image' || c.kind === 'title' || c.kind === 'adjustment';
 /** Clips whose `in`/`speed` refer to a time-based source. */
 export const usesSource = (c: Clip) => c.kind === 'video' || c.kind === 'audio';
 export const clipEnd = (c: Clip) => c.start + c.duration;
@@ -148,7 +149,7 @@ export function ensureTrack(p: Project, kind: TrackKind, preferred?: string): { 
 /* ------------------------------ Clip creation ------------------------------ */
 
 export function makeClip(kind: ClipKind, trackId: string, start: number, duration: number, extra: Partial<Clip> = {}): Clip {
-  const visual = kind === 'video' || kind === 'image' || kind === 'title' ? { ...DEFAULT_VISUAL } : undefined;
+  const visual = kind === 'video' || kind === 'image' || kind === 'title' || kind === 'adjustment' ? { ...DEFAULT_VISUAL } : undefined;
   return {
     id: uid('c_'),
     kind,
@@ -214,6 +215,16 @@ function freeTrack(p: Project, kind: TrackKind, candidates: Track[], start: numb
 export function findFreeVideoTrack(p: Project, start: number, end: number): { project: Project; trackId: string } {
   const video = tracksOfKind(p, 'video');
   return freeTrack(p, 'video', video.length > 1 ? video.slice(1) : video, start, end);
+}
+
+/** A free, unlocked video track above every clip in [start, end) — adjustment layers change what is below them. */
+export function findTopVideoTrack(p: Project, start: number, end: number): { project: Project; trackId: string } {
+  const video = tracksOfKind(p, 'video');
+  let highest = -1;
+  video.forEach((t, i) => {
+    if (p.clips.some((c) => c.trackId === t.id && c.start < end - EPS && clipEnd(c) > start + EPS)) highest = i;
+  });
+  return freeTrack(p, 'video', video.slice(highest + 1), start, end);
 }
 
 /** Lowest free, unlocked audio track for [start, end), e.g. for a voice-over — adds a track when all are busy. */
@@ -731,11 +742,13 @@ export function changeSettings(p: Project, next: ProjectSettings): Project {
   const clips = p.clips.map((c) => {
     if (!c.visual && !c.title) return c;
     const out = { ...c };
-    if (c.visual) out.visual = { ...c.visual, x: c.visual.x * sx, y: c.visual.y * sy, blur: c.visual.blur * sy };
+    // pixel sizes follow the frame (effects measured in px included)
+    const v = c.visual;
+    if (v) out.visual = { ...v, x: v.x * sx, y: v.y * sy, blur: v.blur * sy, shake: v.shake * sy, rgbSplit: v.rgbSplit * sy, motionBlur: v.motionBlur * sy, glowRadius: v.glowRadius * sy };
     if (c.keys) {
       const scale = (list: Keyframe[] | undefined, f: number) => list?.map((k) => ({ ...k, v: k.v * f }));
-      out.keys = { ...c.keys, x: scale(c.keys.x, sx), y: scale(c.keys.y, sy), blur: scale(c.keys.blur, sy) };
-      for (const k of ['x', 'y', 'blur'] as const) if (!out.keys[k]) delete out.keys[k];
+      out.keys = { ...c.keys, x: scale(c.keys.x, sx), y: scale(c.keys.y, sy), blur: scale(c.keys.blur, sy), shake: scale(c.keys.shake, sy), rgbSplit: scale(c.keys.rgbSplit, sy), motionBlur: scale(c.keys.motionBlur, sy) };
+      for (const k of ['x', 'y', 'blur', 'shake', 'rgbSplit', 'motionBlur'] as const) if (!out.keys[k]) delete out.keys[k];
     }
     if (c.title) out.title = { ...c.title, size: Math.max(4, Math.round(c.title.size * sy)), outlineWidth: c.title.outlineWidth * sy };
     return out;

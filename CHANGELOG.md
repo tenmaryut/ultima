@@ -18,6 +18,10 @@ All notable changes to Ultima are listed here. Versions follow [semantic version
 - Keyframes for position, scale, rotation, opacity, color, blur and volume (◆ in the inspector, diamonds on the
   timeline), speed curves (Montage hit, slow-mo in the middle…), play backwards, freeze frame and smooth slow motion
   — in the editor and for the AI.
+- Montage effects (camera shake, glow, RGB split, motion blur, zoom blur, vignette, sharpen, film grain, letterbox),
+  16 color looks, `.cube` LUT import, tone curves, HSL per color range, blend modes, masks, transitions out, eight
+  new transitions (flash, whip pans, spin, zoom blur, glitch, luma fade, blur dissolve) and adjustment layers —
+  rendered on the GPU (WebGL2, with a CPU fallback), the same in the preview and the export, and available to the AI.
 
 ## [0.1.0] — 2026-10-11
 

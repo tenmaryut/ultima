@@ -1,4 +1,4 @@
-import type { CaptionStyle, Clip, Easing, Keyframe, KeyProp, MediaRef, Project, TitleStyle, TrackKind, TransitionKind } from '../types';
+import type { BlendMode, CaptionStyle, Clip, Easing, Keyframe, KeyProp, LookId, MediaRef, Project, TitleStyle, TrackKind, TransitionKind } from '../types';
 import { EASINGS, KEY_PROPS, KEY_RANGES, RAMP_PRESETS, rampPreset, type RampPreset } from '../keyframes';
 import {
   addCaptionCues,
@@ -34,8 +34,26 @@ import {
   clearRange,
   freezeFrameAt,
   setSpeedRamp,
+  findTopVideoTrack,
 } from '../model';
-import { DEFAULT_STILL_DURATION, FPS_OPTIONS, MAX_SPEED, MAX_VOLUME_DB, MIN_SPEED, MIN_VOLUME_DB, TITLE_PRESETS, TRANSITION_KINDS, titlePreset } from '../presets';
+import {
+  BLEND_IDS,
+  DEFAULT_GRADE,
+  DEFAULT_MASK,
+  DEFAULT_STILL_DURATION,
+  EFFECT_PROPS,
+  FPS_OPTIONS,
+  MAX_SPEED,
+  MAX_VOLUME_DB,
+  MIN_SPEED,
+  MIN_VOLUME_DB,
+  TITLE_PRESETS,
+  TRANSITION_KINDS,
+  titlePreset,
+} from '../presets';
+import { LOOKS } from '../grade';
+import { letterboxBars } from '../fx';
+import { parseGrade, parseMask } from '../project';
 import { EPS, clampNum, frameDur } from '../time';
 import { Skip, findTrack, resolveClips, trackOrCreate } from './targets';
 import { finite, isObj, plainText, safeColor, sec, type Obj } from './util';
@@ -146,8 +164,35 @@ function buildTitle(p: Project, styleArg: unknown, position: unknown, text: stri
   return t;
 }
 
+const letters = (v: string) => v.toLowerCase().replace(/[^a-z]/g, '');
+
+/** A look id from an id or a name ("teal & orange"). */
+function lookFrom(v: unknown): LookId | undefined {
+  if (typeof v !== 'string') return undefined;
+  const k = letters(v);
+  return LOOKS.find((l) => letters(l.id) === k || letters(l.label) === k)?.id;
+}
+
+const BLEND_ALIASES: Record<string, BlendMode> = { lighter: 'add', additive: 'add', lineardodge: 'add', none: 'normal' };
+
+function blendFrom(v: unknown): BlendMode | undefined {
+  if (typeof v !== 'string') return undefined;
+  const k = letters(v);
+  return BLEND_IDS.find((b) => letters(b) === k) ?? BLEND_ALIASES[k];
+}
+
+/** Bar height (fraction of the frame) for an aspect ratio such as "2.39:1". */
+function barsFor(ratio: string, W: number, H: number): number | null {
+  const m = /^\s*(\d+(?:\.\d+)?)\s*[:x/]\s*(\d+(?:\.\d+)?)\s*$/.exec(ratio);
+  if (!m) return null;
+  return letterboxBars(Number(m[1]) / Math.max(1e-6, Number(m[2])), W, H);
+}
+
+/** Percentages are accepted for 0-1 values. */
+const unit01 = (v: number, max = 1) => (v > max && v <= 100 ? v / 100 : v);
+
 /** Applies one setClip props object to a clip (speed is handled separately). */
-function patchClip(p: Project, cl: Clip, pr: Obj, fonts: string[] | undefined, changed: string[]): Clip {
+function patchClip(p: Project, cl: Clip, pr: Obj, fonts: string[] | undefined, changed: string[], warn: string[] = []): Clip {
   const W = p.settings.width;
   const H = p.settings.height;
   const next: Clip = { ...cl };
@@ -190,7 +235,76 @@ function patchClip(p: Project, cl: Clip, pr: Obj, fonts: string[] | undefined, c
       if (finite(ck.similarity)) set('chromaSimilarity', clampNum(ck.similarity, 0, 1));
       if (finite(ck.smoothness)) set('chromaSmoothness', clampNum(ck.smoothness, 0, 1));
     }
+    for (const e of EFFECT_PROPS) {
+      const raw = pr[e.prop];
+      const [lo, hi] = KEY_RANGES[e.prop];
+      if (e.prop === 'letterbox' && typeof raw === 'string') {
+        const bars = barsFor(raw, W, H);
+        if (bars === null) warn.push(`letterbox "${raw}" is not a ratio like "2.39:1"`);
+        else set('letterbox', bars);
+      } else if (finite(raw)) set(e.prop, clampNum(hi <= 1 ? unit01(raw, hi) : raw, lo, hi));
+    }
+    if (finite(pr.shakeSpeed)) set('shakeSpeed', clampNum(pr.shakeSpeed, 0.5, 60));
+    if (finite(pr.glowRadius)) set('glowRadius', clampNum(pr.glowRadius, 1, 200));
+    if (finite(pr.motionBlurAngle)) set('motionBlurAngle', clampNum(pr.motionBlurAngle, -360, 360));
     next.visual = v;
+  }
+  if (cl.visual) {
+    const blendRaw = pr.blendMode ?? pr.blend;
+    if (blendRaw !== undefined) {
+      const b = blendFrom(blendRaw);
+      if (!b) warn.push(`unknown blend mode ${String(blendRaw)} (use ${BLEND_IDS.join(', ')})`);
+      else if ((b === 'normal' ? undefined : b) !== cl.blend) {
+        next.blend = b === 'normal' ? undefined : b;
+        mark('blendMode');
+      }
+    }
+    if (pr.mask === null || pr.mask === false || pr.mask === 'none') {
+      if (cl.mask) {
+        next.mask = undefined;
+        mark('mask removed');
+      }
+    } else if (isObj(pr.mask) || typeof pr.mask === 'string') {
+      const raw: Obj = typeof pr.mask === 'string' ? { shape: pr.mask } : { ...pr.mask };
+      for (const k of ['x', 'y', 'w', 'h'] as const) if (finite(raw[k]) && (raw[k] as number) > 4) raw[k] = (raw[k] as number) / 100;
+      if (finite(raw.feather)) raw.feather = unit01(raw.feather as number, 0.5);
+      const m = parseMask({ ...(cl.mask ?? DEFAULT_MASK), ...raw });
+      if (!m) warn.push('a mask needs "shape": rectangle, ellipse or linear');
+      else if (JSON.stringify(m) !== JSON.stringify(cl.mask)) {
+        next.mask = m;
+        mark('mask');
+      }
+    }
+    if (['look', 'lookAmount', 'lut', 'lutAmount', 'curves', 'hsl', 'grade'].some((k) => pr[k] !== undefined)) {
+      const g: Obj = { ...(cl.grade ?? DEFAULT_GRADE), ...(isObj(pr.grade) ? pr.grade : {}) };
+      if (pr.look !== undefined) {
+        const id = pr.look === null || pr.look === 'none' ? undefined : lookFrom(pr.look);
+        if (pr.look !== null && pr.look !== 'none' && !id) warn.push(`unknown look ${String(pr.look)}`);
+        else g.look = id;
+      }
+      if (finite(pr.lookAmount)) g.lookAmount = unit01(pr.lookAmount);
+      if (pr.lut !== undefined) {
+        const key = typeof pr.lut === 'string' ? pr.lut.toLowerCase() : '';
+        const lut = p.luts.find((l) => l.id === pr.lut) ?? p.luts.find((l) => l.name.toLowerCase() === key) ?? p.luts.find((l) => key && l.name.toLowerCase().includes(key));
+        if (pr.lut !== null && pr.lut !== 'none' && !lut) warn.push(`unknown LUT ${String(pr.lut)} (import a .cube file first)`);
+        else g.lut = lut?.id;
+      }
+      if (finite(pr.lutAmount)) g.lutAmount = unit01(pr.lutAmount);
+      if (pr.curves === null) g.curves = undefined;
+      else if (isObj(pr.curves)) g.curves = { ...(isObj(g.curves) ? g.curves : {}), ...pr.curves };
+      if (pr.hsl === null) g.hsl = undefined;
+      else if (isObj(pr.hsl)) {
+        const old = isObj(g.hsl) ? (g.hsl as Obj) : {};
+        const merged: Obj = { ...old };
+        for (const [k, adj] of Object.entries(pr.hsl)) merged[k] = isObj(adj) ? { ...(isObj(old[k]) ? (old[k] as Obj) : {}), ...adj } : adj;
+        g.hsl = merged;
+      }
+      const grade = parseGrade(g, new Set(p.luts.map((l) => l.id)));
+      if (JSON.stringify(grade) !== JSON.stringify(cl.grade)) {
+        next.grade = grade;
+        mark('color grade');
+      }
+    }
   }
   if ((finite(pr.volume) || pr.muted === true) && cl.kind === 'audio') {
     const vol = pr.muted === true ? MIN_VOLUME_DB : clampNum(pr.volume as number, MIN_VOLUME_DB, MAX_VOLUME_DB);
@@ -263,9 +377,9 @@ function patchClip(p: Project, cl: Clip, pr: Obj, fonts: string[] | undefined, c
 /** Converts an AI value to the unit a keyframed property uses (like setClip does). */
 function keyUnit(prop: KeyProp, v: number): number {
   let x = v;
-  if (prop === 'opacity' && x > 1) x /= 100;
-  if (prop === 'scale' && x > 10) x /= 100;
   const [lo, hi] = KEY_RANGES[prop];
+  if (hi <= 1) x = unit01(x, hi);
+  if (prop === 'scale' && x > 10) x /= 100;
   return clampNum(x, lo, hi);
 }
 
@@ -489,6 +603,7 @@ const handlers: Record<string, Handler> = {
     const pr = a.props;
     const { ids, notes } = resolveClips(s.p, a, { selection: s.ctx.selection });
     const changed: string[] = [];
+    const warn: string[] = [];
     for (const id of ids) {
       const c = getClip(s.p, id);
       if (!c) continue;
@@ -497,7 +612,7 @@ const handlers: Record<string, Handler> = {
         s.p = setClipSpeed(s.p, c.id, clampNum(pr.speed, MIN_SPEED, MAX_SPEED));
         if (s.p !== before && !changed.includes('speed')) changed.push('speed');
       }
-      s.p = updateClip(s.p, c.id, (cl) => patchClip(s.p, cl, pr, s.ctx.fonts, changed));
+      s.p = updateClip(s.p, c.id, (cl) => patchClip(s.p, cl, pr, s.ctx.fonts, changed, warn));
       // reversing a video reverses its sound too
       if (typeof pr.reverse === 'boolean' && c.kind === 'video' && c.linkId) {
         for (const partner of s.p.clips.filter((x) => x.linkId === c.linkId && x.kind === 'audio')) s.p = updateClip(s.p, partner.id, (x) => ({ ...x, reverse: (pr.reverse as boolean) || undefined }));
@@ -513,17 +628,19 @@ const handlers: Record<string, Handler> = {
         }
       }
     }
-    if (!changed.length) throw new Skip(`nothing changed${notes.length ? ` (${notes.join('; ')})` : ' (unknown or unsupported props, or the values were already set)'}`);
+    const all = [...notes, ...new Set(warn)];
+    if (!changed.length) throw new Skip(`nothing changed${all.length ? ` (${all.join('; ')})` : ' (unknown or unsupported props, or the values were already set)'}`);
     const speedNote = changed.includes('speed') ? '; speed changes the clip length (length = source span ÷ speed)' : '';
-    return `${ids.length} clip(s): ${changed.join(', ')}${speedNote}${notes.length ? ` (${notes.join('; ')})` : ''}`;
+    return `${ids.length} clip(s): ${changed.join(', ')}${speedNote}${all.length ? ` (${all.join('; ')})` : ''}`;
   },
 
   addTransition(s, a) {
     const { ids, notes } = resolveClips(s.p, a, { kinds: [...VISUAL_KINDS], selection: s.ctx.selection });
     const kind = a.kind;
     if (kind !== 'none' && !TRANSITION_KINDS.includes(kind as TransitionKind)) throw new Skip(`unknown transition ${String(kind)} (use ${TRANSITION_KINDS.join(', ')} or none)`);
-    // several clips: transitions go between clips, so clips with nothing right before them are left alone
-    const many = ids.length > 1;
+    const out = a.position === 'out' || a.out === true || a.side === 'out';
+    // several clips: transitions in go between clips, so clips with nothing right before them are left alone
+    const many = ids.length > 1 && !out;
     let done = 0;
     let lone = 0;
     for (const id of ids) {
@@ -535,16 +652,41 @@ const handlers: Record<string, Handler> = {
           continue;
         }
       }
-      if (kind === 'none') s.p = updateClip(s.p, c.id, (x) => ({ ...x, transition: undefined }));
-      else {
-        const duration = clampNum(finite(a.duration) ? a.duration : 1, 0.1, Math.min(5, c.duration));
-        s.p = updateClip(s.p, c.id, (x) => ({ ...x, transition: { kind: kind as TransitionKind, duration } }));
-      }
+      const value = kind === 'none' ? undefined : { kind: kind as TransitionKind, duration: clampNum(finite(a.duration) ? a.duration : 1, 0.1, Math.min(5, c.duration)) };
+      s.p = updateClip(s.p, c.id, (x) => (out ? { ...x, transitionOut: value } : { ...x, transition: value }));
       done++;
     }
-    if (!done) throw new Skip('no clip has another clip right before it on its track');
+    if (!done) throw new Skip('no clip has another clip right before it on its track (use "position":"out" for an animation at the end of a clip)');
     const extra = [...notes, lone ? `${lone} clip(s) without a clip right before them were left alone` : ''].filter(Boolean);
-    return `${kind === 'none' ? 'removed transitions from' : `${String(kind)} into`} ${done} clip(s)${extra.length ? ` (${extra.join('; ')})` : ''}`;
+    const what = kind === 'none' ? `removed ${out ? 'out-animations' : 'transitions'} from` : out ? `${String(kind)} out of` : `${String(kind)} into`;
+    return `${what} ${done} clip(s)${extra.length ? ` (${extra.join('; ')})` : ''}`;
+  },
+
+  addAdjustment(s, a) {
+    const end = timelineDuration(s.p);
+    const start = clampNum(finite(a.start) ? a.start : s.ctx.playhead, 0, 1e6);
+    const duration = isFull(a.duration) || a.duration === undefined ? Math.max(0.3, (end > start + 0.3 ? end : start + 4) - start) : clampNum(finite(a.duration) ? a.duration : 4, 0.1, 36000);
+    let project = s.p;
+    let trackId: string;
+    if (a.track !== undefined) {
+      const r = trackOrCreate(s.p, a.track, 'video');
+      if (!r.track) throw new Skip(`unknown video track ${String(a.track)}`);
+      if (r.track.locked) throw new Skip(`track ${r.track.name} is locked`);
+      project = r.project;
+      trackId = r.track.id;
+    } else {
+      // above every picture it should change
+      const r = findTopVideoTrack(s.p, start, start + duration);
+      project = r.project;
+      trackId = r.trackId;
+    }
+    let clip = makeClip('adjustment', trackId, start, duration, { name: plainText(a.name, 80) || 'Adjustment' });
+    const changed: string[] = [];
+    const warn: string[] = [];
+    if (isObj(a.props)) clip = patchClip(project, clip, a.props, s.ctx.fonts, changed, warn);
+    s.p = insertClips(project, [clip]);
+    const below = tracksOfKind(s.p, 'video').findIndex((t) => t.id === trackId);
+    return `added adjustment layer ${clip.id} on ${trackName(s.p, trackId)} at ${sec(start)}–${sec(start + duration)}; it changes tracks V1–V${below}${changed.length ? ` (${changed.join(', ')})` : ''}${warn.length ? ` (${warn.join('; ')})` : ''}`;
   },
 
   addMarker(s, a) {

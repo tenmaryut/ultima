@@ -1,4 +1,6 @@
 import { memo, type CSSProperties } from 'react';
+import { SlidersHorizontal } from 'lucide-react';
+import { Button } from '../../../components/ui';
 import { useT } from '../../../core/i18n';
 import { TITLE_PRESETS, DEFAULT_TITLE_DURATION, type TitlePresetId } from '../presets';
 import { DND_MIME, setDragPayload } from '../dnd';
@@ -21,7 +23,7 @@ const ART: Record<TitlePresetId, { text: string; style: CSSProperties }[]> = {
   ],
 };
 
-export const GraphicsPanel = memo(function GraphicsPanel({ onAdd }: { onAdd: (id: TitlePresetId) => void }) {
+export const GraphicsPanel = memo(function GraphicsPanel({ onAdd, onAddAdjustment }: { onAdd: (id: TitlePresetId) => void; onAddAdjustment: () => void }) {
   const t = useT();
   return (
     <>
@@ -55,6 +57,11 @@ export const GraphicsPanel = memo(function GraphicsPanel({ onAdd }: { onAdd: (id
         ))}
       </div>
       <div className="vd-hint">{t('Titles go on a free video track above your footage. Edit the text, font, colors and animation in the inspector.')}</div>
+      <div className="vd-section-title">{t('Adjustment layer')}</div>
+      <Button size="sm" icon={SlidersHorizontal} onClick={onAddAdjustment}>
+        {t('Add adjustment layer')}
+      </Button>
+      <div className="vd-hint">{t('One color grade, look or effect (shake, glow, letterbox…) for everything below it, from the playhead to the end.')}</div>
     </>
   );
 });

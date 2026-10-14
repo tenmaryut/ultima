@@ -1,4 +1,4 @@
-import type { CaptionStyle, ProjectSettings, TitleAnimation, TitleStyle, TransitionKind, VisualProps } from './types';
+import type { BlendMode, CaptionStyle, ClipMask, ColorGrade, ProjectSettings, TitleAnimation, TitleStyle, TransitionKind, VisualProps } from './types';
 
 /** Pure defaults and preset tables (no DOM). */
 
@@ -38,7 +38,58 @@ export const DEFAULT_VISUAL: VisualProps = {
   chromaColor: '#00ff00',
   chromaSimilarity: 0.3,
   chromaSmoothness: 0.1,
+  shake: 0,
+  shakeSpeed: 12,
+  glow: 0,
+  glowRadius: 24,
+  rgbSplit: 0,
+  motionBlur: 0,
+  motionBlurAngle: 0,
+  zoomBlur: 0,
+  vignette: 0,
+  sharpen: 0,
+  grain: 0,
+  letterbox: 0,
 };
+
+/** Effect sliders: property, label, range and step (all animatable with keyframes). */
+export const EFFECT_PROPS: { prop: 'shake' | 'glow' | 'rgbSplit' | 'motionBlur' | 'zoomBlur' | 'vignette' | 'sharpen' | 'grain' | 'letterbox'; label: string; max: number; step: number; unit: 'px' | '%' }[] = [
+  { prop: 'shake', label: 'Camera shake', max: 120, step: 1, unit: 'px' },
+  { prop: 'glow', label: 'Glow', max: 1, step: 0.01, unit: '%' },
+  { prop: 'rgbSplit', label: 'RGB split', max: 60, step: 0.5, unit: 'px' },
+  { prop: 'motionBlur', label: 'Motion blur', max: 200, step: 1, unit: 'px' },
+  { prop: 'zoomBlur', label: 'Zoom blur', max: 1, step: 0.01, unit: '%' },
+  { prop: 'vignette', label: 'Vignette', max: 1, step: 0.01, unit: '%' },
+  { prop: 'sharpen', label: 'Sharpen', max: 1, step: 0.01, unit: '%' },
+  { prop: 'grain', label: 'Film grain', max: 1, step: 0.01, unit: '%' },
+  { prop: 'letterbox', label: 'Letterbox', max: 0.3, step: 0.005, unit: '%' },
+];
+
+export const BLEND_MODES: { id: BlendMode; label: string }[] = [
+  { id: 'normal', label: 'Normal' },
+  { id: 'multiply', label: 'Multiply' },
+  { id: 'screen', label: 'Screen' },
+  { id: 'overlay', label: 'Overlay' },
+  { id: 'darken', label: 'Darken' },
+  { id: 'lighten', label: 'Lighten' },
+  { id: 'colorDodge', label: 'Color dodge' },
+  { id: 'colorBurn', label: 'Color burn' },
+  { id: 'hardLight', label: 'Hard light' },
+  { id: 'softLight', label: 'Soft light' },
+  { id: 'difference', label: 'Difference' },
+  { id: 'exclusion', label: 'Exclusion' },
+  { id: 'hue', label: 'Hue' },
+  { id: 'saturation', label: 'Saturation' },
+  { id: 'color', label: 'Color' },
+  { id: 'luminosity', label: 'Luminosity' },
+  { id: 'add', label: 'Add (light)' },
+];
+
+export const BLEND_IDS = BLEND_MODES.map((b) => b.id);
+
+export const DEFAULT_MASK: ClipMask = { shape: 'ellipse', x: 0.5, y: 0.5, w: 0.6, h: 0.6, rotation: 0, feather: 0.05, invert: false };
+
+export const DEFAULT_GRADE: ColorGrade = { lookAmount: 1, lutAmount: 1 };
 
 export const TRANSITIONS: { kind: TransitionKind; label: string }[] = [
   { kind: 'dissolve', label: 'Cross dissolve' },
@@ -48,6 +99,14 @@ export const TRANSITIONS: { kind: TransitionKind; label: string }[] = [
   { kind: 'wipeRight', label: 'Wipe right' },
   { kind: 'slide', label: 'Slide' },
   { kind: 'zoom', label: 'Zoom' },
+  { kind: 'flash', label: 'Flash' },
+  { kind: 'whipLeft', label: 'Whip pan left' },
+  { kind: 'whipRight', label: 'Whip pan right' },
+  { kind: 'spin', label: 'Spin' },
+  { kind: 'zoomBlur', label: 'Zoom blur' },
+  { kind: 'glitch', label: 'Glitch' },
+  { kind: 'lumaFade', label: 'Luma fade' },
+  { kind: 'blurDissolve', label: 'Blur dissolve' },
 ];
 
 export const TRANSITION_KINDS = TRANSITIONS.map((t) => t.kind);

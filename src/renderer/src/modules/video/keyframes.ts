@@ -7,7 +7,29 @@ import { DEFAULT_VISUAL, MAX_SPEED, MIN_SPEED } from './presets';
  * last keyframe, and `ease` shapes the curve towards the next one.
  */
 
-export const KEY_PROPS: readonly KeyProp[] = ['x', 'y', 'scale', 'rotation', 'opacity', 'blur', 'brightness', 'contrast', 'saturation', 'hue', 'temperature', 'volume'];
+export const KEY_PROPS: readonly KeyProp[] = [
+  'x',
+  'y',
+  'scale',
+  'rotation',
+  'opacity',
+  'blur',
+  'brightness',
+  'contrast',
+  'saturation',
+  'hue',
+  'temperature',
+  'shake',
+  'glow',
+  'rgbSplit',
+  'motionBlur',
+  'zoomBlur',
+  'vignette',
+  'sharpen',
+  'grain',
+  'letterbox',
+  'volume',
+];
 export const VISUAL_KEY_PROPS = KEY_PROPS.filter((k) => k !== 'volume') as Exclude<KeyProp, 'volume'>[];
 export const EASINGS: readonly Easing[] = ['linear', 'easeIn', 'easeOut', 'easeInOut', 'hold'];
 
@@ -24,6 +46,15 @@ export const KEY_RANGES: Record<KeyProp, [number, number]> = {
   saturation: [-100, 100],
   hue: [-180, 180],
   temperature: [-100, 100],
+  shake: [0, 400],
+  glow: [0, 1],
+  rgbSplit: [0, 200],
+  motionBlur: [0, 600],
+  zoomBlur: [0, 1],
+  vignette: [0, 1],
+  sharpen: [0, 1],
+  grain: [0, 1],
+  letterbox: [0, 0.3],
   volume: [-60, 12],
 };
 

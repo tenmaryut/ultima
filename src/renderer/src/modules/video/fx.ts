@@ -87,47 +87,188 @@ export function hitLayout(l: ClipLayout, px: number, py: number): boolean {
   return lx >= l.dx && lx <= l.dx + l.dw && ly >= l.dy && ly <= l.dy + l.dh;
 }
 
+/** How a transition (or a clip effect) changes the drawing of one clip. */
+export interface Mods {
+  /** Opacity multiplier. */
+  alpha: number;
+  /** Offset in fractions of the frame. */
+  dx: number;
+  dy: number;
+  /** Scale and rotation (degrees) around the frame center. */
+  scale: number;
+  rotation: number;
+  /** Visible horizontal band of the frame (wipes), fractions of the width. */
+  band: { x0: number; x1: number } | null;
+  /** Motion blur streak in fractions of the frame (whip pans). */
+  blurX: number;
+  blurY: number;
+  /** Zoom blur 0-1. */
+  zoomBlur: number;
+  /** Extra blur in project px. */
+  blur: number;
+  /** Extra RGB split in project px. */
+  rgbSplit: number;
+  /** Glitch slices 0-1. */
+  glitch: number;
+  /** Luma fade: visible only where brighter than `threshold`. */
+  luma: { threshold: number; softness: number } | null;
+  /** Varies glitch patterns over time. */
+  seed: number;
+}
+
+export const NO_MODS: Mods = { alpha: 1, dx: 0, dy: 0, scale: 1, rotation: 0, band: null, blurX: 0, blurY: 0, zoomBlur: 0, blur: 0, rgbSplit: 0, glitch: 0, luma: null, seed: 0 };
+
 export interface TransitionFx {
-  /** Draw the outgoing clip (when there is an adjacent one). */
+  /** Draw the outgoing clip A (when there is an adjacent one) and the incoming clip B. */
   showA: boolean;
-  /** Opacity multiplier of the incoming clip. */
-  bAlpha: number;
-  /** Horizontal offset of the incoming clip, fraction of the frame width. */
-  bOffsetX: number;
-  bScale: number;
-  /** Visible horizontal band of the incoming clip (fractions of the frame width). */
-  bClip: { x0: number; x1: number } | null;
   showB: boolean;
-  /** Dip color overlay drawn over the visible clip. */
+  a: Mods;
+  b: Mods;
+  /** Dip color drawn over this track's pictures. */
   dip: { color: string; alpha: number } | null;
 }
 
+const mods = (patch: Partial<Mods>): Mods => ({ ...NO_MODS, ...patch });
+const smoothstep = (e0: number, e1: number, x: number) => {
+  const t = clamp01((x - e0) / (e1 - e0));
+  return t * t * (3 - 2 * t);
+};
+const easeIn = (t: number) => t * t * t;
+/** Speed of easeInOutCubic (0 at the ends, 1.5 in the middle). */
+const easeSpeed = (t: number) => (t < 0.5 ? 12 * t * t : 3 * Math.pow(-2 * t + 2, 2) / 2);
+
+/** What a transition does at `progress` (0 = only the outgoing clip, 1 = only the incoming one). */
 export function transitionFx(kind: TransitionKind, progress: number): TransitionFx {
   const p = clamp01(progress);
-  const base: TransitionFx = { showA: true, bAlpha: 1, bOffsetX: 0, bScale: 1, bClip: null, showB: true, dip: null };
+  const base: TransitionFx = { showA: true, showB: true, a: NO_MODS, b: NO_MODS, dip: null };
   switch (kind) {
     case 'dissolve':
-      return { ...base, bAlpha: p };
+      return { ...base, b: mods({ alpha: p }) };
     case 'dipBlack':
     case 'dipWhite': {
       const color = kind === 'dipBlack' ? '#000000' : '#ffffff';
-      return p < 0.5
-        ? { ...base, showB: false, dip: { color, alpha: p * 2 } }
-        : { ...base, showA: false, dip: { color, alpha: (1 - p) * 2 } };
+      return p < 0.5 ? { ...base, showB: false, dip: { color, alpha: p * 2 } } : { ...base, showA: false, dip: { color, alpha: (1 - p) * 2 } };
+    }
+    case 'flash': {
+      // white builds up just before the cut and fades out quickly after it
+      const x = p < 0.5 ? p * 2 : (1 - p) * 2;
+      return p < 0.5 ? { ...base, showB: false, dip: { color: '#ffffff', alpha: x * x } } : { ...base, showA: false, dip: { color: '#ffffff', alpha: x * x * x } };
     }
     case 'wipeLeft':
-      return { ...base, bClip: { x0: 1 - p, x1: 1 } };
+      return { ...base, b: mods({ band: { x0: 1 - p, x1: 1 } }) };
     case 'wipeRight':
-      return { ...base, bClip: { x0: 0, x1: p } };
+      return { ...base, b: mods({ band: { x0: 0, x1: p } }) };
     case 'slide':
-      return { ...base, bOffsetX: 1 - easeInOutCubic(p) };
+      return { ...base, b: mods({ dx: 1 - easeInOutCubic(p) }) };
     case 'zoom': {
       const e = easeOutCubic(p);
-      return { ...base, bScale: 0.4 + 0.6 * e, bAlpha: e };
+      return { ...base, b: mods({ scale: 0.4 + 0.6 * e, alpha: e }) };
     }
+    case 'whipLeft':
+    case 'whipRight': {
+      // both pictures fly past with a motion streak that is longest in the middle
+      const dir = kind === 'whipLeft' ? -1 : 1;
+      const e = easeInOutCubic(p);
+      const streak = 0.22 * (easeSpeed(p) / 1.5);
+      return { ...base, a: mods({ dx: dir * e, blurX: streak }), b: mods({ dx: dir * (e - 1), blurX: streak }) };
+    }
+    case 'spin': {
+      const e = easeInOutCubic(p);
+      const zoom = 0.45 * (easeSpeed(p) / 1.5);
+      return {
+        ...base,
+        showA: p < 0.6,
+        showB: p > 0.4,
+        a: mods({ rotation: e * 180, scale: 1 + e * 0.6, alpha: 1 - smoothstep(0.4, 0.6, p), zoomBlur: zoom }),
+        b: mods({ rotation: (e - 1) * 180, scale: 1.6 - 0.6 * e, alpha: smoothstep(0.4, 0.6, p), zoomBlur: zoom }),
+      };
+    }
+    case 'zoomBlur': {
+      if (p < 0.5) {
+        const x = easeIn(p * 2);
+        return { ...base, showB: false, a: mods({ scale: 1 + 0.5 * x, zoomBlur: 0.9 * x }) };
+      }
+      const x = easeOutCubic((p - 0.5) * 2);
+      return { ...base, showA: false, b: mods({ scale: 1.5 - 0.5 * x, zoomBlur: 0.9 * (1 - x) }) };
+    }
+    case 'glitch': {
+      // strongest at the cut; the pattern changes 24 times per transition
+      const g = 1 - Math.abs(2 * p - 1);
+      const seed = Math.floor(p * 24);
+      const m = mods({ glitch: g, rgbSplit: 24 * g, seed });
+      return p < 0.5 ? { ...base, showB: false, a: m } : { ...base, showA: false, b: m };
+    }
+    case 'lumaFade':
+      // the brightest parts of the incoming picture appear first
+      return { ...base, b: mods({ luma: { threshold: 1.1 - 1.2 * p, softness: 0.1 } }) };
+    case 'blurDissolve':
+      return { ...base, a: mods({ blur: 40 * p }), b: mods({ blur: 40 * (1 - p), alpha: p }) };
     default:
       return { ...base, showA: false };
   }
+}
+
+/** Bar height (fraction of the frame height, per side) that letterboxes a W×H frame to `ratio` (width / height). */
+export function letterboxBars(ratio: number, W: number, H: number): number {
+  if (!(ratio > 0) || ratio <= W / H) return 0;
+  return Math.min(0.3, (1 - W / H / ratio) / 2);
+}
+
+/** Repeatable pseudo-random numbers 0-1 for a seed (glitch slices, shake phases). */
+export function seeded(seed: number): () => number {
+  let s = (Math.floor(seed) * 2654435761) >>> 0 || 1;
+  return () => {
+    s ^= s << 13;
+    s >>>= 0;
+    s ^= s >>> 17;
+    s ^= s << 5;
+    s >>>= 0;
+    return s / 4294967296;
+  };
+}
+
+/** A number from a string (to give every clip its own shake). */
+export function hashString(text: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619);
+  return h >>> 0;
+}
+
+/**
+ * Camera shake at `t` seconds: smooth, repeatable offsets in px (up to about `amount`) and a small
+ * rotation in degrees. `speed` is roughly the number of shakes per second.
+ */
+export function shakeAt(t: number, amount: number, speed: number, seed: number): { x: number; y: number; rotation: number } {
+  if (amount <= 0) return { x: 0, y: 0, rotation: 0 };
+  const r = seeded(seed);
+  const phase = () => r() * Math.PI * 2;
+  const w = Math.PI * 2 * Math.max(0.1, speed);
+  const p1 = phase();
+  const p2 = phase();
+  const p3 = phase();
+  const p4 = phase();
+  const p5 = phase();
+  const x = amount * (0.62 * Math.sin(w * t + p1) + 0.38 * Math.sin(w * 2.31 * t + p2));
+  const y = amount * (0.62 * Math.sin(w * 1.13 * t + p3) + 0.38 * Math.sin(w * 2.67 * t + p4));
+  const rotation = Math.min(4, amount / 30) * Math.sin(w * 0.87 * t + p5);
+  return { x, y, rotation };
+}
+
+/** Horizontal glitch slices: bands (fractions of the height) and their sideways shift (fractions of the width). */
+export function glitchSlices(amount: number, seed: number): { y0: number; y1: number; shift: number }[] {
+  if (amount <= 0) return [];
+  const r = seeded(seed + 7919);
+  const out: { y0: number; y1: number; shift: number }[] = [];
+  let y = 0;
+  while (y < 1) {
+    const h = 0.02 + r() * 0.12;
+    const y1 = Math.min(1, y + h);
+    // most bands stay, some jump sideways
+    const shift = r() < 0.45 * amount + 0.1 ? (r() - 0.5) * 0.16 * amount : 0;
+    out.push({ y0: y, y1, shift });
+    y = y1;
+  }
+  return out;
 }
 
 export interface TitleAnimState {
@@ -154,55 +295,5 @@ export function titleAnimState(anim: TitleAnimation, local: number, duration: nu
       return { alpha: clamp01((duration - local) / 0.25), dy: 0, scale: 1, reveal: tin };
     default:
       return { alpha: 1, dy: 0, scale: 1, reveal: 1 };
-  }
-}
-
-/* ------------------------------- Pixel effects ------------------------------ */
-
-/** Warm (+) / cool (−) white balance shift, amount −100..100. In place. */
-export function applyTemperature(data: Uint8ClampedArray, amount: number): void {
-  const k = Math.max(-1, Math.min(1, amount / 100));
-  if (!k) return;
-  const rm = 1 + 0.22 * k;
-  const gm = 1 + 0.04 * k;
-  const bm = 1 - 0.22 * k;
-  for (let i = 0; i < data.length; i += 4) {
-    data[i] = data[i] * rm;
-    data[i + 1] = data[i + 1] * gm;
-    data[i + 2] = data[i + 2] * bm;
-  }
-}
-
-function cbcr(r: number, g: number, b: number): [number, number] {
-  return [(-0.168736 * r - 0.331264 * g + 0.5 * b) / 255, (0.5 * r - 0.418688 * g - 0.081312 * b) / 255];
-}
-
-/**
- * Chroma key (green screen): pixels close to `key` in CbCr space become transparent.
- * `similarity` and `smoothness` are 0..1. Edges are de-spilled. In place.
- */
-export function applyChromaKey(data: Uint8ClampedArray, key: { r: number; g: number; b: number }, similarity: number, smoothness: number): void {
-  const [kcb, kcr] = cbcr(key.r, key.g, key.b);
-  const t0 = Math.max(0, similarity) * 0.6;
-  const t1 = t0 + Math.max(0.005, smoothness * 0.3);
-  const dominant = key.g >= key.r && key.g >= key.b ? 1 : key.b >= key.r ? 2 : 0;
-  for (let i = 0; i < data.length; i += 4) {
-    const r = data[i];
-    const g = data[i + 1];
-    const b = data[i + 2];
-    const [pcb, pcr] = cbcr(r, g, b);
-    const d = Math.hypot(pcb - kcb, pcr - kcr);
-    if (d >= t1 + 0.08) continue;
-    let a = 1;
-    if (d < t0) a = 0;
-    else if (d < t1) {
-      const x = (d - t0) / (t1 - t0);
-      a = x * x * (3 - 2 * x);
-    }
-    data[i + 3] = data[i + 3] * a;
-    // spill suppression: clamp the key's dominant channel to the other two
-    const ch = i + dominant;
-    const others = dominant === 0 ? Math.max(g, b) : dominant === 1 ? Math.max(r, b) : Math.max(r, g);
-    if (data[ch] > others) data[ch] = others + (data[ch] - others) * Math.max(0, Math.min(1, (d - t0) / (t1 + 0.08 - t0)));
   }
 }

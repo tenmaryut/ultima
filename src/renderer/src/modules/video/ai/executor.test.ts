@@ -273,6 +273,57 @@ describe('motion and time', () => {
   });
 });
 
+describe('effects, color and compositing', () => {
+  it('sets effects (percentages and ratios too), blend modes and masks', () => {
+    const { p, a } = project();
+    const r = run(p, [{ type: 'setClip', clipId: a, props: { glow: 50, shake: 30, letterbox: '2.39:1', blendMode: 'color-dodge', mask: { shape: 'ellipse', x: 50, w: 40, feather: 10 }, zoomBlur: 0.4 } }]);
+    const c = getClip(r.project, a)!;
+    expect([c.visual!.glow, c.visual!.shake, c.visual!.zoomBlur, c.blend]).toEqual([0.5, 30, 0.4, 'colorDodge']);
+    expect(c.visual!.letterbox).toBeCloseTo((1 - 16 / 9 / 2.39) / 2, 4);
+    expect(c.mask).toMatchObject({ shape: 'ellipse', x: 0.5, w: 0.4, feather: 0.1 });
+    const removed = run(r.project, [{ type: 'setClip', clipId: a, props: { mask: 'none', blendMode: 'normal' } }]);
+    expect([getClip(removed.project, a)!.mask, getClip(removed.project, a)!.blend]).toEqual([undefined, undefined]);
+    expect(run(p, [{ type: 'setClip', clipId: a, props: { blendMode: 'sparkle' } }]).results[0].detail).toContain('unknown blend mode sparkle');
+  });
+
+  it('grades with looks by name, curves and HSL that merge', () => {
+    const { p, a } = project();
+    let r = run(p, [{ type: 'setClip', clipId: a, props: { look: 'Teal & orange', lookAmount: 70, curves: { master: [[0, 0], [0.25, 0.2], [0.75, 0.8], [1, 1]] }, hsl: { blue: { s: 30 } } } }]);
+    expect(getClip(r.project, a)!.grade).toEqual({ look: 'tealOrange', lookAmount: 0.7, lutAmount: 1, curves: { master: [[0, 0], [0.25, 0.2], [0.75, 0.8], [1, 1]] }, hsl: { blue: { h: 0, s: 30, l: 0 } } });
+    r = run(r.project, [{ type: 'setClip', clipId: a, props: { hsl: { blue: { l: -10 }, orange: { h: 5 } }, look: 'none' } }]);
+    const g = getClip(r.project, a)!.grade!;
+    expect([g.look, g.hsl]).toEqual([undefined, { blue: { h: 0, s: 30, l: -10 }, orange: { h: 5, s: 0, l: 0 } }]);
+    const bad = run(p, [{ type: 'setClip', clipId: a, props: { look: 'rainbow', lut: 'film' } }]);
+    expect(bad.results[0].detail).toMatch(/unknown look rainbow.*unknown LUT film/);
+  });
+
+  it('animates effect amounts and adds out-animations', () => {
+    const { p, a, b } = project();
+    const r = run(p, [
+      { type: 'keyframes', clipId: a, prop: 'zoomBlur', keys: [{ t: 0, v: 80 }, { t: 0.2, v: 0 }] },
+      { type: 'addTransition', clips: 'V1', kind: 'whipLeft', duration: 0.4, position: 'out' },
+    ]);
+    expect(getClip(r.project, a)!.keys!.zoomBlur!.map((k) => k.v)).toEqual([0.8, 0]);
+    expect([getClip(r.project, a)!.transitionOut, getClip(r.project, b)!.transitionOut]).toEqual([{ kind: 'whipLeft', duration: 0.4 }, { kind: 'whipLeft', duration: 0.4 }]);
+    expect(r.results[1].detail).toContain('whipLeft out of 2 clip(s)');
+  });
+
+  it('adds adjustment layers above the pictures they change', () => {
+    const { p } = project();
+    const withTitle = run(p, [{ type: 'addTitle', text: 'Hi', start: 0, duration: 3 }]).project;
+    const r = run(withTitle, [{ type: 'addAdjustment', start: 0, duration: 'full', name: 'Grade', props: { look: 'cinematic', shake: 10 } }]);
+    const adj = r.project.clips.find((c) => c.kind === 'adjustment')!;
+    const order = tracksOfKind(r.project, 'video').map((t) => t.id);
+    const titleTrack = r.project.clips.find((c) => c.kind === 'title')!.trackId;
+    expect(order.indexOf(adj.trackId)).toBeGreaterThan(order.indexOf(titleTrack));
+    expect([adj.name, adj.grade?.look, adj.visual?.shake, clipEnd(adj)]).toEqual(['Grade', 'cinematic', 10, 12]);
+    expect(r.results[0].detail).toContain('it changes tracks V1–V');
+    const text = describeProject(r.project, { playhead: 0, selection: [] });
+    expect(text).toContain('adjustment "Grade" (changes the tracks below it)');
+    expect(text).toContain('shake 10, look cinematic');
+  });
+});
+
 describe('summary', () => {
   it('lists analysis in timeline seconds for the part of the source that is used', () => {
     const { p, a } = project();

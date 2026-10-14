@@ -377,6 +377,23 @@ suhu, rona, blur); *Chroma key (layar hijau)* untuk layar hijau atau biru.
   klip diputar lebih lambat dari rekamannya. *Bekukan frame di playhead* menahan frame itu selama satu detik dan menggeser
   semua yang ada sesudahnya.
 
+**Efek, gradasi warna, dan komposisi** (Inspektor):
+- *Efek*: guncangan kamera (kekuatan dan kecepatan), pendar (glow), pecah RGB, motion blur (dengan arah), zoom blur,
+  vinyet, pertajam, butiran film, dan letterbox (2.39:1, 2:1, 1.85:1, atau tinggi bebas). Setiap efek bisa dianimasikan
+  dengan ◆, misalnya hentakan tepat di beat.
+- *Gradasi warna*: tampilan warna (Sinematik, Teal & oranye, Hangat, Sejuk, Vintage, Film pudar, Hitam putih, Noir,
+  Sepia, Cerah, Cyberpunk, Moody, Golden hour, Bleach bypass, Pastel, Siang jadi malam) dengan kekuatannya; LUT —
+  *Impor…* file `.cube` (juga lewat *File → Impor LUT (.cube)…* atau seret ke jendela); kurva nada untuk RGB, merah,
+  hijau, dan biru (klik untuk menambah titik, seret, klik ganda untuk menghapus); dan *Rentang warna (HSL)* untuk mengubah
+  rona, saturasi, dan luminans warna merah, oranye, kuning, hijau, aqua, biru, ungu, atau magenta saja.
+- *Mode campur* (Multiply, Screen, Overlay, Soft light, Tambah, dan lainnya) dan *Mask* (persegi panjang, elips, atau
+  belahan lurus, dengan kehalusan tepi dan pembalik; mask ikut bergerak bersama klip).
+- *Transisi keluar* menganimasikan klip keluar di akhirnya. Transisi baru: Kilat, Whip pan ke kiri/kanan, Putar, Zoom
+  blur, Glitch, Luma fade, dan Dissolve blur.
+- **Layer penyesuaian** (tab *Judul*, atau *Timeline → Tambah layer penyesuaian*): klip tanpa gambar yang tampilan
+  warna, warna, efek, mask, dan transformasinya berlaku untuk semua yang ada di trek di bawahnya — satu gradasi, satu
+  guncangan, atau satu letterbox untuk seluruh video.
+
 **Judul dan subtitle.** Tab *Judul*: Judul dasar, Lower third, Besar tebal, Teks bawah, Mesin tik, Label pop, dan Kartu
 penutup — klik atau seret ke timeline, lalu ubah teks, font, warna, garis tepi, latar, dan animasinya (Fade, Geser ke
 atas, Pop, Mesin tik). Tab *Subtitle*: tambah subtitle manual, impor atau ekspor SRT/VTT, atur *Gaya subtitle*, atau buat
@@ -402,7 +419,8 @@ headshot tidak bisa dipastikan hanya dari suara).
 Asisten bisa menambah klip dari bin Media; membelah, memangkas, memindahkan, menggeser, menghapus, dan menggandakan
 klip, merapatkan celah, dan membuang rentang waktu; menautkan dan melepas suara; mengubah satu klip, satu trek, atau
 semua klip sekaligus; menganimasikan dengan keyframe (zoom, geser, guncangan, fade, volume); menambah kurva kecepatan,
-memutar mundur klip, dan membekukan frame; mengubah gaya judul; menambah transisi; menambah, memindahkan, mengganti nama,
+memutar mundur klip, dan membekukan frame; menambah efek, tampilan warna, LUT, kurva, perubahan HSL, mask, mode campur,
+dan layer penyesuaian; mengubah gaya judul; menambah transisi masuk dan keluar; menambah, memindahkan, mengganti nama,
 dan menghapus penanda; menambah, membisukan, mengunci, dan menghapus trek; mengatur area kerja; memindahkan playhead;
 membatalkan (undo); dan membuka dialog ekspor. Setelah Anda menekan *Terapkan* (atau jika *Terapkan editan AI secara
 otomatis* menyala), AI diberi tahu hasil setiap langkah, dan *Hasil tiap langkah* menampilkan daftar yang sama untuk Anda.

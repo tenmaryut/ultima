@@ -1,6 +1,7 @@
-import type { CaptionStyle, Clip, ClipKind, Easing, Keyframe, KeyProp, MediaRef, Project, TitleStyle, Track, Transition, VisualProps } from './types';
+import type { BlendMode, CaptionStyle, Clip, ClipKind, ClipMask, ColorGrade, CurveChannel, Easing, HueRange, Keyframe, KeyProp, LookId, LutAsset, MediaRef, Project, TitleStyle, Track, Transition, VisualProps } from './types';
 import { EASINGS, KEY_PROPS, KEY_RANGES } from './keyframes';
-import { DEFAULT_SETTINGS, DEFAULT_VISUAL, MAX_SPEED, MAX_VOLUME_DB, MIN_SPEED, MIN_VOLUME_DB, TRANSITION_KINDS, defaultCaptionStyle, defaultTitle } from './presets';
+import { BLEND_IDS, DEFAULT_SETTINGS, DEFAULT_VISUAL, MAX_SPEED, MAX_VOLUME_DB, MIN_SPEED, MIN_VOLUME_DB, TRANSITION_KINDS, defaultCaptionStyle, defaultTitle } from './presets';
+import { CURVE_CHANNELS, HUE_RANGE_IDS, LOOK_IDS, cleanCurve, isIdentityCurve } from './grade';
 import { createProject, normalizeLinks, trackKindForClip } from './model';
 import { clampNum } from './time';
 
@@ -23,6 +24,7 @@ export function serializeProject(p: Project): string {
       markers: p.markers,
       workArea: p.workArea,
       captionStyle: p.captionStyle,
+      luts: p.luts,
     },
     null,
     1,
@@ -90,7 +92,72 @@ function parseVisual(v: unknown): VisualProps {
     chromaColor: color(o.chromaColor, d.chromaColor),
     chromaSimilarity: n(o.chromaSimilarity, d.chromaSimilarity, 0, 1),
     chromaSmoothness: n(o.chromaSmoothness, d.chromaSmoothness, 0, 1),
+    shake: n(o.shake, 0, ...KEY_RANGES.shake),
+    shakeSpeed: n(o.shakeSpeed, d.shakeSpeed, 0.5, 60),
+    glow: n(o.glow, 0, ...KEY_RANGES.glow),
+    glowRadius: n(o.glowRadius, d.glowRadius, 1, 200),
+    rgbSplit: n(o.rgbSplit, 0, ...KEY_RANGES.rgbSplit),
+    motionBlur: n(o.motionBlur, 0, ...KEY_RANGES.motionBlur),
+    motionBlurAngle: n(o.motionBlurAngle, 0, -360, 360),
+    zoomBlur: n(o.zoomBlur, 0, ...KEY_RANGES.zoomBlur),
+    vignette: n(o.vignette, 0, ...KEY_RANGES.vignette),
+    sharpen: n(o.sharpen, 0, ...KEY_RANGES.sharpen),
+    grain: n(o.grain, 0, ...KEY_RANGES.grain),
+    letterbox: n(o.letterbox, 0, ...KEY_RANGES.letterbox),
   };
+}
+
+export function parseMask(v: unknown): ClipMask | undefined {
+  if (!isObj(v) || !['rectangle', 'ellipse', 'linear'].includes(v.shape as string)) return undefined;
+  return {
+    shape: v.shape as ClipMask['shape'],
+    x: n(v.x, 0.5, -1, 2),
+    y: n(v.y, 0.5, -1, 2),
+    w: n(v.w, 0.6, 0.001, 4),
+    h: n(v.h, 0.6, 0.001, 4),
+    rotation: n(v.rotation, 0, -3600, 3600),
+    feather: n(v.feather, 0, 0, 0.5),
+    invert: bool(v.invert),
+  };
+}
+
+/** A validated color grade (null-ish parts dropped); undefined when it does nothing. */
+export function parseGrade(v: unknown, lutIds: Set<string>): ColorGrade | undefined {
+  if (!isObj(v)) return undefined;
+  const g: ColorGrade = { lookAmount: n(v.lookAmount, 1, 0, 1), lutAmount: n(v.lutAmount, 1, 0, 1) };
+  if (LOOK_IDS.includes(v.look as LookId)) g.look = v.look as LookId;
+  if (typeof v.lut === 'string' && lutIds.has(v.lut)) g.lut = v.lut;
+  if (isObj(v.curves)) {
+    const curves: Partial<Record<CurveChannel, [number, number][]>> = {};
+    for (const ch of CURVE_CHANNELS) {
+      const pts = cleanCurve(v.curves[ch]);
+      if (pts && !isIdentityCurve(pts)) curves[ch] = pts;
+    }
+    if (Object.keys(curves).length) g.curves = curves;
+  }
+  if (isObj(v.hsl)) {
+    const hsl: NonNullable<ColorGrade['hsl']> = {};
+    for (const id of HUE_RANGE_IDS) {
+      const a = v.hsl[id];
+      if (!isObj(a)) continue;
+      const adj = { h: n(a.h, 0, -30, 30), s: n(a.s, 0, -100, 100), l: n(a.l, 0, -100, 100) };
+      if (adj.h || adj.s || adj.l) hsl[id as HueRange] = adj;
+    }
+    if (Object.keys(hsl).length) g.hsl = hsl;
+  }
+  return g.look || g.lut || g.curves || g.hsl ? g : undefined;
+}
+
+/** Imported LUTs whose data has the right length. */
+function parseLuts(v: unknown): LutAsset[] {
+  const out: LutAsset[] = [];
+  for (const l of Array.isArray(v) ? v.slice(0, 100) : []) {
+    if (!isObj(l) || typeof l.id !== 'string' || typeof l.data !== 'string' || out.some((x) => x.id === l.id)) continue;
+    const size = Math.round(n(l.size, 0, 0, 65));
+    if (size < 2 || l.data.length !== Math.ceil((size ** 3 * 6) / 3) * 4 || !/^[A-Za-z0-9+/]+=*$/.test(l.data)) continue;
+    out.push({ id: l.id.slice(0, 80), name: str(l.name, 'LUT', 200), size, data: l.data });
+  }
+  return out;
 }
 
 export function parseTitle(v: unknown, frameHeight: number): TitleStyle {
@@ -142,7 +209,7 @@ function parseTransition(v: unknown): Transition | undefined {
   return { kind: v.kind as Transition['kind'], duration: n(v.duration, 1, 0.05, 10) };
 }
 
-const CLIP_KINDS: ClipKind[] = ['video', 'audio', 'image', 'title', 'caption'];
+const CLIP_KINDS: ClipKind[] = ['video', 'audio', 'image', 'title', 'caption', 'adjustment'];
 
 /** Parses and validates a saved project. Throws an Error with a readable message. */
 export function parseProject(input: string | unknown): Project {
@@ -207,6 +274,8 @@ export function parseProject(input: string | unknown): Project {
   const finalTracks = tracks.length ? tracks : base.tracks;
   const trackKind = new Map(finalTracks.map((t) => [t.id, t.kind]));
 
+  const luts = parseLuts(data.luts);
+  const lutIds = new Set(luts.map((l) => l.id));
   const clips: Clip[] = [];
   const clipIds = new Set<string>();
   for (const c of Array.isArray(data.clips) ? data.clips : []) {
@@ -218,7 +287,7 @@ export function parseProject(input: string | unknown): Project {
     const duration = n(c.duration, 0, 0, 1e7);
     if (duration <= 0) continue;
     clipIds.add(c.id);
-    const visualKind = kind === 'video' || kind === 'image' || kind === 'title';
+    const visualKind = kind === 'video' || kind === 'image' || kind === 'title' || kind === 'adjustment';
     clips.push({
       id: c.id,
       kind,
@@ -235,7 +304,11 @@ export function parseProject(input: string | unknown): Project {
       fadeOut: n(c.fadeOut, 0, 0, duration),
       linkId: typeof c.linkId === 'string' ? c.linkId.slice(0, 80) : undefined,
       transition: visualKind ? parseTransition(c.transition) : undefined,
+      transitionOut: visualKind ? parseTransition(c.transitionOut) : undefined,
       visual: visualKind ? parseVisual(c.visual) : undefined,
+      blend: visualKind && BLEND_IDS.includes(c.blend as BlendMode) && c.blend !== 'normal' ? (c.blend as BlendMode) : undefined,
+      mask: visualKind ? parseMask(c.mask) : undefined,
+      grade: visualKind ? parseGrade(c.grade, lutIds) : undefined,
       title: kind === 'title' ? parseTitle(c.title, settings.height) : undefined,
       text: kind === 'caption' ? str(c.text, '', 2000) : undefined,
       keys: parseKeys(c.keys, duration, visualKind, kind === 'audio'),
@@ -267,5 +340,6 @@ export function parseProject(input: string | unknown): Project {
     markers,
     workArea,
     captionStyle: parseCaptionStyle(data.captionStyle, settings.height),
+    luts,
   };
 }

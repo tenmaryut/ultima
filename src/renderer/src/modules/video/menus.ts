@@ -14,10 +14,12 @@ import {
   Image as ImageIcon,
   Link2,
   Music,
+  Palette,
   Redo2,
   Save,
   Scissors,
   Settings2,
+  SlidersHorizontal,
   Smartphone,
   Sparkles,
   SquareSplitHorizontal,
@@ -62,6 +64,8 @@ export interface VideoActions {
   setRamp: (preset: RampPreset | 'none') => void;
   toggleReverse: () => void;
   freezeFrame: () => void;
+  addAdjustment: () => void;
+  importLut: () => void;
   resetEffects: () => void;
   renameClip: () => void;
   addTrack: (kind: TrackKind) => void;
@@ -124,6 +128,7 @@ export function buildMenus(t: TFunction, a: VideoActions, s: MenuState): { label
         { label: t('Convert to MP4/MOV with FFmpeg…'), onClick: () => a.exportDialog('ffmpeg'), disabled: !s.canFfmpeg },
         { type: 'separator' },
         { label: t('Import captions (SRT/VTT)…'), icon: Captions, onClick: a.importCaptions },
+        { label: t('Import LUT (.cube)…'), icon: Palette, onClick: a.importLut },
         {
           label: t('Export captions'),
           icon: FileDown,
@@ -192,6 +197,7 @@ export function buildMenus(t: TFunction, a: VideoActions, s: MenuState): { label
         { label: t('Add video track'), icon: Film, onClick: () => a.addTrack('video') },
         { label: t('Add audio track'), icon: Music, onClick: () => a.addTrack('audio') },
         { label: t('Add caption track'), icon: Captions, onClick: () => a.addTrack('caption') },
+        { label: t('Add adjustment layer'), icon: SlidersHorizontal, onClick: a.addAdjustment },
         { type: 'separator' },
         { label: t('Add marker'), icon: Flag, shortcut: 'M', onClick: a.addMarker },
         { label: t('Set in point'), shortcut: 'I', onClick: a.setIn },

@@ -1,5 +1,5 @@
 import { memo, useLayoutEffect, useRef } from 'react';
-import { Captions, Image as ImageIcon, Link2, Music, Rewind, Snowflake, Type, Video } from 'lucide-react';
+import { Captions, Image as ImageIcon, Link2, Music, Rewind, SlidersHorizontal, Snowflake, Type, Video } from 'lucide-react';
 import type { Clip, MediaRef } from '../types';
 import type { MediaLibrary, RuntimeMedia } from '../media';
 import { dbToGain } from '../time';
@@ -22,7 +22,7 @@ export interface ClipViewProps {
   label: string;
 }
 
-const ICONS = { video: Video, image: ImageIcon, audio: Music, title: Type, caption: Captions };
+const ICONS = { video: Video, image: ImageIcon, audio: Music, title: Type, caption: Captions, adjustment: SlidersHorizontal };
 
 function cssVar(el: Element, name: string, fallback: string): string {
   return getComputedStyle(el).getPropertyValue(name).trim() || fallback;

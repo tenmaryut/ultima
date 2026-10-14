@@ -1,6 +1,7 @@
 import type { Clip, Keyframe, KeyProp, Project } from '../types';
 import { clipEnd, getMedia, getTrack, sourceOut, timelineDuration } from '../model';
 import { KEY_PROPS, speedAt, timeOfSource } from '../keyframes';
+import { EFFECT_PROPS } from '../presets';
 import { formatTimecode } from '../time';
 import type { MediaAnalysis } from '../analysisStore';
 
@@ -23,7 +24,18 @@ function keyList(keys: Keyframe[], digits: number): string {
   return list.join(' → ') + (keys.length > 10 ? ` … (+${keys.length - 10} more)` : '');
 }
 
-const KEY_DIGITS: Partial<Record<KeyProp, number>> = { x: 0, y: 0, rotation: 1, opacity: 2, scale: 3, volume: 1 };
+const KEY_DIGITS: Partial<Record<KeyProp, number>> = { x: 0, y: 0, rotation: 1, opacity: 2, scale: 3, volume: 1, glow: 2, zoomBlur: 2, vignette: 2, sharpen: 2, grain: 2, letterbox: 3 };
+
+function gradeSummary(c: Clip, p: Project): string {
+  const g = c.grade;
+  if (!g) return '';
+  const parts: string[] = [];
+  if (g.look) parts.push(`look ${g.look}${g.lookAmount < 1 ? ` ${Math.round(g.lookAmount * 100)}%` : ''}`);
+  if (g.lut) parts.push(`LUT ${g.lut} "${p.luts.find((l) => l.id === g.lut)?.name ?? '?'}"${g.lutAmount < 1 ? ` ${Math.round(g.lutAmount * 100)}%` : ''}`);
+  if (g.curves) parts.push(`curves ${Object.entries(g.curves).map(([ch, pts]) => `${ch} ${pts!.map(([x, y]) => `${+x.toFixed(2)}→${+y.toFixed(2)}`).join(' ')}`).join('; ')}`);
+  if (g.hsl) parts.push(`hsl ${Object.entries(g.hsl).map(([r, a]) => `${r} h${a!.h} s${a!.s} l${a!.l}`).join(', ')}`);
+  return parts.join(', ');
+}
 
 function effectsSummary(c: Clip): string {
   const parts: string[] = [];
@@ -48,6 +60,18 @@ function effectsSummary(c: Clip): string {
   if (c.fadeIn) parts.push(`fade in ${s2(c.fadeIn)}s`);
   if (c.fadeOut) parts.push(`fade out ${s2(c.fadeOut)}s`);
   if (c.transition) parts.push(`transition in ${c.transition.kind} ${c.transition.duration}s`);
+  if (c.transitionOut) parts.push(`out-animation ${c.transitionOut.kind} ${c.transitionOut.duration}s`);
+  if (v) {
+    for (const e of EFFECT_PROPS) if (v[e.prop]) parts.push(`${e.prop} ${+v[e.prop].toFixed(3)}`);
+    if (v.shake && v.shakeSpeed !== 12) parts.push(`shakeSpeed ${v.shakeSpeed}`);
+    if (v.glow && v.glowRadius !== 24) parts.push(`glowRadius ${v.glowRadius}`);
+    if (v.motionBlur && v.motionBlurAngle) parts.push(`motionBlurAngle ${v.motionBlurAngle}`);
+  }
+  if (c.blend) parts.push(`blend ${c.blend}`);
+  if (c.mask) {
+    const m = c.mask;
+    parts.push(`mask ${m.shape}${m.invert ? ' inverted' : ''} at (${s2(m.x)}, ${s2(m.y)})${m.shape !== 'linear' ? ` size ${s2(m.w)}×${s2(m.h)}` : ''}${m.rotation ? ` rotated ${Math.round(m.rotation)}°` : ''}${m.feather ? ` feather ${s2(m.feather)}` : ''}`);
+  }
   const keyed = KEY_PROPS.filter((k) => c.keys?.[k]?.length);
   if (keyed.length) parts.push(`keyframes (clip seconds=value): ${keyed.map((k) => `${k} ${keyList(c.keys![k]!, KEY_DIGITS[k] ?? 0)}`).join('; ')}`);
   return parts.join(', ');
@@ -161,7 +185,7 @@ export function describeProject(p: Project, ctx: DescribeContext): string {
   lines.push(nonCaption.length ? `Clips (${nonCaption.length}):` : 'The timeline has no clips yet.');
   for (const c of nonCaption.slice(0, 160)) {
     const media = getMedia(p, c.mediaId);
-    const label = c.kind === 'title' ? `"${(c.title?.text ?? '').slice(0, 60)}"` : `"${c.name}"`;
+    const label = c.kind === 'title' ? `"${(c.title?.text ?? '').slice(0, 60)}"` : c.kind === 'adjustment' ? `"${c.name}" (changes the tracks below it)` : `"${c.name}"`;
     let src = '';
     if ((c.kind === 'video' || c.kind === 'audio') && media) {
       if (c.freeze) src = ` | media ${media.id}, holds the frame at source ${s2(c.in)} s`;
@@ -172,7 +196,7 @@ export function describeProject(p: Project, ctx: DescribeContext): string {
         src = ` | media ${media.id}, source ${s2(c.in)}–${s2(sourceOut(c))} s of ${s2(media.duration)} s${c.reverse ? ' (played backwards)' : ''}${room > 0.05 ? ` (end can extend ${s2(room)} s)` : ''}`;
       }
     } else if (c.kind === 'image' && media) src = ` | media ${media.id}`;
-    const fx = effectsSummary(c);
+    const fx = [effectsSummary(c), gradeSummary(c, p)].filter(Boolean).join(', ');
     lines.push(
       `- ${c.id} | ${c.kind} ${label} | ${getTrack(p, c.trackId)?.name ?? '?'} | ${s2(c.start)}–${s2(clipEnd(c))} s${src}${c.linkId ? ` | linked ${c.linkId}` : ''}${fx ? ` | ${fx}` : ''}${c.kind === 'title' ? titleSummary(c) : ''}`,
     );
@@ -206,6 +230,7 @@ export function describeProject(p: Project, ctx: DescribeContext): string {
     }
     if (p.media.length > 60) lines.push(`… and ${p.media.length - 60} more media items.`);
   }
+  if (p.luts.length) lines.push(`Imported LUTs: ${p.luts.map((l) => `${l.id} "${l.name}"`).join(', ')}.`);
   if (ctx.fonts?.length) {
     const list = ctx.fonts.slice(0, 60);
     lines.push(`Fonts for titles: ${list.join(', ')}${ctx.fonts.length > list.length ? ` and ${ctx.fonts.length - list.length} more` : ''}.`);

@@ -1,14 +1,15 @@
 import { useRef, useState } from 'react';
-import { Captions, Image as ImageIcon, Link2, Music, RotateCcw, Settings2, Snowflake, Type, Unlink2, Video } from 'lucide-react';
-import type { Clip, KeyProp, Project, TitleStyle, TransitionKind, VisualProps } from '../types';
+import { Captions, Image as ImageIcon, Link2, Music, RotateCcw, Settings2, SlidersHorizontal, Snowflake, Type, Unlink2, Video } from 'lucide-react';
+import type { BlendMode, Clip, KeyProp, Project, TitleStyle, TransitionKind, VisualProps } from '../types';
 import { useT, type TFunction } from '../../../core/i18n';
 import { Button, ColorPicker, Field, IconButton, NumberField, Panel, Segmented, Select, Slider, TextArea, TextInput, Toggle } from '../../../components/ui';
 import { clipEnd, freezeFrameAt, getClip, getMedia, getTrack, moveClips, setClipSpeed, setSpeedRamp, sourceOut, trimClip, updateClip, type RampKeep } from '../model';
-import { DEFAULT_VISUAL, MAX_VOLUME_DB, MIN_VOLUME_DB, TITLE_ANIMATIONS, TITLE_PRESETS, TRANSITIONS, titlePreset } from '../presets';
+import { BLEND_MODES, DEFAULT_VISUAL, MAX_VOLUME_DB, MIN_VOLUME_DB, TITLE_ANIMATIONS, TITLE_PRESETS, TRANSITIONS, titlePreset } from '../presets';
 import { RAMP_PRESETS, rampPreset, withoutKeys, type RampPreset } from '../keyframes';
 import { formatTimecode } from '../time';
 import type { TimeStore } from '../timeStore';
 import { KeyBar, KeyNumber, KeySlider, type KeyEdit } from './KeyControls';
+import { ColorGradePanel, EffectsPanel, MaskPanel } from './LookPanels';
 import { ProjectPanel } from './ProjectPanel';
 
 interface InspectorProps {
@@ -19,14 +20,15 @@ interface InspectorProps {
   change: (next: Project, opts?: { record?: boolean; label?: string }) => void;
   commit: (label: string) => void;
   onOpenSettings: () => void;
+  onImportLut: () => Promise<string[]>;
   onLink: () => void;
   onUnlink: () => void;
   onSeek: (t: number) => void;
   onRenameMarker: (id: string) => void;
 }
 
-const KIND_ICON = { video: Video, image: ImageIcon, audio: Music, title: Type, caption: Captions };
-const KIND_LABEL: Record<Clip['kind'], string> = { video: 'Video clip', image: 'Image clip', audio: 'Audio clip', title: 'Title', caption: 'Caption' };
+const KIND_ICON = { video: Video, image: ImageIcon, audio: Music, title: Type, caption: Captions, adjustment: SlidersHorizontal };
+const KIND_LABEL: Record<Clip['kind'], string> = { video: 'Video clip', image: 'Image clip', audio: 'Audio clip', title: 'Title', caption: 'Caption', adjustment: 'Adjustment layer' };
 
 const dbLabel = (v: number) => (v <= MIN_VOLUME_DB ? '−∞ dB' : `${v > 0 ? '+' : ''}${v.toFixed(1)} dB`);
 
@@ -48,7 +50,7 @@ export function Inspector(props: InspectorProps) {
   const baseRef = useRef<Project | null>(null);
   const [rampKeep, setRampKeep] = useState<RampKeep>('length');
   const clips = selection.map((id) => getClip(project, id)).filter((c): c is Clip => Boolean(c));
-  const clip = clips.find((c) => c.kind === 'video' || c.kind === 'image' || c.kind === 'title') ?? clips[0];
+  const clip = clips.find((c) => c.kind === 'video' || c.kind === 'image' || c.kind === 'title' || c.kind === 'adjustment') ?? clips[0];
 
   if (!clip) {
     return <ProjectPanel project={project} change={change} onOpenSettings={props.onOpenSettings} onSeek={props.onSeek} onRenameMarker={props.onRenameMarker} />;
@@ -112,7 +114,11 @@ export function Inspector(props: InspectorProps) {
   const v = clip.visual ?? DEFAULT_VISUAL;
   const Icon = KIND_ICON[clip.kind];
   const media = getMedia(project, clip.mediaId);
-  const visual = clip.kind === 'video' || clip.kind === 'image' || clip.kind === 'title';
+  const visual = clip.kind === 'video' || clip.kind === 'image' || clip.kind === 'title' || clip.kind === 'adjustment';
+  /** Pictures (not adjustment layers): transitions, crop. */
+  const picture = visual && clip.kind !== 'adjustment';
+  const clipSet = (fn: (c: Clip) => Clip, label: string) => set(editClip(clip.id, fn), label);
+  const clipLive = (fn: (c: Clip) => Clip) => live(editClip(clip.id, fn));
   const fadeMax = Math.max(0.1, Math.min(10, clip.duration));
 
   return (
@@ -181,7 +187,15 @@ export function Inspector(props: InspectorProps) {
           <KeySlider {...keyProps([clip])} clip={clip} prop="rotation" label={t('Rotation')} min={-180} max={180} format={(x) => `${Math.round(x)}°`} defaultValue={0} commitLabel={t('Transform')} />
           <KeySlider {...keyProps([clip])} clip={clip} prop="opacity" label={t('Opacity')} unit={100} min={0} max={100} format={pct} defaultValue={100} commitLabel={t('Transform')} />
           <div className="vd-hint">{t('◆ animates a value: it adds a keyframe at the playhead, and changes at other times add more.')}</div>
-          {clip.kind !== 'title' && (
+          <Field label={t('Blend mode')}>
+            <Select<string>
+              small
+              value={clip.blend ?? 'normal'}
+              onChange={(b) => clipSet((c) => ({ ...c, blend: b === 'normal' ? undefined : (b as BlendMode) }), t('Blend mode'))}
+              options={BLEND_MODES.map((b) => ({ value: b.id, label: t(b.label) }))}
+            />
+          </Field>
+          {(clip.kind === 'video' || clip.kind === 'image') && (
             <>
               <div className="vd-section-title">{t('Crop')}</div>
               <div className="vd-grid2">
@@ -301,7 +315,7 @@ export function Inspector(props: InspectorProps) {
         </Panel>
       )}
 
-      {visual && (
+      {picture && (
         <Panel title={t('Transition in')}>
           <Select<string>
             small
@@ -324,6 +338,30 @@ export function Inspector(props: InspectorProps) {
             />
           )}
           <div className="vd-hint">{t('Plays at the start of this clip — from the clip before it on the same track, or from what is below.')}</div>
+        </Panel>
+      )}
+
+      {picture && (
+        <Panel key={`out-${clip.id}`} title={t('Transition out')} defaultOpen={Boolean(clip.transitionOut)}>
+          <Select<string>
+            small
+            value={clip.transitionOut?.kind ?? 'none'}
+            onChange={(k) => clipSet((c) => ({ ...c, transitionOut: k === 'none' ? undefined : { kind: k as TransitionKind, duration: Math.min(c.transitionOut?.duration ?? 0.5, c.duration) } }), t('Transition out'))}
+            options={[{ value: 'none', label: t('None') }, ...TRANSITIONS.map((x) => ({ value: x.kind, label: t(x.label) }))]}
+          />
+          {clip.transitionOut && (
+            <Slider
+              label={t('Duration')}
+              value={clip.transitionOut.duration}
+              min={0.1}
+              max={Math.max(0.1, Math.min(5, clip.duration))}
+              step={0.05}
+              onChange={(d) => clipLive((c) => (c.transitionOut ? { ...c, transitionOut: { ...c.transitionOut, duration: d } } : c))}
+              onCommit={() => done(t('Transition out'))}
+              format={sec}
+            />
+          )}
+          <div className="vd-hint">{t('Animates the clip away at its end, showing what is below.')}</div>
         </Panel>
       )}
 
@@ -354,6 +392,13 @@ export function Inspector(props: InspectorProps) {
         </Panel>
       )}
 
+      {/* keyed by clip: a panel opens when the selected clip uses it */}
+      {visual && <ColorGradePanel key={`grade-${clip.id}`} clip={clip} project={project} set={clipSet} live={clipLive} done={done} onImportLut={props.onImportLut} />}
+
+      {visual && <EffectsPanel key={`fx-${clip.id}`} clip={clip} project={project} time={props.time} keyProps={keyProps([clip])} set={clipSet} live={clipLive} done={done} />}
+
+      {visual && <MaskPanel key={`mask-${clip.id}`} clip={clip} set={clipSet} live={clipLive} done={done} />}
+
       {(clip.kind === 'video' || clip.kind === 'image') && (
         <Panel title={t('Chroma key (green screen)')} defaultOpen={v.chromaKey}>
           <Toggle checked={v.chromaKey} onChange={(chromaKey) => setVisual({ chromaKey }, t('Chroma key'))} label={t('Remove a background color')} />
@@ -375,6 +420,11 @@ export function Inspector(props: InspectorProps) {
             </>
           )}
         </Panel>
+      )}
+      {clip.kind === 'adjustment' && (
+        <div className="vd-hint" style={{ padding: 10 }}>
+          {t('An adjustment layer changes everything on the tracks below it while it lasts: its color, effects, mask and transform apply to the whole picture.')}
+        </div>
       )}
       {clips.length > 1 && (
         <div className="vd-hint" style={{ padding: 10 }}>

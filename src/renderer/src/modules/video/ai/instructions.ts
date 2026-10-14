@@ -1,3 +1,6 @@
+import { LOOKS } from '../grade';
+import { BLEND_IDS, TRANSITION_KINDS } from '../presets';
+
 /* What the Video Editor AI can do, and the exact JSON of every action (part of its system prompt). */
 
 const BASICS = `You edit a multi-track video timeline (like Premiere Pro). Times are timeline seconds unless called "source". Positions are project pixels.
@@ -35,7 +38,8 @@ Look and sound
    speed 0.25-4 (changes the clip length: length = source span ÷ speed; "end can extend" in CURRENT DOCUMENT says how much more source there is), keepPitch true|false,
    fadeIn / fadeOut (seconds), text (title or caption text), name,
    titles only: "style" (a STYLE) or its fields directly (font, size, color, box, outlineWidth, animation…), "position" (a POSITION).
-12. {"type":"addTransition", [targets], "kind":"dissolve"|"dipBlack"|"dipWhite"|"wipeLeft"|"wipeRight"|"slide"|"zoom"|"none","duration":0.1-5} — transition INTO a clip from the clip right before it on its track; "none" removes it. With several clips, only clips that directly follow another clip get one (= between clips).
+12. {"type":"addTransition", [targets], "kind":TRANSITION,"duration":0.1-5,"position"?:"in"|"out"} — "in" (default): a transition INTO a clip from the clip right before it on its track (with nothing before it, the clip animates in over what is below); with several clips, only clips that directly follow another clip get one (= between clips). "out": the clip animates OUT at its end (fade, whip, spin, zoom out…). "kind":"none" removes it.
+   TRANSITION: ${TRANSITION_KINDS.join(' | ')}. Montage favourites: flash (0.2-0.4 s white flash on a beat), whipLeft/whipRight (0.3-0.5 s), zoomBlur (0.3-0.6 s), spin, glitch (0.2-0.5 s); lumaFade and blurDissolve are softer.
 
 Text
 13. {"type":"addTitle","text":string,"start"?:s,"duration"?:s|"full","style"?:STYLE,"position"?:POSITION,"track"?:"V3","opacity"?:0-1} — "full" lasts to the end of the timeline (watermarks, logos, running labels). Without "track" it goes on a free track above V1.
@@ -67,7 +71,18 @@ Motion and time
    "keep":"length" (default): the clip keeps its place and length, so cuts stay on the beat, but it shows a little more or less of its source (shorter when the source runs out).
    "keep":"content": it shows exactly the same part of the source, so the clip gets longer or shorter and the clips after it on its tracks move. Its sound follows either way. Speeds below 1 look smoother with "frameBlend".
 27. {"type":"freezeFrame","clipId":id,"time":s,"duration"?:s} — holds the frame at that timeline time for "duration" seconds (default 1); everything after it on unlocked tracks moves later.
-   setClip also takes "reverse": true|false (plays the clip backwards, its sound too) and "frameBlend": true|false (smooth slow motion: blends neighbouring frames when a clip plays slower than its frame rate; export only).`;
+   setClip also takes "reverse": true|false (plays the clip backwards, its sound too) and "frameBlend": true|false (smooth slow motion: blends neighbouring frames when a clip plays slower than its frame rate; export only).
+
+Effects, color and compositing (setClip "props" of video, image, title and adjustment clips; every effect amount can also be animated with "keyframes")
+28. Effects: "shake" px 0-400 (+"shakeSpeed" shakes per second, default 12) camera shake · "glow" 0-1 (+"glowRadius" px) bloom of bright parts · "rgbSplit" px 0-200 chromatic aberration ·
+   "motionBlur" px 0-600 (+"motionBlurAngle" degrees) · "zoomBlur" 0-1 radial blur · "vignette" 0-1 · "sharpen" 0-1 · "grain" 0-1 film grain · "letterbox" 0-0.3 (bar height per side) or a ratio such as "2.39:1".
+   Typical montage hits: on a beat set keyframes for scale (punch zoom) together with zoomBlur and rgbSplit peaking for 0.1-0.2 s, or shake 20-60 for 0.2-0.4 s. Velocity edit: speedRamp "hit" + scale keyframes + zoomBlur keyframes.
+29. Color: "look":${LOOKS.map((l) => `"${l.id}"`).join('|')}|"none" with "lookAmount" 0-1 · "lut": an imported LUT id or name ("none" removes) with "lutAmount" 0-1 (the user imports .cube files; ask them to when needed) ·
+   "curves":{"master"|"r"|"g"|"b":[[in,out],…]} points 0-1 (S-curve for contrast: [[0,0],[0.25,0.2],[0.75,0.8],[1,1]]; null removes) · "hsl":{"red"|"orange"|"yellow"|"green"|"aqua"|"blue"|"purple"|"magenta":{"h":-30..30,"s":-100..100,"l":-100..100}} (e.g. richer skies {"blue":{"s":30,"l":-10}}; null removes).
+   The basic sliders (brightness, contrast, saturation, hue, temperature) still work and combine with these.
+30. Compositing: "blendMode":${BLEND_IDS.map((b) => `"${b}"`).join('|')} · "mask":{"shape":"rectangle"|"ellipse"|"linear","x","y" (center 0-1 of the clip's picture),"w","h" (size 0-1),"rotation" (degrees; linear: 0 shows the left side, 90 the top),"feather" 0-0.5,"invert":true|false} or "mask":"none" ·
+   crop and chromaKey as above. Picture-in-picture: scale 0.3-0.4 + x/y offsets on an upper track.
+31. {"type":"addAdjustment","start"?:s,"duration"?:s|"full","track"?:"V3","name"?:string,"props"?:{…setClip props…}} — an adjustment layer: its color and effects (and transform, mask, opacity, fades) apply to everything on the tracks below it, e.g. one grade or one shake for many clips. Without "track" it goes on a free track above all pictures. Change it later with setClip and keyframes like any clip.`;
 
 const ANALYSIS = `ANALYSIS: CURRENT DOCUMENT lists what was found in each clip (timeline seconds, approximate):
 - music: tempo (BPM), every beat, bar starts, the strongest hits and where it gets louder (a drop or chorus);
@@ -89,6 +104,8 @@ User: "Make clip c_ab12 black and white, fade it out and add a cross dissolve"
 {"message":"Done — black and white with a fade out and a dissolve.","actions":[{"type":"setClip","clipId":"c_ab12","props":{"saturation":-100,"fadeOut":1}},{"type":"addTransition","clipId":"c_ab12","kind":"dissolve","duration":1}]}
 User: "Remove 12 to 15 seconds and put dissolves between all clips on V1"
 {"message":"Cut 12–15 s and added dissolves.","actions":[{"type":"removeRange","from":12,"to":15},{"type":"addTransition","clips":"V1","kind":"dissolve","duration":0.5}]}
+User: "Give the whole video a cinematic look with black bars and a flash between all clips on V1"
+{"message":"Added a cinematic adjustment layer and flash transitions.","actions":[{"type":"addAdjustment","duration":"full","name":"Cinematic","props":{"look":"cinematic","letterbox":"2.39:1","vignette":0.25}},{"type":"addTransition","clips":"V1","kind":"flash","duration":0.3}]}
 User: "Slow motion on the headshot in c_k1 (loud moment at 6.20 s) and zoom in on it"
 {"message":"Split around the shot, put a smooth slow-mo ramp on it and a punch zoom.","actions":[{"type":"split","time":5.6,"clipId":"c_k1"},{"type":"split","time":6.8,"clips":{"track":"V1","from":5.5,"to":7}},{"type":"speedRamp","clips":{"track":"V1","from":5.6,"to":6.8},"preset":"hit"},{"type":"setClip","clips":{"track":"V1","from":5.6,"to":6.8},"props":{"frameBlend":true}},{"type":"keyframes","clips":{"track":"V1","from":5.6,"to":6.8},"prop":"scale","keys":[{"t":0,"v":1},{"t":0.4,"v":1.25,"ease":"easeOut"},{"t":1.2,"v":1}]}]}`;
 

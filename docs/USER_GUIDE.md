@@ -371,6 +371,23 @@ saturation, temperature, hue, blur); Chroma key for green or blue screens.
   clip plays slower than it was recorded. *Freeze frame at the playhead* holds that frame for one second and moves
   everything after it.
 
+**Effects, color grading and compositing** (Inspector):
+- *Effects*: camera shake (strength and speed), glow, RGB split, motion blur (with direction), zoom blur, vignette,
+  sharpen, film grain and letterbox (2.39:1, 2:1, 1.85:1 or any height). Every effect can be animated with ◆, for a
+  punch on a beat.
+- *Color grade*: a look (Cinematic, Teal & orange, Warm, Cool, Vintage, Faded film, Black & white, Noir, Sepia,
+  Vivid, Cyberpunk, Moody, Golden hour, Bleach bypass, Pastel, Day for night) with a strength; a LUT — *Import…*
+  a `.cube` file (also *File → Import LUT (.cube)…* or drop it on the window); tone curves for RGB, red, green and
+  blue (click to add a point, drag it, double-click to remove it); and *Color ranges (HSL)* to change the hue,
+  saturation and luminance of reds, oranges, yellows, greens, aquas, blues, purples or magentas only.
+- *Blend mode* (Multiply, Screen, Overlay, Soft light, Add and more) and *Mask* (rectangle, ellipse or a straight
+  split, with feather and invert; it moves with the clip).
+- *Transition out* animates a clip away at its end. New transitions: Flash, Whip pan left/right, Spin, Zoom blur,
+  Glitch, Luma fade and Blur dissolve.
+- **Adjustment layer** (*Titles* tab, or *Timeline → Add adjustment layer*): a clip without a picture whose look,
+  color, effects, mask and transform apply to everything on the tracks below it — one grade, one shake or one
+  letterbox for the whole video.
+
 **Titles and captions.** *Titles* tab: Basic title, Lower third, Big bold, Bottom text, Typewriter, Pop label and
 End card — click or drag one onto the timeline, then edit its text, font, colors, outline, background and
 animation (Fade, Slide up, Pop, Typewriter). *Captions* tab: add captions by hand, import or export SRT/VTT,
@@ -394,9 +411,10 @@ apart for sure from sound alone).
 
 It can add clips from the Media bin; split, trim, move, shift, delete and duplicate clips, close gaps and remove a
 time range; link and unlink sound; change one clip, a whole track or all clips at once; animate with keyframes
-(zoom, pan, shake, fades, volume); add speed curves, reverse clips and freeze frames; restyle titles; add
-transitions; add, move, rename and delete markers; add, mute, lock and delete tracks; set the work area; move the
-playhead; undo; and open the export dialog. After you press *Apply* (or with *Apply AI edits automatically* on) the
+(zoom, pan, shake, fades, volume); add speed curves, reverse clips and freeze frames; add effects, looks, LUTs,
+curves, HSL changes, masks, blend modes and adjustment layers; restyle titles; add transitions in and out; add,
+move, rename and delete markers; add, mute, lock and delete tracks; set the work area; move the playhead; undo; and
+open the export dialog. After you press *Apply* (or with *Apply AI edits automatically* on) the
 AI is told what happened to every step, and *What happened to each step* shows you the same list.
 
 **Export** (Ctrl+E): MP4 (H.264 + AAC) or WebM (VP9 + Opus) for the whole timeline or the work area, with

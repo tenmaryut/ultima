@@ -2,6 +2,7 @@ import type { AIImage } from '@shared/ai-types';
 import { canvasToAIImage, createCanvas, get2d } from '../../../core/utils/image';
 import { Compositor, frameNeeds, type FrameProvider } from '../compositor';
 import { getMedia } from '../model';
+import { sourceAt } from '../keyframes';
 import type { Clip, MediaRef, Project } from '../types';
 
 /* Lets the AI assistant see the timeline: frames from every clip, and the final picture at chosen times. */
@@ -62,7 +63,8 @@ export function planClipFrames(p: Project, maxTiles = MAX_FRAME_TILES): FramePla
     const media = getMedia(p, c.mediaId)!;
     for (let k = 0; k < counts[i]; k++) {
       const time = c.start + (c.duration * (k + 0.5)) / counts[i];
-      const sourceTime = c.kind === 'image' ? 0 : Math.min(Math.max(0, c.in + (time - c.start) * c.speed), Math.max(0, media.duration - 0.05));
+      // speed curves, reverse and freeze frames decide which source frame is shown
+      const sourceTime = c.kind === 'image' ? 0 : Math.min(Math.max(0, sourceAt(c, time - c.start)), Math.max(0, media.duration - 0.05));
       samples.push({ clipId: c.id, mediaId: media.id, time, sourceTime });
     }
   });
