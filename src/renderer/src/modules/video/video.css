@@ -22,6 +22,18 @@
 }
 .vd-left .tabs {
   flex: 0 0 auto;
+  padding: 0 4px;
+  gap: 0;
+}
+/* four tabs in a narrow panel: text only, sharing the width */
+.vd-left .tab {
+  flex: 1 1 auto;
+  justify-content: center;
+  padding: 8px 6px;
+  white-space: nowrap;
+}
+.vd-left .tab svg {
+  display: none;
 }
 .vd-left-body {
   flex: 1;
@@ -924,4 +936,62 @@
   border-radius: 50%;
   background: var(--accent);
   border: 1px solid var(--bg-1, #000);
+}
+
+/* built-in library */
+.vd-lib-sounds {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 8px;
+}
+.vd-lib-sound {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+.vd-lib-sound:hover {
+  background: var(--bg-2);
+}
+.vd-lib-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.vd-lib-grid.overlay {
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+}
+.vd-lib-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-1);
+  cursor: pointer;
+  color: var(--text-1);
+  font-size: 11px;
+}
+.vd-lib-item:hover {
+  border-color: var(--accent);
+}
+.vd-lib-thumb {
+  width: 100%;
+  height: auto;
+  border-radius: 4px;
+}
+.vd-lib-thumb.sticker {
+  background: repeating-conic-gradient(var(--bg-2) 0 25%, var(--bg-1) 0 50%) 0 0 / 12px 12px;
+}
+.vd-lib-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
 }

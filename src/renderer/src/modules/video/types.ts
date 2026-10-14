@@ -221,6 +221,17 @@ export interface AudioFx {
   reverbSize: number;
 }
 
+/** A font file stored in the project (so titles look the same on any computer). */
+export interface FontAsset {
+  id: string;
+  /** The family name titles use. */
+  family: string;
+  /** Original file name. */
+  name: string;
+  /** Base64 of the font file (TTF, OTF, WOFF or WOFF2). */
+  data: string;
+}
+
 /** A 3D color lookup table imported from a .cube file. */
 export interface LutAsset {
   id: string;
@@ -377,6 +388,8 @@ export interface Project {
   captionStyle: CaptionStyle;
   /** Imported color lookup tables. */
   luts: LutAsset[];
+  /** Imported fonts. */
+  fonts: FontAsset[];
 }
 
 export interface TimeRange {

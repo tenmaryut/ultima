@@ -37,7 +37,9 @@ import {
   freezeFrameAt,
   setSpeedRamp,
   findTopVideoTrack,
+  findFreeAudioTrack,
 } from '../model';
+import { OVERLAYS, SFX, STICKERS, findLibraryItem, libraryMediaId, libraryMediaRef, type LibraryItem } from '../library';
 import {
   AUDIO_PRESETS,
   BLEND_IDS,
@@ -65,10 +67,13 @@ import { finite, isObj, plainText, safeColor, sec, type Obj } from './util';
 /* Validates and applies the Video Editor AI's actions, reporting what happened to each one. */
 
 /** Things the editor does besides changing the document. */
+export type ImportWhat = 'music' | 'sfx' | 'video' | 'image' | 'font' | 'lut' | 'any';
+
 export type EditorEffect =
   | { kind: 'seek'; time: number }
   | { kind: 'select'; ids: string[] }
-  | { kind: 'export'; exportKind: 'social' | 'mp4' | 'webm' | 'gif' | 'wav' | 'png' };
+  | { kind: 'export'; exportKind: 'social' | 'mp4' | 'webm' | 'gif' | 'wav' | 'png' }
+  | { kind: 'requestImport'; what: ImportWhat; message: string };
 
 export interface ActionResult {
   index: number;
@@ -436,6 +441,12 @@ function soundOf(p: Project, c: Clip): Clip[] {
   if (c.kind === 'audio') return [c];
   if (c.kind === 'video' && c.linkId) return p.clips.filter((x) => x.linkId === c.linkId && x.kind === 'audio');
   return [];
+}
+
+/** Puts a built-in library item into the media bin (once). */
+function withLibraryMedia(p: Project, item: LibraryItem): Project {
+  const id = libraryMediaId(item);
+  return getMedia(p, id) ? p : { ...p, media: [...p.media, libraryMediaRef(item)] };
 }
 
 const handlers: Record<string, Handler> = {
@@ -968,6 +979,84 @@ const handlers: Record<string, Handler> = {
     if (!ducked) throw new Skip('the trigger sound is never loud while those clips play');
     const total = ranges.reduce((n, r) => n + r.end - r.start, 0);
     return `lowered ${ducked} clip(s) by ${Math.abs(opts.amount)} dB while the other sound is loud (${dips} dip(s), ${total.toFixed(1)} s in all; volume keyframes)${pending.length ? `; ${pending.length} trigger clip(s) were still being analysed` : ''}`;
+  },
+
+  addSfx(s, a) {
+    const item = findLibraryItem(a.sound ?? a.name ?? a.sfx, ['sfx']);
+    if (!item) throw new Skip(`unknown sound ${String(a.sound ?? a.name ?? '')} (use ${SFX.map((x) => x.id).join(', ')})`);
+    const raw = Array.isArray(a.times) ? a.times : [finite(a.at) ? a.at : finite(a.start) ? a.start : s.ctx.playhead];
+    const times = raw.filter(finite).slice(0, 100).map((t) => clampNum(t, 0, 1e6));
+    if (!times.length) throw new Skip('addSfx needs "at" (or "times")');
+    s.p = withLibraryMedia(s.p, item);
+    const ref = getMedia(s.p, libraryMediaId(item))!;
+    const volume = finite(a.volume) ? clampNum(a.volume, MIN_VOLUME_DB, MAX_VOLUME_DB) : 0;
+    const ids: string[] = [];
+    for (const start of times) {
+      let trackId: string;
+      if (a.track !== undefined) {
+        const r = trackOrCreate(s.p, a.track, 'audio');
+        if (!r.track) throw new Skip(`unknown audio track ${String(a.track)}`);
+        if (r.track.locked) throw new Skip(`track ${r.track.name} is locked`);
+        s.p = r.project;
+        trackId = r.track.id;
+      } else {
+        // a free audio track, so it never cuts other sound
+        const r = findFreeAudioTrack(s.p, start, start + ref.duration);
+        s.p = r.project;
+        trackId = r.trackId;
+      }
+      const clip = makeClip('audio', trackId, start, ref.duration, { mediaId: ref.id, name: item.label, volume });
+      s.p = insertClips(s.p, [clip]);
+      ids.push(clip.id);
+    }
+    return `added "${item.label}" ${ids.length}× (${ids.join(', ')}) at ${times.map(sec).join(', ')}`;
+  },
+
+  addGraphic(s, a) {
+    const item = findLibraryItem(a.graphic ?? a.sticker ?? a.overlay ?? a.name, ['sticker', 'overlay']);
+    if (!item) throw new Skip(`unknown graphic ${String(a.graphic ?? a.name ?? '')} (stickers: ${STICKERS.map((x) => x.id).join(', ')}; overlays: ${OVERLAYS.map((x) => x.id).join(', ')})`);
+    s.p = withLibraryMedia(s.p, item);
+    const ref = getMedia(s.p, libraryMediaId(item))!;
+    const { width: W, height: H } = s.p.settings;
+    const start = clampNum(finite(a.start) ? a.start : finite(a.at) ? (a.at as number) : s.ctx.playhead, 0, 1e6);
+    const end = timelineDuration(s.p);
+    const duration = isFull(a.duration) ? Math.max(0.3, (end > start + 0.3 ? end : start + 4) - start) : clampNum(finite(a.duration) ? a.duration : item.kind === 'sticker' ? 2 : 4, 0.1, 36000);
+    let project = s.p;
+    let trackId: string;
+    if (a.track !== undefined) {
+      const r = trackOrCreate(s.p, a.track, 'video');
+      if (!r.track) throw new Skip(`unknown video track ${String(a.track)}`);
+      if (r.track.locked) throw new Skip(`track ${r.track.name} is locked`);
+      project = r.project;
+      trackId = r.track.id;
+    } else {
+      // overlays go above every picture, stickers on a free track above the footage
+      const r = item.kind === 'overlay' ? findTopVideoTrack(s.p, start, start + duration) : findFreeVideoTrack(s.p, start, start + duration);
+      project = r.project;
+      trackId = r.trackId;
+    }
+    let clip = makeClip('image', trackId, start, duration, { mediaId: ref.id, name: item.label });
+    const fit = Math.min(W / ref.width, H / ref.height);
+    const cover = Math.max(W / ref.width, H / ref.height) / fit;
+    clip = { ...clip, visual: { ...clip.visual!, scale: item.kind === 'sticker' ? 0.3 : cover }, blend: item.blend && item.blend !== 'normal' ? item.blend : undefined };
+    // "position": a POSITION name or {x, y} as fractions of the frame
+    const pos = typeof a.position === 'string' ? POSITIONS[a.position] : isObj(a.position) && finite(a.position.x) && finite(a.position.y) ? { x: clampNum(a.position.x, -1, 2), y: clampNum(a.position.y, -1, 2) } : null;
+    if (pos) clip = { ...clip, visual: { ...clip.visual!, x: (pos.x - 0.5) * W, y: (pos.y - 0.5) * H } };
+    const changed: string[] = [];
+    const warn: string[] = [];
+    const props: Obj = { ...(isObj(a.props) ? a.props : {}) };
+    for (const k of ['scale', 'rotation', 'opacity', 'blendMode']) if (a[k] !== undefined && props[k] === undefined) props[k] = a[k];
+    if (Object.keys(props).length) clip = patchClip(project, clip, props, s.ctx.fonts, changed, warn);
+    s.p = insertClips(project, [clip]);
+    return `added "${item.label}" ${clip.id} on ${trackName(s.p, trackId)} at ${sec(start)}–${sec(start + duration)}${changed.length ? ` (${changed.join(', ')})` : ''}${warn.length ? ` (${warn.join('; ')})` : ''}`;
+  },
+
+  requestImport(s, a) {
+    const kinds: ImportWhat[] = ['music', 'sfx', 'video', 'image', 'font', 'lut', 'any'];
+    const what = kinds.includes(a.what as ImportWhat) ? (a.what as ImportWhat) : a.what === 'audio' || a.what === 'sound' ? 'sfx' : 'any';
+    const message = plainText(a.message, 300);
+    s.effects.push({ kind: 'requestImport', what, message });
+    return `showed the user a button to import ${what} files${message ? ` ("${message}")` : ''}; they appear in the media bin (or as fonts/LUTs) once the user picks them`;
   },
 
   seek(s, a) {

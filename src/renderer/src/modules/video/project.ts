@@ -1,4 +1,4 @@
-import type { AudioFx, BlendMode, CaptionStyle, Clip, ClipKind, ClipMask, ColorGrade, CurveChannel, Easing, HueRange, Keyframe, KeyProp, LookId, LutAsset, MediaRef, Project, TitleStyle, Track, Transition, VisualProps } from './types';
+import type { AudioFx, BlendMode, CaptionStyle, Clip, ClipKind, ClipMask, ColorGrade, CurveChannel, Easing, FontAsset, HueRange, Keyframe, KeyProp, LookId, LutAsset, MediaRef, Project, TitleStyle, Track, Transition, VisualProps } from './types';
 import { AUDIO_KEY_PROPS, EASINGS, KEY_PROPS, KEY_RANGES } from './keyframes';
 import { BLEND_IDS, DEFAULT_AUDIO_FX, DEFAULT_SETTINGS, DEFAULT_VISUAL, MAX_SPEED, MAX_VOLUME_DB, MIN_SPEED, MIN_VOLUME_DB, TRANSITION_KINDS, defaultCaptionStyle, defaultTitle } from './presets';
 import { CURVE_CHANNELS, HUE_RANGE_IDS, LOOK_IDS, cleanCurve, isIdentityCurve } from './grade';
@@ -25,6 +25,7 @@ export function serializeProject(p: Project): string {
       workArea: p.workArea,
       captionStyle: p.captionStyle,
       luts: p.luts,
+      fonts: p.fonts,
     },
     null,
     1,
@@ -162,6 +163,18 @@ export function parseAudioFx(v: unknown): AudioFx | undefined {
     reverbSize: n(v.reverbSize, d.reverbSize, 0.2, 8),
   };
   return fx.highPass || fx.lowPass || fx.eqLow || fx.eqMid || fx.eqHigh || fx.reverb ? fx : undefined;
+}
+
+/** Embedded fonts (plain family names, base64 data, at most 16 MB each). */
+function parseFonts(v: unknown): FontAsset[] {
+  const out: FontAsset[] = [];
+  for (const f of Array.isArray(v) ? v.slice(0, 50) : []) {
+    if (!isObj(f) || typeof f.id !== 'string' || typeof f.data !== 'string' || out.some((x) => x.id === f.id)) continue;
+    const family = str(f.family, '', 120).replace(/["';{}<>\\]/g, '').trim();
+    if (!family || f.data.length > 22_000_000 || !/^[A-Za-z0-9+/]+=*$/.test(f.data)) continue;
+    out.push({ id: f.id.slice(0, 80), family, name: str(f.name, family, 200), data: f.data });
+  }
+  return out;
 }
 
 /** Imported LUTs whose data has the right length. */
@@ -358,5 +371,6 @@ export function parseProject(input: string | unknown): Project {
     workArea,
     captionStyle: parseCaptionStyle(data.captionStyle, settings.height),
     luts,
+    fonts: parseFonts(data.fonts),
   };
 }

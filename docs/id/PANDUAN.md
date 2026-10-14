@@ -394,6 +394,14 @@ suhu, rona, blur); *Chroma key (layar hijau)* untuk layar hijau atau biru.
   warna, warna, efek, mask, dan transformasinya berlaku untuk semua yang ada di trek di bawahnya — satu gradasi, satu
   guncangan, atau satu letterbox untuk seluruh video.
 
+**Pustaka** (panel kiri → *Pustaka*): efek suara buatan Ultima — whoosh, swipe, whoosh terbalik, riser, hentakan,
+ledakan, bass drop, glitch, hitmarker, klik, pop, ding, rana kamera, detak jantung (▷ untuk mendengarkan, + untuk menambah
+di playhead pada trek audio yang kosong) — serta stiker (hit marker, crosshair, panah, lingkaran, ledakan komik, balon
+kata, bintang, hati, petir, centang, dan tanda silang) dan overlay (light leak, debu film, bokeh, lens flare, garis TV)
+yang ditaruh di atas rekaman Anda dengan mode campur yang sesuai. Semuanya bebas dipakai di mana saja dan dibuat ulang
+setiap kali proyek membutuhkannya. **Font**: *Judul → Impor font…* (atau seret file TTF, OTF, atau WOFF) menyimpan font di
+dalam proyek, jadi judul tampil sama di komputer mana pun.
+
 **Efek suara dan ducking** (Inspektor → *Efek suara*, untuk klip audio dan suara sebuah video): preset (Teredam, Bawah
 air, Panggilan telepon, Radio lama, Ruangan kecil, Aula besar, Gua, Bass kuat, Suara jernih, Lo-fi), potong rendah,
 potong tinggi (efek teredam — bisa dianimasikan dengan ◆, misalnya teredam tepat setelah ledakan), bass, tengah, treble,
@@ -427,7 +435,8 @@ Asisten bisa menambah klip dari bin Media; membelah, memangkas, memindahkan, men
 klip, merapatkan celah, dan membuang rentang waktu; menautkan dan melepas suara; mengubah satu klip, satu trek, atau
 semua klip sekaligus; menganimasikan dengan keyframe (zoom, geser, guncangan, fade, volume, efek teredam); menambah kurva kecepatan,
 memutar mundur klip, dan membekukan frame; menambah efek, tampilan warna, LUT, kurva, perubahan HSL, mask, mode campur,
-dan layer penyesuaian; menambah efek suara dan melakukan ducking pada musik; mengubah gaya judul; menambah transisi masuk dan keluar; menambah, memindahkan, mengganti nama,
+dan layer penyesuaian; menambah efek suara dan melakukan ducking pada musik; menambah suara, stiker, dan overlay dari
+pustaka; meminta file yang dibutuhkannya (lagu, logo, font, LUT — Anda mendapat tombol untuk memilihnya); mengubah gaya judul; menambah transisi masuk dan keluar; menambah, memindahkan, mengganti nama,
 dan menghapus penanda; menambah, membisukan, mengunci, dan menghapus trek; mengatur area kerja; memindahkan playhead;
 membatalkan (undo); dan membuka dialog ekspor. Setelah Anda menekan *Terapkan* (atau jika *Terapkan editan AI secara
 otomatis* menyala), AI diberi tahu hasil setiap langkah, dan *Hasil tiap langkah* menampilkan daftar yang sama untuk Anda.

@@ -388,6 +388,14 @@ saturation, temperature, hue, blur); Chroma key for green or blue screens.
   color, effects, mask and transform apply to everything on the tracks below it — one grade, one shake or one
   letterbox for the whole video.
 
+**Library** (left panel → *Library*): sound effects made by Ultima — whoosh, swipe, reverse whoosh, riser, impact,
+boom, bass drop, glitch, hitmarker, click, pop, ding, camera shutter, heartbeat (▷ listens, + adds at the playhead on
+a free audio track) — plus stickers (hit marker, crosshair, arrow, circle, comic burst, speech bubble, star, heart,
+lightning, check and cross marks) and overlays (light leak, film dust, bokeh, lens flare, scanlines) that land above
+your footage in the right blend mode. They are free to use anywhere and are made again whenever a project needs
+them. **Fonts**: *Titles → Import font…* (or drop a TTF, OTF or WOFF file) stores the font inside the project, so
+titles look the same on every computer.
+
 **Sound effects and ducking** (Inspector → *Sound effects*, for audio clips and a video's sound): presets (Muffled,
 Underwater, Phone call, Old radio, Small room, Big hall, Cave, Bass boost, Clear voice, Lo-fi), low cut, high cut
 (the muffle — animatable with ◆, e.g. muffled right after an explosion), bass, mids, treble and reverb with room
@@ -418,7 +426,9 @@ apart for sure from sound alone).
 It can add clips from the Media bin; split, trim, move, shift, delete and duplicate clips, close gaps and remove a
 time range; link and unlink sound; change one clip, a whole track or all clips at once; animate with keyframes
 (zoom, pan, shake, fades, volume, muffle); add speed curves, reverse clips and freeze frames; add effects, looks,
-LUTs, curves, HSL changes, masks, blend modes and adjustment layers; add sound effects and duck the music; restyle titles; add transitions in and out; add,
+LUTs, curves, HSL changes, masks, blend modes and adjustment layers; add sound effects and duck the music; add
+sounds, stickers and overlays from the library; ask you for files it needs (a song, a logo, a font, a LUT — you get a
+button to pick them); restyle titles; add transitions in and out; add,
 move, rename and delete markers; add, mute, lock and delete tracks; set the work area; move the playhead; undo; and
 open the export dialog. After you press *Apply* (or with *Apply AI edits automatically* on) the
 AI is told what happened to every step, and *What happened to each step* shows you the same list.

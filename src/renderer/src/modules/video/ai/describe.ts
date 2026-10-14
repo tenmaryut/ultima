@@ -2,6 +2,7 @@ import type { Clip, Keyframe, KeyProp, Project } from '../types';
 import { clipEnd, getMedia, getTrack, sourceOut, timelineDuration } from '../model';
 import { KEY_PROPS, speedAt, timeOfSource } from '../keyframes';
 import { EFFECT_PROPS } from '../presets';
+import { isLibraryMedia } from '../library';
 import { formatTimecode } from '../time';
 import type { MediaAnalysis } from '../analysisStore';
 
@@ -238,7 +239,7 @@ export function describeProject(p: Project, ctx: DescribeContext): string {
       const size = m.kind !== 'audio' && m.width ? ` ${m.width}×${m.height}` : '';
       const len = m.kind !== 'image' ? `, ${m.duration.toFixed(1)} s` : '';
       const sound = m.kind === 'video' ? (m.hasAudio ? ', with sound' : ', no sound') : '';
-      lines.push(`- ${m.id} | ${m.kind} "${m.name}"${size}${len}${sound} | on the timeline ${uses.get(m.id) ?? 0}×`);
+      lines.push(`- ${m.id} | ${m.kind} "${m.name}"${size}${len}${sound}${isLibraryMedia(m.id) ? ' | built-in library' : ''} | on the timeline ${uses.get(m.id) ?? 0}×`);
     }
     if (p.media.length > 60) lines.push(`… and ${p.media.length - 60} more media items.`);
   }

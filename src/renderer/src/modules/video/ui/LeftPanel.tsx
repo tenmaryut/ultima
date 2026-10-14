@@ -1,9 +1,9 @@
-import { Captions, Film, Type } from 'lucide-react';
+import { Captions, Film, Shapes, Type } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useT } from '../../../core/i18n';
 import { Tabs } from '../../../components/ui';
 
-export type LeftTab = 'media' | 'graphics' | 'captions';
+export type LeftTab = 'media' | 'graphics' | 'library' | 'captions';
 
 export function LeftPanel({ tab, setTab, children }: { tab: LeftTab; setTab: (t: LeftTab) => void; children: ReactNode }) {
   const t = useT();
@@ -15,6 +15,7 @@ export function LeftPanel({ tab, setTab, children }: { tab: LeftTab; setTab: (t:
         tabs={[
           { value: 'media', label: t('Media'), icon: Film },
           { value: 'graphics', label: t('Titles'), icon: Type },
+          { value: 'library', label: t('Library'), icon: Shapes },
           { value: 'captions', label: t('Captions'), icon: Captions },
         ]}
       />

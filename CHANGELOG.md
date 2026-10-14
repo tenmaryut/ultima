@@ -25,6 +25,9 @@ All notable changes to Ultima are listed here. Versions follow [semantic version
 - Sound effects per clip (low cut, an animatable high cut for muffling, bass/mids/treble, reverb, ten presets),
   heard while editing and in the export, and auto ducking that lowers the music under voice or game sound with
   editable volume keyframes — also for the AI.
+- A built-in library made by Ultima (free to use): 14 sound effects, 11 stickers and 5 overlays, in a new *Library*
+  tab and for the AI; the AI can also ask you for files it needs and shows a button to pick them; fonts can be
+  imported and are stored inside the project.
 
 ## [0.1.0] — 2026-10-11
 

@@ -28,6 +28,7 @@ export function createProject(settings: Partial<ProjectSettings> = {}, name = 'U
     workArea: null,
     captionStyle: defaultCaptionStyle(s.height),
     luts: [],
+    fonts: [],
   };
 }
 

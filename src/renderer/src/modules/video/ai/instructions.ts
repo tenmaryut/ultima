@@ -1,4 +1,5 @@
 import { LOOKS } from '../grade';
+import { OVERLAYS, SFX, STICKERS } from '../library';
 import { AUDIO_PRESETS, BLEND_IDS, TRANSITION_KINDS } from '../presets';
 
 /* What the Video Editor AI can do, and the exact JSON of every action (part of its system prompt). */
@@ -89,7 +90,15 @@ Sound
    "highPass" Hz (low cut, 0 = off; 80-120 cleans voices) · "lowPass" Hz (high cut, 0 = off; 300-800 sounds muffled: through a wall, underwater, after an explosion) ·
    "eqLow" / "eqMid" / "eqHigh" dB −24..24 (bass 150 Hz, mids 1 kHz, treble 6 kHz) · "reverb" 0-1 with "reverbSize" seconds 0.2-8 (room ≈ 0.7, hall ≈ 3).
    "volume" and "lowPass" can be animated with "keyframes": e.g. muffle the music right after a big hit and open it again: "prop":"lowPass","keys":[{"at":12,"v":20000},{"at":12.1,"v":500},{"at":13.5,"v":20000,"ease":"easeIn"}].
-33. {"type":"duck", [targets], "trigger"?:targets, "amount"?:-1..-40 dB (default -12),"attack"?:s,"release"?:s,"threshold"?:dB} — auto ducking: lowers the targeted sound (usually the music) wherever the trigger sound is loud (voice, commentary, game sound; default: every other audio clip). It writes volume keyframes that can be edited later; run it again after changing the edit.`;
+33. {"type":"duck", [targets], "trigger"?:targets, "amount"?:-1..-40 dB (default -12),"attack"?:s,"release"?:s,"threshold"?:dB} — auto ducking: lowers the targeted sound (usually the music) wherever the trigger sound is loud (voice, commentary, game sound; default: every other audio clip). It writes volume keyframes that can be edited later; run it again after changing the edit.
+
+Library and files (the built-in library is made by Ultima: free to use, always available)
+34. {"type":"addSfx","sound":SFX,"at":s | "times":[s,…],"volume"?:dB,"track"?:"A3"} — a sound effect on a free audio track; "times" puts one at each time (a whoosh on every transition, a hitmarker on every kill, an impact on the drop).
+   SFX: ${SFX.map((x) => `${x.id} (${x.description}, ${x.duration} s)`).join(' · ')}
+35. {"type":"addGraphic","graphic":STICKER|OVERLAY,"start"?:s,"duration"?:s|"full","position"?:POSITION|{"x":0-1,"y":0-1},"scale"?,"rotation"?,"opacity"?,"blendMode"?,"props"?:{…setClip props…}} — an image clip; animate it with keyframes (pop in with scale, fade with opacity).
+   STICKER (30% of the frame high by default, on a free track above the footage): ${STICKERS.map((x) => `${x.id} (${x.description})`).join(' · ')}
+   OVERLAY (fills the frame, above everything, already in its blend mode): ${OVERLAYS.map((x) => `${x.id} (${x.description})`).join(' · ')}
+36. {"type":"requestImport","what":"music"|"sfx"|"video"|"image"|"font"|"lut"|"any","message":"what you need and why"} — when the edit needs files only the user has (a song, a logo, a font, a .cube LUT, more footage): the user gets a button to pick them. Say so in your message. New files appear in CURRENT DOCUMENT next turn (media bin, "Fonts for titles", "Imported LUTs").`;
 
 const ANALYSIS = `ANALYSIS: CURRENT DOCUMENT lists what was found in each clip (timeline seconds, approximate):
 - music: tempo (BPM), every beat, bar starts, the strongest hits and where it gets louder (a drop or chorus);

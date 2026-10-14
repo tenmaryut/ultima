@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Camera, CameraOff, Check, ChevronDown, ChevronRight, Eye, Play, Send, Sparkles, Square, Trash2, TriangleAlert, X } from 'lucide-react';
+import { Camera, CameraOff, Check, ChevronDown, ChevronRight, Eye, FolderOpen, Play, Send, Sparkles, Square, Trash2, TriangleAlert, X } from 'lucide-react';
 import type { AIImage, ProviderId } from '@shared/ai-types';
 import { useAISettings } from '../../core/ai/settings';
 import { describeAIError, providerSupportsImages, resolveProvider, runAIJson, useProviderDetection } from '../../core/ai/client';
@@ -10,7 +10,7 @@ import { useT } from '../../core/i18n';
 import { uid } from '../../core/utils/id';
 import { Markdown } from './Markdown';
 import { ProviderPicker } from './ProviderPicker';
-import { IconButton, Spinner } from '../ui';
+import { Button, IconButton, Spinner } from '../ui';
 
 export interface AIAction {
   type: string;
@@ -65,6 +65,8 @@ export interface AIActionReport {
   details?: string;
   /** Some actions were skipped. */
   partial?: boolean;
+  /** Things only the user can do, offered as buttons (e.g. picking files the AI asked for). */
+  buttons?: { label: string; run: () => void }[];
 }
 
 export interface AILookResult {
@@ -85,6 +87,7 @@ interface ChatMessage {
   result?: string;
   details?: string;
   partial?: boolean;
+  buttons?: { label: string; run: () => void }[];
   provider?: ProviderId;
 }
 
@@ -155,7 +158,7 @@ export function AIAssistantPanel(props: AIAssistantPanelProps) {
     try {
       const result = await propsRef.current.onActions(msg.actions);
       const report = typeof result === 'string' ? { summary: result } : result ?? { summary: '' };
-      update(msg.id, { status: 'applied', result: report.summary || undefined, details: report.details, partial: report.partial });
+      update(msg.id, { status: 'applied', result: report.summary || undefined, details: report.details, partial: report.partial, buttons: 'buttons' in report ? report.buttons : undefined });
     } catch (error) {
       const text = error instanceof Error ? error.message : String(error);
       const [first, ...rest] = text.split('\n');
@@ -384,6 +387,15 @@ function MessageView({ message, onApply }: { message: ChatMessage; onApply: () =
               {message.partial ? <TriangleAlert size={11} style={{ flex: '0 0 auto' }} /> : <Check size={11} style={{ flex: '0 0 auto' }} />} {message.result || t('Applied')}
             </span>
           )}
+          {message.status === 'applied' && message.buttons?.length ? (
+            <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+              {message.buttons.map((b, i) => (
+                <Button key={i} size="sm" variant="primary" icon={FolderOpen} onClick={b.run}>
+                  {b.label}
+                </Button>
+              ))}
+            </div>
+          ) : null}
           {message.status === 'failed' && (
             <span className="badge err" style={{ whiteSpace: 'normal', alignSelf: 'flex-start' }}>
               {message.result || t('Could not apply')}

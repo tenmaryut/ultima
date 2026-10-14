@@ -59,6 +59,8 @@ import { parseSubtitles, serializeSrt, serializeVtt } from './captions';
 import { DEFAULT_STILL_DURATION, DEFAULT_TITLE_DURATION, DEFAULT_VISUAL, TRANSITIONS, titlePreset } from './presets';
 import { RAMP_PRESETS, rampPreset, type RampPreset } from './keyframes';
 import { encodeLut, parseCube } from './grade';
+import { isLibraryMedia, libraryFile, libraryItemOf, type LibraryItem } from './library';
+import type { ImportWhat } from './ai/executor';
 import { applyAIActions, describeProject, formatResults } from './aiActions';
 import { clipFrameSheets, lookSheet } from './ai/frames';
 import { AnalysisStore } from './analysisStore';
@@ -80,6 +82,19 @@ export type Dialog =
   | { kind: 'speech' };
 
 const even = (v: number) => Math.max(16, Math.round(v / 2) * 2);
+
+const FONT_EXTENSIONS = ['ttf', 'otf', 'woff', 'woff2'];
+const FONT_ACCEPT = '.ttf,.otf,.woff,.woff2';
+/** Button labels for the files the AI asks for. */
+const IMPORT_LABELS: Record<ImportWhat, string> = {
+  music: 'Choose music…',
+  sfx: 'Choose sound files…',
+  video: 'Choose videos…',
+  image: 'Choose pictures…',
+  font: 'Choose fonts…',
+  lut: 'Choose LUT files…',
+  any: 'Choose files…',
+};
 const safeName = (s: string) => s.replace(/[\\/:*?"<>|]+/g, '_').trim() || 'video';
 
 function compatibleTrack(p: Project, trackId: string | null | undefined, ref: MediaRef): string | undefined {
@@ -162,6 +177,46 @@ export function useVideoEditor(active: boolean) {
     fontsLoaded.current = true;
     void listSystemFonts().then(setFonts);
   }, [active]);
+
+  // fonts stored in the project are loaded for titles (and stay loaded for this session)
+  const [, setFontsReady] = useState(0);
+  const loadedFonts = useRef(new Set<string>());
+  useEffect(() => {
+    for (const f of project.fonts) {
+      if (loadedFonts.current.has(f.id)) continue;
+      loadedFonts.current.add(f.id);
+      try {
+        const bin = atob(f.data);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        void new FontFace(f.family, bytes)
+          .load()
+          .then((face) => {
+            document.fonts.add(face);
+            setFontsReady((n) => n + 1);
+          })
+          .catch(() => toast.error(tRef.current('Could not load the font {name}', { name: f.family })));
+      } catch {
+        toast.error(tRef.current('Could not load the font {name}', { name: f.family }));
+      }
+    }
+  }, [project.fonts, tRef]);
+  const fontList = useMemo(() => [...new Set([...project.fonts.map((f) => f.family), ...fonts])], [project.fonts, fonts]);
+
+  // built-in library items (sound effects, stickers, overlays) are made when a project uses them
+  const making = useRef(new Set<string>());
+  useEffect(() => {
+    for (const m of project.media) {
+      if (!isLibraryMedia(m.id) || lib.has(m.id) || making.current.has(m.id)) continue;
+      const item = libraryItemOf(m.id);
+      if (!item) continue;
+      making.current.add(m.id);
+      void libraryFile(item)
+        .then((file) => lib.add(file, m.id))
+        .catch(() => undefined)
+        .finally(() => making.current.delete(m.id));
+    }
+  }, [project.media, lib]);
   useEffect(() => {
     if (!active) return;
     const track = (e: KeyboardEvent) => (shiftRef.current = e.shiftKey);
@@ -297,10 +352,13 @@ export function useVideoEditor(active: boolean) {
     const subs = files.filter((f) => ['srt', 'vtt'].includes(fileExtension(f.name)));
     for (const f of subs) await importCaptionFile(f);
     const cubes = files.filter((f) => fileExtension(f.name) === 'cube');
-    const mediaFiles = files.filter((f) => !subs.includes(f) && !cubes.includes(f) && mediaKindOf(f));
-    const unknown = files.filter((f) => !subs.includes(f) && !cubes.includes(f) && !mediaKindOf(f));
+    const fontFiles = files.filter((f) => FONT_EXTENSIONS.includes(fileExtension(f.name)));
+    const other = (f: File) => !subs.includes(f) && !cubes.includes(f) && !fontFiles.includes(f);
+    const mediaFiles = files.filter((f) => other(f) && mediaKindOf(f));
+    const unknown = files.filter((f) => other(f) && !mediaKindOf(f));
     if (unknown.length) toast.warning(t('Unsupported file type'), unknown.map((f) => f.name).join(', '));
     if (cubes.length) await addLutFiles(cubes);
+    if (fontFiles.length) await addFontFiles(fontFiles);
     if (!mediaFiles.length) return;
     setImporting((n) => n + mediaFiles.length);
     let refs: MediaRef[] = [];
@@ -347,8 +405,51 @@ export function useVideoEditor(active: boolean) {
   };
 
   const importMedia = async () => {
-    const files = await pickFiles({ accept: `${MEDIA_ACCEPT},.cube`, multiple: true });
+    const files = await pickFiles({ accept: `${MEDIA_ACCEPT},.cube,${FONT_ACCEPT}`, multiple: true });
     if (files.length) await importFiles(files, 'auto');
+  };
+
+  /** Adds fonts to the project (stored inside it) so titles can use them. */
+  const addFontFiles = async (files: File[]): Promise<string[]> => {
+    const families: string[] = [];
+    let p = doc.current();
+    for (const f of files) {
+      try {
+        if (f.size > 16 * 1024 * 1024) throw new Error('This font file is too large (16 MB at most).');
+        const bytes = new Uint8Array(await f.arrayBuffer());
+        const family = fileBaseName(f.name).replace(/[_-]+/g, ' ').replace(/["';{}<>\\]/g, '').trim().slice(0, 80) || 'Font';
+        // check that the browser can read it before keeping it
+        await new FontFace(family, bytes).load();
+        let bin = '';
+        for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+        p = { ...p, fonts: [...p.fonts.filter((x) => x.family !== family), { id: uid('font_'), family, name: f.name, data: btoa(bin) }] };
+        families.push(family);
+      } catch (e) {
+        toast.error(t('Could not import {name}', { name: f.name }), t(e instanceof Error ? e.message : 'This is not a font file this app can read.'));
+      }
+    }
+    if (families.length) {
+      doc.set(p, { label: t('Import font') });
+      toast.success(t('Fonts added: {names}', { names: families.join(', ') }), t('Choose them in a title’s Font list.'));
+    }
+    return families;
+  };
+  const importFont = async () => {
+    const files = await pickFiles({ accept: FONT_ACCEPT, multiple: true });
+    if (files.length) await addFontFiles(files);
+  };
+
+  /** Puts a built-in sound, sticker or overlay at the playhead (the same as the AI's actions). */
+  const addLibraryItem = (item: LibraryItem) => {
+    const action = item.kind === 'sfx' ? { type: 'addSfx', sound: item.id } : { type: 'addGraphic', graphic: item.id };
+    const r = applyAIActions(doc.current(), [action], { playhead: playhead() });
+    if (!r.applied) {
+      toast.error(t('Could not add {name}', { name: t(item.label) }), r.results[0]?.detail);
+      return;
+    }
+    change(r.project, { label: t('Add {name}', { name: t(item.label) }) });
+    const added = r.project.clips.filter((c) => !doc.current().clips.some((o) => o.id === c.id)).map((c) => c.id);
+    if (added.length) setSelectionState(added);
   };
 
   /** Adds color lookup tables from .cube files to the project; returns their ids. */
@@ -784,7 +885,7 @@ export function useVideoEditor(active: boolean) {
     return { summary, image, moreImages: sheets?.images, moreImagesNote: sheets?.note };
   };
 
-  const aiFonts = () => [...new Set(['Inter', ...fontsRef.current])];
+  const aiFonts = () => [...new Set(['Inter', ...doc.current().fonts.map((f) => f.family), ...fontsRef.current])];
 
   const aiApply = (list: AIAction[]): AIActionReport => {
     // leading undo/redo steps act on the history, the rest is one new step
@@ -798,16 +899,26 @@ export function useVideoEditor(active: boolean) {
     const rest = list.slice(i);
     const r = applyAIActions(projectRef.current, rest, { playhead: playhead(), selection: selectionRef.current, fonts: aiFonts(), analysis: (id) => analysis.get(id) });
     if (r.project !== projectRef.current) doc.set(r.project, { label: t('AI edit') });
+    const buttons: { label: string; run: () => void }[] = [];
     for (const e of r.effects) {
       if (e.kind === 'seek') seek(e.time);
       else if (e.kind === 'select') setSelectionState(e.ids);
       else if (e.kind === 'export') setDialog({ kind: 'export', exportKind: e.exportKind });
+      // the AI can't open files itself: it asks, and the user picks them
+      else if (e.kind === 'requestImport') buttons.push({ label: t(IMPORT_LABELS[e.what]), run: () => void importRequested(e.what) });
     }
     const failed = r.results.filter((x) => !x.ok).length;
     const details = [undone ? `undo/redo: ${undone} step(s) done` : '', formatResults(r.results.map((x) => ({ ...x, index: x.index + i })))].filter(Boolean).join('\n');
     if (!r.applied && !undone) throw new Error(`${t('Nothing could be applied.')}\n${details}`);
     const summary = t('Applied {count} change(s)', { count: r.applied + (undone ? 1 : 0) });
-    return { summary: failed ? `${summary} · ${t('{count} skipped', { count: failed })}` : summary, details, partial: failed > 0 };
+    return { summary: failed ? `${summary} · ${t('{count} skipped', { count: failed })}` : summary, details, partial: failed > 0, buttons };
+  };
+
+  /** Opens a file picker for what the AI asked for and imports the files. */
+  const importRequested = async (what: ImportWhat) => {
+    const accept = { music: 'audio/*,.flac,.m4a,.opus', sfx: 'audio/*,.flac,.m4a,.opus', video: 'video/*,.mkv,.mov', image: 'image/*', font: FONT_ACCEPT, lut: '.cube', any: `${MEDIA_ACCEPT},.cube,${FONT_ACCEPT}` }[what];
+    const files = await pickFiles({ accept, multiple: true });
+    if (files.length) await importFiles(files, 'bin');
   };
 
   /** Pictures for the AI's "look" requests: the final frame at each asked time. */
@@ -826,6 +937,7 @@ export function useVideoEditor(active: boolean) {
     t,
     doc,
     project,
+    fontList,
     lib,
     libVersion,
     time,
@@ -872,6 +984,8 @@ export function useVideoEditor(active: boolean) {
     addAdjustment,
     importLut,
     duckClip,
+    importFont,
+    addLibraryItem,
     addCaptionAtPlayhead,
     onAutoCaptions,
     applyCuts,

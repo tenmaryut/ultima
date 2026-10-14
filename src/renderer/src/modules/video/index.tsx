@@ -24,6 +24,7 @@ import { Inspector } from './ui/Inspector';
 import { LeftPanel } from './ui/LeftPanel';
 import { MediaBin } from './ui/MediaBin';
 import { GraphicsPanel } from './ui/GraphicsPanel';
+import { LibraryPanel } from './ui/LibraryPanel';
 import { CaptionsPanel } from './ui/CaptionsPanel';
 import { ExportDialog } from './ui/ExportDialog';
 import { ProjectSettingsDialog, RelinkDialog } from './ui/Dialogs';
@@ -207,12 +208,14 @@ export default function VideoModule({ active }: ModuleProps) {
         onConvert={(id) => void ed.convertMedia(id)}
       />
     ) : ed.leftTab === 'graphics' ? (
-      <GraphicsPanel onAdd={(id) => ed.addTitle(id)} onAddAdjustment={ed.addAdjustment} />
+      <GraphicsPanel onAdd={(id) => ed.addTitle(id)} onAddAdjustment={ed.addAdjustment} onImportFont={() => void ed.importFont()} />
+    ) : ed.leftTab === 'library' ? (
+      <LibraryPanel onAdd={ed.addLibraryItem} />
     ) : (
       <CaptionsPanel
         project={project}
         time={time}
-        fonts={ed.fonts}
+        fonts={ed.fontList}
         selection={selection}
         setSelection={ed.setSelection}
         change={ed.change}
@@ -260,7 +263,7 @@ export default function VideoModule({ active }: ModuleProps) {
             project={project}
             time={time}
             selection={selection}
-            fonts={ed.fonts}
+            fonts={ed.fontList}
             change={ed.change}
             commit={ed.commit}
             onOpenSettings={actions.projectSettings}
