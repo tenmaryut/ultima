@@ -297,7 +297,8 @@ export function useVideoEditor(active: boolean) {
       doc.reset(next);
       setSaved(next);
     }
-    if (p.media.some((m) => !lib.has(m.id))) setDialog({ kind: 'relink' });
+    // built-in library items are made again by themselves
+    if (p.media.some((m) => !lib.has(m.id) && !isLibraryMedia(m.id))) setDialog({ kind: 'relink' });
     toast.success(t('Opened {name}', { name: file.name }));
   };
 

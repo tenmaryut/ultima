@@ -40,12 +40,12 @@ export const SFX: LibraryItem[] = [
 ];
 
 export const STICKERS: LibraryItem[] = [
-  { id: 'hitMarker', kind: 'sticker', label: 'Hit marker', description: 'gaming hit marker (four slanted ticks)' },
+  { id: 'hitMarker', kind: 'sticker', label: 'Hit marker', description: 'gaming hit marker, four slanted ticks' },
   { id: 'crosshair', kind: 'sticker', label: 'Crosshair', description: 'gaming crosshair' },
-  { id: 'arrow', kind: 'sticker', label: 'Arrow', description: 'red arrow pointing right (rotate it to point elsewhere)' },
+  { id: 'arrow', kind: 'sticker', label: 'Arrow', description: 'red arrow pointing right, rotate it to point elsewhere' },
   { id: 'circle', kind: 'sticker', label: 'Circle', description: 'red ring to highlight something' },
   { id: 'burst', kind: 'sticker', label: 'Comic burst', description: 'yellow comic "pow" burst' },
-  { id: 'bubble', kind: 'sticker', label: 'Speech bubble', description: 'white speech bubble (put a title on it)' },
+  { id: 'bubble', kind: 'sticker', label: 'Speech bubble', description: 'white speech bubble, put a title on it' },
   { id: 'star', kind: 'sticker', label: 'Star', description: 'yellow star' },
   { id: 'heart', kind: 'sticker', label: 'Heart', description: 'red heart' },
   { id: 'lightning', kind: 'sticker', label: 'Lightning', description: 'yellow lightning bolt' },
@@ -54,11 +54,11 @@ export const STICKERS: LibraryItem[] = [
 ];
 
 export const OVERLAYS: LibraryItem[] = [
-  { id: 'lightLeak', kind: 'overlay', label: 'Light leak', description: 'warm film light leak (screen blend)', blend: 'screen' },
-  { id: 'filmDust', kind: 'overlay', label: 'Film dust', description: 'dust and scratches (screen blend)', blend: 'screen' },
-  { id: 'bokeh', kind: 'overlay', label: 'Bokeh', description: 'soft out-of-focus lights (screen blend)', blend: 'screen' },
-  { id: 'lensFlare', kind: 'overlay', label: 'Lens flare', description: 'anamorphic flare streak (screen blend)', blend: 'screen' },
-  { id: 'scanlines', kind: 'overlay', label: 'Scanlines', description: 'old TV lines (multiply blend)', blend: 'multiply' },
+  { id: 'lightLeak', kind: 'overlay', label: 'Light leak', description: 'warm film light leak, screen blend', blend: 'screen' },
+  { id: 'filmDust', kind: 'overlay', label: 'Film dust', description: 'dust and scratches, screen blend', blend: 'screen' },
+  { id: 'bokeh', kind: 'overlay', label: 'Bokeh', description: 'soft out-of-focus lights, screen blend', blend: 'screen' },
+  { id: 'lensFlare', kind: 'overlay', label: 'Lens flare', description: 'anamorphic flare streak, screen blend', blend: 'screen' },
+  { id: 'scanlines', kind: 'overlay', label: 'Scanlines', description: 'old TV lines, multiply blend', blend: 'multiply' },
 ];
 
 export const LIBRARY: LibraryItem[] = [...SFX, ...STICKERS, ...OVERLAYS];

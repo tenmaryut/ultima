@@ -25,6 +25,7 @@ import { LeftPanel } from './ui/LeftPanel';
 import { MediaBin } from './ui/MediaBin';
 import { GraphicsPanel } from './ui/GraphicsPanel';
 import { LibraryPanel } from './ui/LibraryPanel';
+import { isLibraryMedia } from './library';
 import { CaptionsPanel } from './ui/CaptionsPanel';
 import { ExportDialog } from './ui/ExportDialog';
 import { ProjectSettingsDialog, RelinkDialog } from './ui/Dialogs';
@@ -190,7 +191,7 @@ export default function VideoModule({ active }: ModuleProps) {
     hasCaptions: captionClips(project, true).length > 0,
     visualSelected: selectedClips.some((c) => c && (c.kind === 'video' || c.kind === 'image' || c.kind === 'title')),
     mediaSelected: selectedClips.some((c) => c && (c.kind === 'video' || c.kind === 'audio')),
-    missingMedia: project.media.some((m) => !ed.lib.has(m.id)),
+    missingMedia: project.media.some((m) => !ed.lib.has(m.id) && !isLibraryMedia(m.id)),
   });
   const aiTools = menus[menus.length - 1].entries;
 

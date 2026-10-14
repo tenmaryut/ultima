@@ -7,6 +7,7 @@ import { pickFiles } from '../../../core/platform';
 import { fileBaseName, formatBytes } from '../../../core/utils/format';
 import { FPS_OPTIONS, RESOLUTION_PRESETS, presetIdFor } from '../presets';
 import { MEDIA_ACCEPT, type MediaLibrary } from '../media';
+import { isLibraryMedia } from '../library';
 
 export function ProjectSettingsDialog({
   project,
@@ -92,7 +93,7 @@ export function RelinkDialog({
 }) {
   const t = useT();
   const [busy, setBusy] = useState(false);
-  const missing = project.media.filter((m) => !lib.has(m.id));
+  const missing = project.media.filter((m) => !lib.has(m.id) && !isLibraryMedia(m.id));
 
   const locate = async () => {
     const files = await pickFiles({ accept: MEDIA_ACCEPT, multiple: true });

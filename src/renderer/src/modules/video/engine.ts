@@ -7,6 +7,7 @@ import { clipEnd, timelineDuration, tracksOfKind } from './model';
 import { audibleClips, clipGainAt } from './mix';
 import { animatedLowPass, sourceAt, speedAt } from './keyframes';
 import { buildChain, chainKey, type FxChain } from './audiofx';
+import { isLibraryMedia } from './library';
 
 /**
  * Real-time preview. Time is driven by performance.now(); <video>/<audio> elements are
@@ -474,7 +475,8 @@ export class PreviewEngine {
     this.compositor.render(this.ctx, this.project, t, this.provider, {
       scale: this.scale,
       captions: true,
-      isOffline: (id) => !this.lib.has(id),
+      // built-in library items are being made, not missing
+      isOffline: (id) => !this.lib.has(id) && !isLibraryMedia(id),
       offlineLabel: this.cb.offlineLabel(),
     });
     if (!this.playing) {

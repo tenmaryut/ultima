@@ -27,7 +27,7 @@ lokal gratis. Tanpa API key, tanpa tagihan per token.
 | **Olah Foto** | Lightroom | Library dengan rating dan flag, slider olah non-destruktif (WebGL), tone curve, HSL, color grading, preset, ekspor massal |
 | **Desain Vektor** | Illustrator | Pen dan pencil tool, bentuk, gradien, teks, operasi boolean, align/distribute, layer, ekspor SVG/PDF/PNG |
 | **Tata Letak & Publikasi** | InDesign, Adobe Express | Dokumen multi-halaman, master page, paragraph style, template siap pakai (poster, flyer, konten medsos, CV…), PDF siap cetak |
-| **Editor Video** | Premiere Pro | Timeline multi-track, trim/split/ripple, judul, transisi, warna, subtitle (SRT/VTT, otomatis dengan Whisper), ekspor MP4/WebM |
+| **Editor Video** | Premiere Pro | Timeline multi-track, trim/split/ripple, keyframe, kurva kecepatan, efek, tampilan warna/LUT/kurva, mask, layer penyesuaian, efek suara dan ducking, SFX dan stiker bawaan, judul, transisi, subtitle (SRT/VTT, otomatis dengan Whisper), ekspor MP4/WebM — dan AI yang melihat setiap klip dan tahu beat-nya |
 | **Motion Grafis** | After Effects | Keyframe untuk transformasi, warna, trim path, dan lainnya, kurva easing, preset animasi, animasi kemunculan teks, ekspor MP4/WebM/GIF/PNG sequence |
 | **Editor Audio** | Audition | Gelombang & spektrogram, efek (EQ, kompresor, reverb…), reduksi noise dengan noise print, rekam, mixdown multitrack |
 | **Studio PDF** | Acrobat | Baca, cari, gabung, pisah, urutkan, anotasi, tanda tangan, sensor (redact), isi formulir |
