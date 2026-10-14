@@ -583,7 +583,7 @@ export function snapPoints(p: Project, opts: { playhead?: number; exclude?: Set<
 /* --------------------------------- Markers --------------------------------- */
 
 export function addMarker(p: Project, time: number, label = ''): { project: Project; id: string } {
-  const id = uid('m_');
+  const id = uid('mk_');
   const markers = [...p.markers, { id, time: Math.max(0, time), label }].sort((a, b) => a.time - b.time);
   return { project: { ...p, markers }, id };
 }

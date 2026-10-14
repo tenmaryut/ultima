@@ -528,4 +528,6 @@ registerTranslations('id', {
   "Upload over Wi-Fi with Data Saver off.": "Unggah lewat Wi-Fi dan matikan Penghemat Data.",
   "Finish text, music and effects here: edits made inside the app are rendered again there.": "Selesaikan teks, musik, dan efek di sini: editan di dalam aplikasi TikTok dirender ulang di sana.",
   "Upload this file as it is — sending it through a chat app first compresses it again.": "Unggah file ini apa adanya — mengirimnya lewat aplikasi chat dulu akan mengompresnya lagi.",
+  '{count} skipped': '{count} dilewati',
+  'The current frame and frames from every clip are sent with your request': 'Frame saat ini dan frame dari setiap klip ikut dikirim bersama permintaan Anda',
 }, 'video');

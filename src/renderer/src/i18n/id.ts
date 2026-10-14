@@ -243,6 +243,11 @@ registerTranslations('id', {
   '{count} edit step(s)': '{count} langkah edit',
   'Could not apply': 'Gagal diterapkan',
   '(no answer)': '(tidak ada jawaban)',
+  'Looking closer…': 'Melihat lebih dekat…',
+  'The AI looked closer at {count} moment(s)': 'AI melihat lebih dekat {count} momen',
+  'Not applied yet — press Apply to make these changes.': 'Belum diterapkan — tekan Terapkan untuk membuat perubahan ini.',
+  'Apply AI edits automatically': 'Terapkan editan AI secara otomatis',
+  'What happened to each step': 'Hasil tiap langkah',
 
   // Provider catalog (updated)
   'Check it with: claude auth status': 'Periksa dengan: claude auth status',

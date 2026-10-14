@@ -337,9 +337,11 @@ export default function VideoModule({ active }: ModuleProps) {
             instructions={VIDEO_AI_INSTRUCTIONS}
             getContext={ed.aiContext}
             onActions={ed.aiApply}
+            onLook={ed.aiLook}
             suggestions={[t('Add a title “My Trip” over the first 3 seconds'), t('Add cross dissolves between all clips'), t('Make the selected clip black and white'), t('Fade the music out at the end')]}
             placeholder={t('Ask the AI to edit your video…')}
             canSnapshot
+            snapshotLabel={t('The current frame and frames from every clip are sent with your request')}
           />
         }
       >

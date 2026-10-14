@@ -295,6 +295,27 @@ export class MediaLibrary {
     ).catch(() => undefined);
   }
 
+  /** Frames already shown to the AI assistant, by media URL, height and time (oldest dropped first). */
+  private aiFrames = new Map<string, HTMLCanvasElement>();
+
+  /** Frames at source times (seconds), `height` px tall, for the AI assistant; an image gives its picture. */
+  async framesAt(ref: MediaRef, times: number[], height: number): Promise<(HTMLCanvasElement | null)[]> {
+    const item = this.get(ref.id);
+    if (!item || (ref.kind !== 'video' && ref.kind !== 'image')) return times.map(() => null);
+    const key = (t: number) => `${item.url}|${height}|${ref.kind === 'image' ? 0 : t.toFixed(2)}`;
+    const missing = [...new Set(times.filter((t) => !this.aiFrames.has(key(t))))];
+    if (missing.length) {
+      const got = ref.kind === 'image' ? missing.map(() => stillCanvas(item, ref, height)) : await this.grabFrames(ref, item, missing, height).catch(() => []);
+      missing.forEach((t, i) => {
+        const frame = got[i];
+        if (!frame) return;
+        this.aiFrames.set(key(t), frame);
+        if (this.aiFrames.size > 96) this.aiFrames.delete(this.aiFrames.keys().next().value!);
+      });
+    }
+    return times.map((t) => this.aiFrames.get(key(t)) ?? null);
+  }
+
   async ensurePeaks(ref: MediaRef): Promise<void> {
     const item = this.get(ref.id);
     if (!item || item.peaks !== undefined || !ref.hasAudio) return;
@@ -359,6 +380,17 @@ export class MediaLibrary {
       el.load();
     }
   }
+}
+
+/** The picture of an image item, `height` px tall. */
+function stillCanvas(item: RuntimeMedia, ref: MediaRef, height: number): HTMLCanvasElement | null {
+  const img = item.image;
+  if (!img?.naturalWidth) return null;
+  const aspect = ref.width && ref.height ? ref.width / ref.height : img.naturalWidth / img.naturalHeight;
+  const h = Math.max(16, Math.round(height));
+  const c = createCanvas(Math.max(16, Math.round(h * aspect)), h);
+  get2d(c).drawImage(img, 0, 0, c.width, c.height);
+  return c;
 }
 
 function loadImageUrl(url: string): Promise<HTMLImageElement> {

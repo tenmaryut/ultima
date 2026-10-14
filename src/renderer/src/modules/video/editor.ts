@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import type { AIAction } from '../../components/ai/AIAssistantPanel';
+import type { AIAction, AIActionReport } from '../../components/ai/AIAssistantPanel';
 import { confirmDialog, promptDialog, toast, type MenuEntry } from '../../components/ui';
 import { useHistoryState } from '../../core/history';
 import { useLatest } from '../../core/hooks';
@@ -53,7 +53,8 @@ import {
 import { parseProject, serializeProject } from './project';
 import { parseSubtitles, serializeSrt, serializeVtt } from './captions';
 import { DEFAULT_STILL_DURATION, DEFAULT_TITLE_DURATION, DEFAULT_VISUAL, TRANSITIONS, titlePreset } from './presets';
-import { applyAIActions, describeProject } from './aiActions';
+import { applyAIActions, describeProject, formatResults } from './aiActions';
+import { clipFrameSheets, lookSheet } from './ai/frames';
 import { totalLength } from './silence';
 import type { TimelineApi } from './ui/Timeline';
 import type { ExportKind } from './ui/ExportDialog';
@@ -110,6 +111,7 @@ export function useVideoEditor(active: boolean) {
   const [importing, setImporting] = useState(0);
   const [exporting, setExporting] = useState(false);
   const [fonts, setFonts] = useState<string[]>([]);
+  const fontsRef = useLatest(fonts);
   const [hasClipboard, setHasClipboard] = useState(false);
   const clipboard = useRef<ClipboardData | null>(null);
   const timelineApi = useRef<TimelineApi | null>(null);
@@ -661,25 +663,47 @@ export function useVideoEditor(active: boolean) {
 
   /* --------------------------------------- AI --------------------------------------- */
 
-  const aiContext = async () => {
+  const aiContext = async ({ images }: { images: boolean }) => {
+    const p = projectRef.current;
+    const summary = describeProject(p, { playhead: playhead(), selection: selectionRef.current, fonts: aiFonts() });
+    if (!images || !p.clips.length) return { summary };
     const canvas = engine?.canvasElement;
-    let image = null;
-    if (canvas && projectRef.current.clips.length) {
-      try {
-        image = await canvasToAIImage(canvas, { maxSize: 1024 });
-      } catch {
-        image = null;
-      }
-    }
-    return { summary: describeProject(projectRef.current, { playhead: playhead(), selection: selectionRef.current }), image };
+    const image = canvas ? await canvasToAIImage(canvas, { maxSize: 1024 }).catch(() => null) : null;
+    // frames from every clip, so the AI sees what the whole timeline shows (not just the playhead)
+    const sheets = await clipFrameSheets(p, (media, times, height) => lib.framesAt(media, times, height)).catch(() => null);
+    return { summary, image, moreImages: sheets?.images, moreImagesNote: sheets?.note };
   };
 
-  const aiApply = (list: AIAction[]) => {
-    const r = applyAIActions(projectRef.current, list, { playhead: playhead() });
-    if (!r.applied) throw new Error(r.notes.length ? r.notes.join('; ') : t('Nothing could be applied.'));
-    doc.set(r.project, { label: t('AI edit') });
-    const summary = t('Applied {count} change(s)', { count: r.applied });
-    return r.notes.length ? `${summary} · ${t('skipped')}: ${r.notes.join('; ')}` : summary;
+  const aiFonts = () => [...new Set(['Inter', ...fontsRef.current])];
+
+  const aiApply = (list: AIAction[]): AIActionReport => {
+    // leading undo/redo steps act on the history, the rest is one new step
+    let undone = 0;
+    let i = 0;
+    for (; i < list.length && (list[i].type === 'undo' || list[i].type === 'redo'); i++) {
+      const steps = Math.max(1, Math.min(20, Math.round(Number(list[i].steps) || 1)));
+      for (let k = 0; k < steps; k++) (list[i].type === 'undo' ? doc.undo : doc.redo)();
+      undone += steps;
+    }
+    const rest = list.slice(i);
+    const r = applyAIActions(projectRef.current, rest, { playhead: playhead(), selection: selectionRef.current, fonts: aiFonts() });
+    if (r.project !== projectRef.current) doc.set(r.project, { label: t('AI edit') });
+    for (const e of r.effects) {
+      if (e.kind === 'seek') seek(e.time);
+      else if (e.kind === 'select') setSelectionState(e.ids);
+      else if (e.kind === 'export') setDialog({ kind: 'export', exportKind: e.exportKind });
+    }
+    const failed = r.results.filter((x) => !x.ok).length;
+    const details = [undone ? `undo/redo: ${undone} step(s) done` : '', formatResults(r.results.map((x) => ({ ...x, index: x.index + i })))].filter(Boolean).join('\n');
+    if (!r.applied && !undone) throw new Error(`${t('Nothing could be applied.')}\n${details}`);
+    const summary = t('Applied {count} change(s)', { count: r.applied + (undone ? 1 : 0) });
+    return { summary: failed ? `${summary} · ${t('{count} skipped', { count: failed })}` : summary, details, partial: failed > 0 };
+  };
+
+  /** Pictures for the AI's "look" requests: the final frame at each asked time. */
+  const aiLook = async (list: AIAction[]) => {
+    const times = list.flatMap((a) => (Array.isArray(a.times) ? a.times : [a.time])).filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
+    return lookSheet(projectRef.current, times, (media, ts, height) => lib.framesAt(media, ts, height), (id) => lib.get(id)?.image ?? null);
   };
 
   const applySettings = (settings: ProjectSettings, name: string) => {
@@ -748,6 +772,7 @@ export function useVideoEditor(active: boolean) {
     duplicate,
     aiContext,
     aiApply,
+    aiLook,
     applySettings,
     exportCaptions,
     importCaptions,
