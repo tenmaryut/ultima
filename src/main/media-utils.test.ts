@@ -1,3 +1,6 @@
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { antigravityImagePrompt, aspectName, clampRate, codexImagePrompt, comfySeed, comfyWorkflow, fillSpeechArgs, imagePathsIn, jsonStrings, nearestAspectRatio, parseEspeakVoices, parseSapiVoices, parseSayVoices, piperVoiceFromFile, sapiRate, sniffAudioMime, sniffImageMime, socialVideoArgs, wordsPerMinute } from './media-utils';
 
@@ -51,7 +54,9 @@ describe('Antigravity image helpers', () => {
     expect(imagePathsIn('/home/ana/.gemini/antigravity-cli/brain/c1/ultima_abc_1760.png')).toEqual(['/home/ana/.gemini/antigravity-cli/brain/c1/ultima_abc_1760.png']);
     expect(imagePathsIn('`/Users/Ana Lee/.gemini/x/ultima_abc.png`')).toEqual(['/Users/Ana Lee/.gemini/x/ultima_abc.png']);
     expect(imagePathsIn('Saved to C:\\Users\\ana\\.gemini\\brain\\ultima_abc.webp.')).toEqual(['C:\\Users\\ana\\.gemini\\brain\\ultima_abc.webp']);
-    expect(imagePathsIn('see file:///tmp/a%20b/ultima_x.jpg and /var/tmp/y.png')).toEqual(['/tmp/a b/ultima_x.jpg', '/var/tmp/y.png']);
+    // A file URL of this system (file:///C:/… on Windows) turns back into its local path.
+    const spaced = join(tmpdir(), 'a b', 'ultima_x.jpg');
+    expect(imagePathsIn(`see ${pathToFileURL(spaced).href} and /var/tmp/y.png`)).toEqual([spaced, '/var/tmp/y.png']);
     expect(imagePathsIn('no image here, https://example.com/pic.png')).toEqual([]);
     expect(jsonStrings({ a: ['x', { b: 'y' }], c: 1, d: null })).toEqual(['x', 'y']);
   });
