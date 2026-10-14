@@ -388,6 +388,12 @@ saturation, temperature, hue, blur); Chroma key for green or blue screens.
   color, effects, mask and transform apply to everything on the tracks below it — one grade, one shake or one
   letterbox for the whole video.
 
+**Sound effects and ducking** (Inspector → *Sound effects*, for audio clips and a video's sound): presets (Muffled,
+Underwater, Phone call, Old radio, Small room, Big hall, Cave, Bass boost, Clear voice, Lo-fi), low cut, high cut
+(the muffle — animatable with ◆, e.g. muffled right after an explosion), bass, mids, treble and reverb with room
+size. You hear them while editing and they are in the export. **Auto ducking** lowers a clip (usually the music)
+wherever the other sound — voice or game audio — is loud, by writing volume keyframes you can still adjust.
+
 **Titles and captions.** *Titles* tab: Basic title, Lower third, Big bold, Bottom text, Typewriter, Pop label and
 End card — click or drag one onto the timeline, then edit its text, font, colors, outline, background and
 animation (Fade, Slide up, Pop, Typewriter). *Captions* tab: add captions by hand, import or export SRT/VTT,
@@ -411,8 +417,8 @@ apart for sure from sound alone).
 
 It can add clips from the Media bin; split, trim, move, shift, delete and duplicate clips, close gaps and remove a
 time range; link and unlink sound; change one clip, a whole track or all clips at once; animate with keyframes
-(zoom, pan, shake, fades, volume); add speed curves, reverse clips and freeze frames; add effects, looks, LUTs,
-curves, HSL changes, masks, blend modes and adjustment layers; restyle titles; add transitions in and out; add,
+(zoom, pan, shake, fades, volume, muffle); add speed curves, reverse clips and freeze frames; add effects, looks,
+LUTs, curves, HSL changes, masks, blend modes and adjustment layers; add sound effects and duck the music; restyle titles; add transitions in and out; add,
 move, rename and delete markers; add, mute, lock and delete tracks; set the work area; move the playhead; undo; and
 open the export dialog. After you press *Apply* (or with *Apply AI edits automatically* on) the
 AI is told what happened to every step, and *What happened to each step* shows you the same list.

@@ -206,6 +206,21 @@ export interface ColorGrade {
   hsl?: Partial<Record<HueRange, { h: number; s: number; l: number }>>;
 }
 
+/** Sound effects of an audio clip (0 = off for the filters). */
+export interface AudioFx {
+  /** Cuts below this frequency (Hz): rumble, wind. */
+  highPass: number;
+  /** Cuts above this frequency (Hz): low values sound muffled (through a wall, underwater). */
+  lowPass: number;
+  /** Bass (low shelf 150 Hz), mids (1 kHz) and treble (high shelf 6 kHz) in dB, −24..24. */
+  eqLow: number;
+  eqMid: number;
+  eqHigh: number;
+  /** Reverb mix 0-1 and its length in seconds (0.2-8). */
+  reverb: number;
+  reverbSize: number;
+}
+
 /** A 3D color lookup table imported from a .cube file. */
 export interface LutAsset {
   id: string;
@@ -273,7 +288,8 @@ export type KeyProp =
   | 'sharpen'
   | 'grain'
   | 'letterbox'
-  | 'volume';
+  | 'volume'
+  | 'lowPass';
 
 export interface Clip {
   id: string;
@@ -308,6 +324,8 @@ export interface Clip {
   blend?: BlendMode;
   mask?: ClipMask;
   grade?: ColorGrade;
+  /** Audio clips: filters, EQ and reverb. */
+  audioFx?: AudioFx;
   title?: TitleStyle;
   /** Caption text. */
   text?: string;

@@ -41,6 +41,8 @@ export interface AudioAnalysis {
   bursts: Burst[];
   /** Times where the sound gets clearly louder for a while (drops, choruses, action starting). */
   rises: number[];
+  /** Loudness over time (RMS dB, `rate` values per second) — for ducking. */
+  envelope: { rate: number; db: Float32Array };
 }
 
 export function monoMix(channels: Float32Array[]): Float32Array {
@@ -369,7 +371,8 @@ export function analyzeAudio(channels: Float32Array[], sampleRate: number): Audi
         .sort((a, b) => a - b)
     : [];
   const loud = loudMoments(mono, sampleRate);
-  return { duration, beats, hits, loud, bursts: burstsOf(loud), rises: energyRises(mono, sampleRate).map((t) => Math.round(t * 100) / 100) };
+  const envelope = levels(mono, sampleRate, 0.05);
+  return { duration, beats, hits, loud, bursts: burstsOf(loud), rises: energyRises(mono, sampleRate).map((t) => Math.round(t * 100) / 100), envelope };
 }
 
 /* ------------------------------- Scene changes ------------------------------ */

@@ -1,5 +1,5 @@
 import type { Clip, Easing, Keyframe, KeyProp, VisualProps } from './types';
-import { DEFAULT_VISUAL, MAX_SPEED, MIN_SPEED } from './presets';
+import { DEFAULT_AUDIO_FX, DEFAULT_VISUAL, MAX_SPEED, MIN_SPEED } from './presets';
 
 /*
  * Keyframes, speed ramps, reverse and freeze frames (pure, unit tested). Keyframe times are
@@ -29,8 +29,11 @@ export const KEY_PROPS: readonly KeyProp[] = [
   'grain',
   'letterbox',
   'volume',
+  'lowPass',
 ];
-export const VISUAL_KEY_PROPS = KEY_PROPS.filter((k) => k !== 'volume') as Exclude<KeyProp, 'volume'>[];
+/** Properties of the sound (the others belong to the picture). */
+export const AUDIO_KEY_PROPS: readonly KeyProp[] = ['volume', 'lowPass'];
+export const VISUAL_KEY_PROPS = KEY_PROPS.filter((k) => !AUDIO_KEY_PROPS.includes(k)) as Exclude<KeyProp, 'volume' | 'lowPass'>[];
 export const EASINGS: readonly Easing[] = ['linear', 'easeIn', 'easeOut', 'easeInOut', 'hold'];
 
 /** Valid range of each animatable property (volume in dB). */
@@ -56,7 +59,11 @@ export const KEY_RANGES: Record<KeyProp, [number, number]> = {
   grain: [0, 1],
   letterbox: [0, 0.3],
   volume: [-60, 12],
+  lowPass: [20, 22000],
 };
+
+/** A low-pass at this frequency (Hz) or higher lets everything through. */
+export const OPEN_LOW_PASS = 22000;
 
 export function ease(kind: Easing, p: number): number {
   const x = Math.min(1, Math.max(0, p));
@@ -205,6 +212,11 @@ export function animatedVolume(c: Clip, local: number): number {
   return keyValue(c.keys?.volume, local, c.volume);
 }
 
+/** Low-pass frequency (Hz) of a clip at `local` seconds (OPEN_LOW_PASS = off). */
+export function animatedLowPass(c: Clip, local: number): number {
+  return keyValue(c.keys?.lowPass, local, c.audioFx?.lowPass || OPEN_LOW_PASS);
+}
+
 /* ------------------------------ Editing helpers ------------------------------ */
 
 /** Two keyframes closer than this (seconds) are the same keyframe. */
@@ -214,7 +226,9 @@ const localIn = (c: Clip, local: number) => Math.min(Math.max(0, local), c.durat
 
 /** The plain (not animated) value of a property. */
 export function baseValue(c: Clip, prop: KeyProp): number {
-  return prop === 'volume' ? c.volume : (c.visual ?? DEFAULT_VISUAL)[prop];
+  if (prop === 'volume') return c.volume;
+  if (prop === 'lowPass') return c.audioFx?.lowPass || OPEN_LOW_PASS;
+  return (c.visual ?? DEFAULT_VISUAL)[prop];
 }
 
 /** Value of a property at `local` seconds into the clip. */
@@ -227,6 +241,7 @@ export function setValueAt(c: Clip, prop: KeyProp, local: number, v: number): Cl
   const keys = c.keys?.[prop];
   if (keys?.length) return { ...c, keys: { ...c.keys, [prop]: upsertKey(keys, localIn(c, local), v) } };
   if (prop === 'volume') return { ...c, volume: v };
+  if (prop === 'lowPass') return { ...c, audioFx: { ...(c.audioFx ?? DEFAULT_AUDIO_FX), lowPass: v >= OPEN_LOW_PASS ? 0 : v } };
   return { ...c, visual: { ...(c.visual ?? DEFAULT_VISUAL), [prop]: v } };
 }
 

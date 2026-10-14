@@ -26,6 +26,8 @@ interface KeySliderProps {
   step?: number;
   /** Slider units per value unit (100 shows 0–1 as 0–100). */
   unit?: number;
+  /** A non-linear slider: value → slider position and back (e.g. logarithmic frequencies). */
+  map?: { to: (v: number) => number; from: (x: number) => number };
   format?: (x: number) => string;
   defaultValue?: number;
   /** Live change while dragging (one undo step on `done`). */
@@ -47,18 +49,24 @@ function KeyButton({ state, onClick }: { state: 'off' | 'animated' | 'on'; onCli
   return <IconButton size="sm" iconSize={12} icon={Diamond} label={label} className={`vd-keybtn ${state}`} active={state === 'on'} onClick={onClick} />;
 }
 
+/** Slider position of a value and back (scaled by `unit`, or mapped). */
+function scales(p: KeySliderProps) {
+  const unit = p.unit ?? 1;
+  return { to: p.map?.to ?? ((v: number) => v * unit), from: p.map?.from ?? ((x: number) => x / unit) };
+}
+
 function PlainSlider(p: KeySliderProps) {
   const t = useT();
-  const unit = p.unit ?? 1;
+  const { to, from } = scales(p);
   return (
     <div className="vd-keyrow">
       <Slider
         label={p.label}
-        value={valueAt(p.clip, p.prop, 0) * unit}
+        value={to(valueAt(p.clip, p.prop, 0))}
         min={p.min}
         max={p.max}
         step={p.step}
-        onChange={(x) => p.live((c) => setValueAt(c, p.prop, 0, x / unit))}
+        onChange={(x) => p.live((c) => setValueAt(c, p.prop, 0, from(x)))}
         onCommit={() => p.done(p.commitLabel)}
         format={p.format}
         defaultValue={p.defaultValue}
@@ -71,18 +79,18 @@ function PlainSlider(p: KeySliderProps) {
 function AnimatedSlider(p: KeySliderProps) {
   const t = useT();
   const now = usePlayhead(p.time);
-  const unit = p.unit ?? 1;
+  const { to, from } = scales(p);
   const local = localOf(p.clip, now);
   const onKey = Boolean(p.clip.keys?.[p.prop]?.some((k) => Math.abs(k.t - local) <= KEY_TOLERANCE));
   return (
     <div className="vd-keyrow animated">
       <Slider
         label={p.label}
-        value={valueAt(p.clip, p.prop, local) * unit}
+        value={to(valueAt(p.clip, p.prop, local))}
         min={p.min}
         max={p.max}
         step={p.step}
-        onChange={(x) => p.live((c, at) => setValueAt(c, p.prop, localOf(c, at), x / unit))}
+        onChange={(x) => p.live((c, at) => setValueAt(c, p.prop, localOf(c, at), from(x)))}
         onCommit={() => p.done(p.commitLabel)}
         format={p.format}
         defaultValue={p.defaultValue}

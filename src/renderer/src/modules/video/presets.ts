@@ -1,4 +1,4 @@
-import type { BlendMode, CaptionStyle, ClipMask, ColorGrade, ProjectSettings, TitleAnimation, TitleStyle, TransitionKind, VisualProps } from './types';
+import type { AudioFx, BlendMode, CaptionStyle, ClipMask, ColorGrade, ProjectSettings, TitleAnimation, TitleStyle, TransitionKind, VisualProps } from './types';
 
 /** Pure defaults and preset tables (no DOM). */
 
@@ -90,6 +90,24 @@ export const BLEND_IDS = BLEND_MODES.map((b) => b.id);
 export const DEFAULT_MASK: ClipMask = { shape: 'ellipse', x: 0.5, y: 0.5, w: 0.6, h: 0.6, rotation: 0, feather: 0.05, invert: false };
 
 export const DEFAULT_GRADE: ColorGrade = { lookAmount: 1, lutAmount: 1 };
+
+export const DEFAULT_AUDIO_FX: AudioFx = { highPass: 0, lowPass: 0, eqLow: 0, eqMid: 0, eqHigh: 0, reverb: 0, reverbSize: 1.5 };
+
+export type AudioPresetId = 'muffled' | 'underwater' | 'phone' | 'radio' | 'room' | 'hall' | 'cave' | 'bassBoost' | 'clearVoice' | 'lofi';
+
+/** Sound presets: complete effect settings. */
+export const AUDIO_PRESETS: { id: AudioPresetId; label: string; fx: AudioFx }[] = [
+  { id: 'muffled', label: 'Muffled (through a wall)', fx: { ...DEFAULT_AUDIO_FX, lowPass: 700, eqLow: 2 } },
+  { id: 'underwater', label: 'Underwater', fx: { ...DEFAULT_AUDIO_FX, lowPass: 380, eqLow: 4, reverb: 0.3, reverbSize: 1.2 } },
+  { id: 'phone', label: 'Phone call', fx: { ...DEFAULT_AUDIO_FX, highPass: 450, lowPass: 3200, eqMid: 6 } },
+  { id: 'radio', label: 'Old radio', fx: { ...DEFAULT_AUDIO_FX, highPass: 300, lowPass: 4500, eqMid: 8, eqHigh: -4 } },
+  { id: 'room', label: 'Small room', fx: { ...DEFAULT_AUDIO_FX, reverb: 0.22, reverbSize: 0.7 } },
+  { id: 'hall', label: 'Big hall', fx: { ...DEFAULT_AUDIO_FX, reverb: 0.4, reverbSize: 3.5 } },
+  { id: 'cave', label: 'Cave / echo', fx: { ...DEFAULT_AUDIO_FX, reverb: 0.55, reverbSize: 6, eqHigh: -6 } },
+  { id: 'bassBoost', label: 'Bass boost', fx: { ...DEFAULT_AUDIO_FX, eqLow: 9, eqHigh: 2 } },
+  { id: 'clearVoice', label: 'Clear voice', fx: { ...DEFAULT_AUDIO_FX, highPass: 90, eqLow: -2, eqMid: 2, eqHigh: 4 } },
+  { id: 'lofi', label: 'Lo-fi', fx: { ...DEFAULT_AUDIO_FX, highPass: 200, lowPass: 5000, eqHigh: -3, reverb: 0.15, reverbSize: 1 } },
+];
 
 export const TRANSITIONS: { kind: TransitionKind; label: string }[] = [
   { kind: 'dissolve', label: 'Cross dissolve' },

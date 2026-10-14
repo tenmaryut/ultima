@@ -5,7 +5,8 @@ import type { TimeStore } from './timeStore';
 import { getAudioContext } from '../../core/utils/audio';
 import { clipEnd, timelineDuration, tracksOfKind } from './model';
 import { audibleClips, clipGainAt } from './mix';
-import { sourceAt, speedAt } from './keyframes';
+import { animatedLowPass, sourceAt, speedAt } from './keyframes';
+import { buildChain, chainKey, type FxChain } from './audiofx';
 
 /**
  * Real-time preview. Time is driven by performance.now(); <video>/<audio> elements are
@@ -33,6 +34,9 @@ interface AudioSlot {
   el: HTMLAudioElement;
   source: MediaElementAudioSourceNode;
   gain: GainNode;
+  /** The clip's sound effects after the gain (null without effects). */
+  chain: FxChain | null;
+  chainKey: string;
   lastUsed: number;
 }
 
@@ -320,10 +324,25 @@ export class PreviewEngine {
       gain.gain.value = 0;
       source.connect(gain);
       gain.connect(this.masterGain());
-      slot = { clipId: clip.id, url: item.url, el, source, gain, lastUsed: performance.now() };
+      slot = { clipId: clip.id, url: item.url, el, source, gain, chain: null, chainKey: '', lastUsed: performance.now() };
       this.audio.set(clip.id, slot);
     }
+    this.updateChain(slot, clip);
     return slot;
+  }
+
+  /** Rebuilds a slot's effect chain when the clip's effects changed (gain → effects → master). */
+  private updateChain(slot: AudioSlot, clip: Clip) {
+    const key = chainKey(clip);
+    if (key === slot.chainKey) return;
+    slot.gain.disconnect();
+    slot.chain?.dispose();
+    slot.chain = buildChain(getAudioContext(), clip);
+    slot.chainKey = key;
+    if (slot.chain) {
+      slot.gain.connect(slot.chain.input);
+      slot.chain.output.connect(this.masterGain());
+    } else slot.gain.connect(this.masterGain());
   }
 
   private destroyAudio(id: string, slot: AudioSlot) {
@@ -331,6 +350,7 @@ export class PreviewEngine {
     try {
       slot.source.disconnect();
       slot.gain.disconnect();
+      slot.chain?.dispose();
     } catch {
       // already disconnected
     }
@@ -408,6 +428,7 @@ export class PreviewEngine {
           slot.el.preservesPitch = c.keepPitch && !c.speedKeys?.length;
           this.syncElement(slot.el, sourceAt(c, t - c.start), speedAt(c, t - c.start), true, force, fps);
           slot.gain.gain.setTargetAtTime(clipGainAt(c, t), actx.currentTime, 0.015);
+          if (slot.chain?.lowPass && c.keys?.lowPass?.length) slot.chain.lowPass.frequency.setTargetAtTime(animatedLowPass(c, t - c.start), actx.currentTime, 0.02);
         } else {
           if (!slot.el.paused) slot.el.pause();
           slot.gain.gain.value = 0;

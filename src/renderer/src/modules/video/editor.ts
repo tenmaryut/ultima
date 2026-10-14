@@ -377,6 +377,16 @@ export function useVideoEditor(active: boolean) {
     return files.length ? addLutFiles(files) : [];
   };
 
+  /** Lowers an audio clip wherever the other sound is loud (auto ducking); returns what happened. */
+  const duckClip = (clipId: string, amount: number) => {
+    const r = applyAIActions(doc.current(), [{ type: 'duck', clipId, amount }], { playhead: playhead(), analysis: (id) => analysis.get(id) });
+    const res = r.results[0];
+    if (res?.ok) {
+      change(r.project, { label: t('Auto ducking') });
+      toast.success(t('Auto ducking'), res.detail);
+    } else toast.info(t('Auto ducking'), res?.detail ?? '');
+  };
+
   /** An adjustment layer from the playhead to the end of the timeline (or 5 s), above all pictures. */
   const addAdjustment = () => {
     const p0 = doc.current();
@@ -786,7 +796,7 @@ export function useVideoEditor(active: boolean) {
       undone += steps;
     }
     const rest = list.slice(i);
-    const r = applyAIActions(projectRef.current, rest, { playhead: playhead(), selection: selectionRef.current, fonts: aiFonts() });
+    const r = applyAIActions(projectRef.current, rest, { playhead: playhead(), selection: selectionRef.current, fonts: aiFonts(), analysis: (id) => analysis.get(id) });
     if (r.project !== projectRef.current) doc.set(r.project, { label: t('AI edit') });
     for (const e of r.effects) {
       if (e.kind === 'seek') seek(e.time);
@@ -861,6 +871,7 @@ export function useVideoEditor(active: boolean) {
     addTitle,
     addAdjustment,
     importLut,
+    duckClip,
     addCaptionAtPlayhead,
     onAutoCaptions,
     applyCuts,

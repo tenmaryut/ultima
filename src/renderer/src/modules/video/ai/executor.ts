@@ -1,5 +1,7 @@
 import type { BlendMode, CaptionStyle, Clip, Easing, Keyframe, KeyProp, LookId, MediaRef, Project, TitleStyle, TrackKind, TransitionKind } from '../types';
-import { EASINGS, KEY_PROPS, KEY_RANGES, RAMP_PRESETS, rampPreset, type RampPreset } from '../keyframes';
+import { AUDIO_KEY_PROPS, EASINGS, KEY_PROPS, KEY_RANGES, RAMP_PRESETS, rampPreset, type RampPreset } from '../keyframes';
+import { activeRanges, DEFAULT_DUCK, duckKeys, type Envelope } from '../ducking';
+import type { MediaAnalysis } from '../analysisStore';
 import {
   addCaptionCues,
   addMarker,
@@ -37,7 +39,9 @@ import {
   findTopVideoTrack,
 } from '../model';
 import {
+  AUDIO_PRESETS,
   BLEND_IDS,
+  DEFAULT_AUDIO_FX,
   DEFAULT_GRADE,
   DEFAULT_MASK,
   DEFAULT_STILL_DURATION,
@@ -53,7 +57,7 @@ import {
 } from '../presets';
 import { LOOKS } from '../grade';
 import { letterboxBars } from '../fx';
-import { parseGrade, parseMask } from '../project';
+import { parseAudioFx, parseGrade, parseMask } from '../project';
 import { EPS, clampNum, frameDur } from '../time';
 import { Skip, findTrack, resolveClips, trackOrCreate } from './targets';
 import { finite, isObj, plainText, safeColor, sec, type Obj } from './util';
@@ -88,7 +92,13 @@ export interface ExecContext {
   selection?: string[];
   /** Font families that can be used in titles. */
   fonts?: string[];
+  /** Content analysis of media (for ducking). */
+  analysis?: (mediaId: string) => MediaAnalysis | 'pending' | null;
 }
+
+/** setClip props that belong to the sound (on a video clip they go to its linked audio). */
+const AUDIO_PROP_KEYS = ['volume', 'muted', 'audioFx', 'audioPreset', 'highPass', 'lowPass', 'eqLow', 'eqMid', 'eqHigh', 'reverb', 'reverbSize'];
+const FX_KEYS = ['highPass', 'lowPass', 'eqLow', 'eqMid', 'eqHigh', 'reverb', 'reverbSize'] as const;
 
 interface State {
   p: Project;
@@ -313,6 +323,26 @@ function patchClip(p: Project, cl: Clip, pr: Obj, fonts: string[] | undefined, c
       mark('volume');
       if (keyed('volume')) unkeyed.push('volume');
     }
+  }
+  if (cl.kind === 'audio' && (pr.audioPreset !== undefined || pr.audioFx !== undefined || FX_KEYS.some((k) => finite(pr[k])))) {
+    let fx: Obj = { ...(cl.audioFx ?? DEFAULT_AUDIO_FX) };
+    if (pr.audioPreset === 'none' || pr.audioPreset === null || pr.audioFx === null || pr.audioFx === 'none') fx = { ...DEFAULT_AUDIO_FX };
+    else if (pr.audioPreset !== undefined) {
+      const key = typeof pr.audioPreset === 'string' ? letters(pr.audioPreset) : '';
+      const preset = AUDIO_PRESETS.find((a) => letters(a.id) === key || letters(a.label).startsWith(key));
+      if (!preset) warn.push(`unknown audioPreset ${String(pr.audioPreset)} (use ${AUDIO_PRESETS.map((a) => a.id).join(', ')})`);
+      else fx = { ...preset.fx };
+    }
+    if (isObj(pr.audioFx)) fx = { ...fx, ...pr.audioFx };
+    for (const k of FX_KEYS) if (finite(pr[k])) fx[k] = pr[k];
+    if (finite(fx.reverb) && (fx.reverb as number) > 1) fx.reverb = (fx.reverb as number) / 100;
+    const parsed = parseAudioFx(fx);
+    if (JSON.stringify(parsed) !== JSON.stringify(cl.audioFx)) {
+      next.audioFx = parsed;
+      mark('sound effects');
+    }
+    // a fixed high cut replaces its keyframes
+    if (finite(pr.lowPass) && keyed('lowPass')) unkeyed.push('lowPass');
   }
   if (unkeyed.length) {
     const keys = { ...cl.keys };
@@ -617,14 +647,11 @@ const handlers: Record<string, Handler> = {
       if (typeof pr.reverse === 'boolean' && c.kind === 'video' && c.linkId) {
         for (const partner of s.p.clips.filter((x) => x.linkId === c.linkId && x.kind === 'audio')) s.p = updateClip(s.p, partner.id, (x) => ({ ...x, reverse: (pr.reverse as boolean) || undefined }));
       }
-      // volume on a video clip applies to its linked audio
-      if ((finite(pr.volume) || pr.muted === true) && c.kind === 'video' && c.linkId) {
-        const vol = pr.muted === true ? MIN_VOLUME_DB : clampNum(pr.volume as number, MIN_VOLUME_DB, MAX_VOLUME_DB);
+      // sound settings on a video clip apply to its linked audio
+      if (c.kind === 'video' && c.linkId && AUDIO_PROP_KEYS.some((k) => pr[k] !== undefined)) {
+        const audioProps = Object.fromEntries(AUDIO_PROP_KEYS.filter((k) => pr[k] !== undefined).map((k) => [k, pr[k]]));
         for (const partner of s.p.clips.filter((x) => x.linkId === c.linkId && x.kind === 'audio')) {
-          if (partner.volume !== vol) {
-            s.p = updateClip(s.p, partner.id, (x) => ({ ...x, volume: vol }));
-            if (!changed.includes('volume')) changed.push('volume');
-          }
+          s.p = updateClip(s.p, partner.id, (x) => patchClip(s.p, x, audioProps, s.ctx.fonts, changed, warn));
         }
       }
     }
@@ -813,7 +840,7 @@ const handlers: Record<string, Handler> = {
     let done = 0;
     for (const id of ids) {
       const c = getClip(s.p, id)!;
-      const targets = prop === 'volume' ? soundOf(s.p, c) : c.visual ? [c] : [];
+      const targets = AUDIO_KEY_PROPS.includes(prop) ? soundOf(s.p, c) : c.visual ? [c] : [];
       for (const target of targets) {
         const keys = readKeys(target, a.keys, (v) => keyUnit(prop, v));
         s.p = updateClip(s.p, target.id, (x) => {
@@ -823,7 +850,7 @@ const handlers: Record<string, Handler> = {
         done++;
       }
     }
-    if (!done) throw new Skip(prop === 'volume' ? 'none of those clips has sound' : 'none of those clips has a picture');
+    if (!done) throw new Skip(AUDIO_KEY_PROPS.includes(prop) ? 'none of those clips has sound' : 'none of those clips has a picture');
     return `${prop} keyframes on ${done} clip(s)${notes.length ? ` (${notes.join('; ')})` : ''}`;
   },
 
@@ -893,6 +920,54 @@ const handlers: Record<string, Handler> = {
     if (!r.id) throw new Skip(`${sec(time)} is not inside ${c.id}, or its track is locked`);
     s.p = r.project;
     return `freeze frame ${r.id} at ${sec(time)} for ${duration.toFixed(2)} s; everything after moved ${duration.toFixed(2)} s later`;
+  },
+
+  duck(s, a) {
+    // what goes down (music), and what it makes room for (voice, game sound)
+    const targetIds = resolveClips(s.p, a, { kinds: ['audio', 'video'], selection: s.ctx.selection }).ids;
+    const targets = [...new Set(targetIds.flatMap((id) => soundOf(s.p, getClip(s.p, id)!)))].filter((c) => !isLockedTrack(s.p, c.trackId));
+    if (!targets.length) throw new Skip('none of those clips has sound');
+    const targetSet = new Set(targets.map((c) => c.id));
+    let triggers: Clip[];
+    if (a.trigger !== undefined) {
+      const r = resolveClips(s.p, { clips: a.trigger }, { kinds: ['audio', 'video'], optional: true });
+      triggers = [...new Set(r.ids.flatMap((id) => soundOf(s.p, getClip(s.p, id)!)))];
+    } else triggers = s.p.clips.filter((c) => c.kind === 'audio' && !targetSet.has(c.id));
+    const muted = new Set(s.p.tracks.filter((t) => t.muted).map((t) => t.id));
+    triggers = triggers.filter((c) => !targetSet.has(c.id) && !muted.has(c.trackId) && c.mediaId);
+    if (!triggers.length) throw new Skip('no other sound to duck under (give "trigger": the voice or game sound clips or track)');
+    if (!s.ctx.analysis) throw new Skip('the sound analysis is not available');
+    const withEnv: { clip: Clip; env: Envelope }[] = [];
+    const pending: string[] = [];
+    for (const c of triggers) {
+      const res = s.ctx.analysis(c.mediaId!);
+      if (res === 'pending') pending.push(c.id);
+      else if (res?.audio?.envelope.db.length) withEnv.push({ clip: c, env: res.audio.envelope });
+    }
+    if (!withEnv.length) throw new Skip(pending.length ? 'the sound is still being analysed — try again in a moment' : 'the trigger clips have no analysed sound');
+    const ranges = activeRanges(withEnv, { threshold: finite(a.threshold) ? clampNum(a.threshold, -80, 0) : undefined });
+    const opts = {
+      amount: finite(a.amount) ? clampNum(-Math.abs(a.amount), -40, -1) : DEFAULT_DUCK.amount,
+      attack: finite(a.attack) ? clampNum(a.attack, 0.01, 2) : DEFAULT_DUCK.attack,
+      release: finite(a.release) ? clampNum(a.release, 0.02, 4) : DEFAULT_DUCK.release,
+    };
+    let ducked = 0;
+    let dips = 0;
+    for (const c of targets) {
+      const keys = duckKeys(c, ranges, opts);
+      s.p = updateClip(s.p, c.id, (x) => {
+        const rest = { ...x.keys };
+        delete rest.volume;
+        return { ...x, keys: keys ? { ...rest, volume: keys } : Object.keys(rest).length ? rest : undefined };
+      });
+      if (keys) {
+        ducked++;
+        dips += keys.filter((k) => k.v < c.volume - 0.01 && k.ease === 'linear').length;
+      }
+    }
+    if (!ducked) throw new Skip('the trigger sound is never loud while those clips play');
+    const total = ranges.reduce((n, r) => n + r.end - r.start, 0);
+    return `lowered ${ducked} clip(s) by ${Math.abs(opts.amount)} dB while the other sound is loud (${dips} dip(s), ${total.toFixed(1)} s in all; volume keyframes)${pending.length ? `; ${pending.length} trigger clip(s) were still being analysed` : ''}`;
   },
 
   seek(s, a) {

@@ -265,6 +265,7 @@ export default function VideoModule({ active }: ModuleProps) {
             commit={ed.commit}
             onOpenSettings={actions.projectSettings}
             onImportLut={ed.importLut}
+            onDuck={ed.duckClip}
             onLink={actions.link}
             onUnlink={actions.unlink}
             onSeek={ed.seek}

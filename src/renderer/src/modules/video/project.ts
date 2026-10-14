@@ -1,6 +1,6 @@
-import type { BlendMode, CaptionStyle, Clip, ClipKind, ClipMask, ColorGrade, CurveChannel, Easing, HueRange, Keyframe, KeyProp, LookId, LutAsset, MediaRef, Project, TitleStyle, Track, Transition, VisualProps } from './types';
-import { EASINGS, KEY_PROPS, KEY_RANGES } from './keyframes';
-import { BLEND_IDS, DEFAULT_SETTINGS, DEFAULT_VISUAL, MAX_SPEED, MAX_VOLUME_DB, MIN_SPEED, MIN_VOLUME_DB, TRANSITION_KINDS, defaultCaptionStyle, defaultTitle } from './presets';
+import type { AudioFx, BlendMode, CaptionStyle, Clip, ClipKind, ClipMask, ColorGrade, CurveChannel, Easing, HueRange, Keyframe, KeyProp, LookId, LutAsset, MediaRef, Project, TitleStyle, Track, Transition, VisualProps } from './types';
+import { AUDIO_KEY_PROPS, EASINGS, KEY_PROPS, KEY_RANGES } from './keyframes';
+import { BLEND_IDS, DEFAULT_AUDIO_FX, DEFAULT_SETTINGS, DEFAULT_VISUAL, MAX_SPEED, MAX_VOLUME_DB, MIN_SPEED, MIN_VOLUME_DB, TRANSITION_KINDS, defaultCaptionStyle, defaultTitle } from './presets';
 import { CURVE_CHANNELS, HUE_RANGE_IDS, LOOK_IDS, cleanCurve, isIdentityCurve } from './grade';
 import { createProject, normalizeLinks, trackKindForClip } from './model';
 import { clampNum } from './time';
@@ -62,7 +62,7 @@ function parseKeys(v: unknown, maxT: number, visual: boolean, audio: boolean): C
   if (!isObj(v)) return undefined;
   const out: Partial<Record<KeyProp, Keyframe[]>> = {};
   for (const k of KEY_PROPS) {
-    if (k === 'volume' ? !audio : !visual) continue;
+    if (AUDIO_KEY_PROPS.includes(k) ? !audio : !visual) continue;
     const list = parseKeyList(v[k], KEY_RANGES[k], maxT);
     if (list) out[k] = list;
   }
@@ -146,6 +146,22 @@ export function parseGrade(v: unknown, lutIds: Set<string>): ColorGrade | undefi
     if (Object.keys(hsl).length) g.hsl = hsl;
   }
   return g.look || g.lut || g.curves || g.hsl ? g : undefined;
+}
+
+/** Sound effects of an audio clip; undefined when they do nothing. */
+export function parseAudioFx(v: unknown): AudioFx | undefined {
+  if (!isObj(v)) return undefined;
+  const d = DEFAULT_AUDIO_FX;
+  const fx: AudioFx = {
+    highPass: n(v.highPass, 0, 0, 20000),
+    lowPass: n(v.lowPass, 0, 0, 22000),
+    eqLow: n(v.eqLow, 0, -24, 24),
+    eqMid: n(v.eqMid, 0, -24, 24),
+    eqHigh: n(v.eqHigh, 0, -24, 24),
+    reverb: n(v.reverb, 0, 0, 1),
+    reverbSize: n(v.reverbSize, d.reverbSize, 0.2, 8),
+  };
+  return fx.highPass || fx.lowPass || fx.eqLow || fx.eqMid || fx.eqHigh || fx.reverb ? fx : undefined;
 }
 
 /** Imported LUTs whose data has the right length. */
@@ -309,6 +325,7 @@ export function parseProject(input: string | unknown): Project {
       blend: visualKind && BLEND_IDS.includes(c.blend as BlendMode) && c.blend !== 'normal' ? (c.blend as BlendMode) : undefined,
       mask: visualKind ? parseMask(c.mask) : undefined,
       grade: visualKind ? parseGrade(c.grade, lutIds) : undefined,
+      audioFx: kind === 'audio' ? parseAudioFx(c.audioFx) : undefined,
       title: kind === 'title' ? parseTitle(c.title, settings.height) : undefined,
       text: kind === 'caption' ? str(c.text, '', 2000) : undefined,
       keys: parseKeys(c.keys, duration, visualKind, kind === 'audio'),

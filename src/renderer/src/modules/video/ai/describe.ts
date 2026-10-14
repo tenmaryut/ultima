@@ -24,7 +24,7 @@ function keyList(keys: Keyframe[], digits: number): string {
   return list.join(' → ') + (keys.length > 10 ? ` … (+${keys.length - 10} more)` : '');
 }
 
-const KEY_DIGITS: Partial<Record<KeyProp, number>> = { x: 0, y: 0, rotation: 1, opacity: 2, scale: 3, volume: 1, glow: 2, zoomBlur: 2, vignette: 2, sharpen: 2, grain: 2, letterbox: 3 };
+const KEY_DIGITS: Partial<Record<KeyProp, number>> = { x: 0, y: 0, rotation: 1, opacity: 2, scale: 3, volume: 1, lowPass: 0, glow: 2, zoomBlur: 2, vignette: 2, sharpen: 2, grain: 2, letterbox: 3 };
 
 function gradeSummary(c: Clip, p: Project): string {
   const g = c.grade;
@@ -57,6 +57,18 @@ function effectsSummary(c: Clip): string {
   if (c.frameBlend) parts.push('smooth slow motion (frame blending)');
   if ((c.kind === 'audio' || c.kind === 'video') && !c.keepPitch && c.speed !== 1 && !c.speedKeys?.length) parts.push('pitch follows speed');
   if (c.kind === 'audio' && c.volume) parts.push(`volume ${c.volume.toFixed(1)} dB`);
+  const fx = c.audioFx;
+  if (fx) {
+    const sound = [
+      fx.highPass && `low cut ${Math.round(fx.highPass)} Hz`,
+      fx.lowPass && `high cut ${Math.round(fx.lowPass)} Hz`,
+      fx.eqLow && `bass ${fx.eqLow > 0 ? '+' : ''}${fx.eqLow} dB`,
+      fx.eqMid && `mids ${fx.eqMid > 0 ? '+' : ''}${fx.eqMid} dB`,
+      fx.eqHigh && `treble ${fx.eqHigh > 0 ? '+' : ''}${fx.eqHigh} dB`,
+      fx.reverb && `reverb ${Math.round(fx.reverb * 100)}% ${fx.reverbSize}s`,
+    ].filter(Boolean);
+    if (sound.length) parts.push(`sound: ${sound.join(', ')}`);
+  }
   if (c.fadeIn) parts.push(`fade in ${s2(c.fadeIn)}s`);
   if (c.fadeOut) parts.push(`fade out ${s2(c.fadeOut)}s`);
   if (c.transition) parts.push(`transition in ${c.transition.kind} ${c.transition.duration}s`);

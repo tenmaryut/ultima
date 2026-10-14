@@ -394,6 +394,13 @@ suhu, rona, blur); *Chroma key (layar hijau)* untuk layar hijau atau biru.
   warna, warna, efek, mask, dan transformasinya berlaku untuk semua yang ada di trek di bawahnya — satu gradasi, satu
   guncangan, atau satu letterbox untuk seluruh video.
 
+**Efek suara dan ducking** (Inspektor → *Efek suara*, untuk klip audio dan suara sebuah video): preset (Teredam, Bawah
+air, Panggilan telepon, Radio lama, Ruangan kecil, Aula besar, Gua, Bass kuat, Suara jernih, Lo-fi), potong rendah,
+potong tinggi (efek teredam — bisa dianimasikan dengan ◆, misalnya teredam tepat setelah ledakan), bass, tengah, treble,
+dan gema (reverb) dengan ukuran ruang. Efeknya terdengar saat mengedit dan ikut dalam hasil ekspor. **Ducking otomatis**
+mengecilkan sebuah klip (biasanya musik) setiap kali suara lain — suara orang atau audio game — sedang keras, dengan
+menulis keyframe volume yang masih bisa diatur.
+
 **Judul dan subtitle.** Tab *Judul*: Judul dasar, Lower third, Besar tebal, Teks bawah, Mesin tik, Label pop, dan Kartu
 penutup — klik atau seret ke timeline, lalu ubah teks, font, warna, garis tepi, latar, dan animasinya (Fade, Geser ke
 atas, Pop, Mesin tik). Tab *Subtitle*: tambah subtitle manual, impor atau ekspor SRT/VTT, atur *Gaya subtitle*, atau buat
@@ -418,9 +425,9 @@ headshot tidak bisa dipastikan hanya dari suara).
 
 Asisten bisa menambah klip dari bin Media; membelah, memangkas, memindahkan, menggeser, menghapus, dan menggandakan
 klip, merapatkan celah, dan membuang rentang waktu; menautkan dan melepas suara; mengubah satu klip, satu trek, atau
-semua klip sekaligus; menganimasikan dengan keyframe (zoom, geser, guncangan, fade, volume); menambah kurva kecepatan,
+semua klip sekaligus; menganimasikan dengan keyframe (zoom, geser, guncangan, fade, volume, efek teredam); menambah kurva kecepatan,
 memutar mundur klip, dan membekukan frame; menambah efek, tampilan warna, LUT, kurva, perubahan HSL, mask, mode campur,
-dan layer penyesuaian; mengubah gaya judul; menambah transisi masuk dan keluar; menambah, memindahkan, mengganti nama,
+dan layer penyesuaian; menambah efek suara dan melakukan ducking pada musik; mengubah gaya judul; menambah transisi masuk dan keluar; menambah, memindahkan, mengganti nama,
 dan menghapus penanda; menambah, membisukan, mengunci, dan menghapus trek; mengatur area kerja; memindahkan playhead;
 membatalkan (undo); dan membuka dialog ekspor. Setelah Anda menekan *Terapkan* (atau jika *Terapkan editan AI secara
 otomatis* menyala), AI diberi tahu hasil setiap langkah, dan *Hasil tiap langkah* menampilkan daftar yang sama untuk Anda.

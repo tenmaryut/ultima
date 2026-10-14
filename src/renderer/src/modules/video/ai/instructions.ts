@@ -1,5 +1,5 @@
 import { LOOKS } from '../grade';
-import { BLEND_IDS, TRANSITION_KINDS } from '../presets';
+import { AUDIO_PRESETS, BLEND_IDS, TRANSITION_KINDS } from '../presets';
 
 /* What the Video Editor AI can do, and the exact JSON of every action (part of its system prompt). */
 
@@ -61,7 +61,7 @@ Editor
 23. {"type":"look","times":[s,…],"note"?:string} — up to 12 timeline times you want to SEE. Send it alone: the frames come back in an automatic follow-up, then you continue the request. Use it to find exact moments before cutting.
 
 Motion and time
-24. {"type":"keyframes", [targets], "prop":"scale"|"x"|"y"|"rotation"|"opacity"|"blur"|"brightness"|"contrast"|"saturation"|"hue"|"temperature"|"volume", "keys":[{"t":s,"v":value,"ease"?:"linear"|"easeIn"|"easeOut"|"easeInOut"|"hold"}], "replace"?:true}
+24. {"type":"keyframes", [targets], "prop":"scale"|"x"|"y"|"rotation"|"opacity"|"blur"|"brightness"|"contrast"|"saturation"|"hue"|"temperature"|an effect (28)|"volume"|"lowPass", "keys":[{"t":s,"v":value,"ease"?:"linear"|"easeIn"|"easeOut"|"easeInOut"|"hold"}], "replace"?:true}
    — animates one property. "t" = seconds from the clip start (or "at" = timeline seconds). Values use the setClip units (volume = dB of the clip's sound). "ease" shapes the curve towards the next key (default easeInOut); before the first and after the last key the value holds. "replace": false keeps the other keys.
    Zoom in slowly: "prop":"scale","keys":[{"t":0,"v":1},{"t":3,"v":1.25}]. Punch zoom on a beat at 4.50 s: [{"at":4.42,"v":1},{"at":4.5,"v":1.3,"ease":"easeOut"},{"at":4.9,"v":1}].
    Camera shake: x (and y) alternating ±15–40 px every 0.03–0.05 s with "linear" over 0.3–0.6 s, back to 0 at the end. Fade the music down: "prop":"volume","keys":[{"at":10,"v":0},{"at":12,"v":-20}].
@@ -82,7 +82,14 @@ Effects, color and compositing (setClip "props" of video, image, title and adjus
    The basic sliders (brightness, contrast, saturation, hue, temperature) still work and combine with these.
 30. Compositing: "blendMode":${BLEND_IDS.map((b) => `"${b}"`).join('|')} · "mask":{"shape":"rectangle"|"ellipse"|"linear","x","y" (center 0-1 of the clip's picture),"w","h" (size 0-1),"rotation" (degrees; linear: 0 shows the left side, 90 the top),"feather" 0-0.5,"invert":true|false} or "mask":"none" ·
    crop and chromaKey as above. Picture-in-picture: scale 0.3-0.4 + x/y offsets on an upper track.
-31. {"type":"addAdjustment","start"?:s,"duration"?:s|"full","track"?:"V3","name"?:string,"props"?:{…setClip props…}} — an adjustment layer: its color and effects (and transform, mask, opacity, fades) apply to everything on the tracks below it, e.g. one grade or one shake for many clips. Without "track" it goes on a free track above all pictures. Change it later with setClip and keyframes like any clip.`;
+31. {"type":"addAdjustment","start"?:s,"duration"?:s|"full","track"?:"V3","name"?:string,"props"?:{…setClip props…}} — an adjustment layer: its color and effects (and transform, mask, opacity, fades) apply to everything on the tracks below it, e.g. one grade or one shake for many clips. Without "track" it goes on a free track above all pictures. Change it later with setClip and keyframes like any clip.
+
+Sound
+32. setClip on audio clips (or on a video clip: its linked sound): "audioPreset":${AUDIO_PRESETS.map((a) => `"${a.id}"`).join('|')}|"none", or the parts:
+   "highPass" Hz (low cut, 0 = off; 80-120 cleans voices) · "lowPass" Hz (high cut, 0 = off; 300-800 sounds muffled: through a wall, underwater, after an explosion) ·
+   "eqLow" / "eqMid" / "eqHigh" dB −24..24 (bass 150 Hz, mids 1 kHz, treble 6 kHz) · "reverb" 0-1 with "reverbSize" seconds 0.2-8 (room ≈ 0.7, hall ≈ 3).
+   "volume" and "lowPass" can be animated with "keyframes": e.g. muffle the music right after a big hit and open it again: "prop":"lowPass","keys":[{"at":12,"v":20000},{"at":12.1,"v":500},{"at":13.5,"v":20000,"ease":"easeIn"}].
+33. {"type":"duck", [targets], "trigger"?:targets, "amount"?:-1..-40 dB (default -12),"attack"?:s,"release"?:s,"threshold"?:dB} — auto ducking: lowers the targeted sound (usually the music) wherever the trigger sound is loud (voice, commentary, game sound; default: every other audio clip). It writes volume keyframes that can be edited later; run it again after changing the edit.`;
 
 const ANALYSIS = `ANALYSIS: CURRENT DOCUMENT lists what was found in each clip (timeline seconds, approximate):
 - music: tempo (BPM), every beat, bar starts, the strongest hits and where it gets louder (a drop or chorus);

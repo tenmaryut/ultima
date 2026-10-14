@@ -22,6 +22,9 @@ All notable changes to Ultima are listed here. Versions follow [semantic version
   16 color looks, `.cube` LUT import, tone curves, HSL per color range, blend modes, masks, transitions out, eight
   new transitions (flash, whip pans, spin, zoom blur, glitch, luma fade, blur dissolve) and adjustment layers —
   rendered on the GPU (WebGL2, with a CPU fallback), the same in the preview and the export, and available to the AI.
+- Sound effects per clip (low cut, an animatable high cut for muffling, bass/mids/treble, reverb, ten presets),
+  heard while editing and in the export, and auto ducking that lowers the music under voice or game sound with
+  editable volume keyframes — also for the AI.
 
 ## [0.1.0] — 2026-10-11
 

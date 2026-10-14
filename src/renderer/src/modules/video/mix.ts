@@ -4,7 +4,8 @@ import { fadeFactor } from './fx';
 import { dbToGain } from './time';
 import { readPcm, type Pcm } from './audioSource';
 import { timeStretch } from './stretch';
-import { animatedVolume, isRemapped, sourceAt } from './keyframes';
+import { animatedLowPass, animatedVolume, isRemapped, sourceAt } from './keyframes';
+import { buildChain, fxTail } from './audiofx';
 import type { MediaLibrary } from './media';
 
 /* Offline timeline audio mix (OfflineAudioContext), rendered chunk by chunk to bound memory. */
@@ -78,7 +79,8 @@ export class TimelineMixer {
     this.sampleRate = opts.sampleRate ?? 48000;
     this.channels = opts.channels ?? 2;
     this.chunk = opts.chunk ?? 2;
-    this.clips = audibleClips(project).filter((c) => c.start < range.end && clipEnd(c) > range.start);
+    // a clip with reverb is heard after its end too
+    this.clips = audibleClips(project).filter((c) => c.start < range.end && clipEnd(c) + fxTail(c) > range.start);
     this.totalSamples = Math.max(1, Math.round((range.end - range.start) * this.sampleRate));
   }
 
@@ -99,9 +101,14 @@ export class TimelineMixer {
     this.done = s1;
     const c0 = this.range.start + s0 / this.sampleRate;
     const c1 = this.range.start + s1 / this.sampleRate;
-    const ctx = new OfflineAudioContext(this.channels, s1 - s0, this.sampleRate);
-    for (const clip of this.clips) {
-      const a = Math.max(c0, clip.start);
+    const active = this.clips.filter((c) => c.start < c1 && clipEnd(c) + fxTail(c) > c0);
+    // effects need the sound just before the chunk (filter state, reverb tails): render it and drop it
+    const preSamples = Math.ceil(Math.max(0, ...active.map(fxTail)) * this.sampleRate);
+    const pre = preSamples / this.sampleRate;
+    const t0 = c0 - pre;
+    const ctx = new OfflineAudioContext(this.channels, s1 - s0 + preSamples, this.sampleRate);
+    for (const clip of active) {
+      const a = Math.max(c0 - fxTail(clip), clip.start);
       const b = Math.min(c1, clipEnd(clip));
       if (b - a <= 1e-6) continue;
       const piece = await this.clipAudio(clip, a, b);
@@ -118,11 +125,25 @@ export class TimelineMixer {
       const curve = new Float32Array(steps);
       for (let i = 0; i < steps; i++) curve[i] = clipGainAt(clip, a + ((b - a) * i) / (steps - 1));
       if (curve.every((g) => g === curve[0])) gain.gain.value = curve[0];
-      else gain.gain.setValueCurveAtTime(curve, a - c0, b - a);
-      src.connect(gain).connect(ctx.destination);
-      src.start(a - c0);
+      else gain.gain.setValueCurveAtTime(curve, a - t0, b - a);
+      src.connect(gain);
+      const chain = buildChain(ctx, clip);
+      if (chain) {
+        gain.connect(chain.input);
+        chain.output.connect(ctx.destination);
+        if (chain.lowPass && clip.keys?.lowPass?.length) {
+          const f = new Float32Array(steps);
+          for (let i = 0; i < steps; i++) f[i] = animatedLowPass(clip, a + ((b - a) * i) / (steps - 1) - clip.start);
+          chain.lowPass.frequency.setValueCurveAtTime(f, a - t0, b - a);
+        }
+      } else gain.connect(ctx.destination);
+      src.start(a - t0);
     }
-    return ctx.startRendering();
+    const rendered = await ctx.startRendering();
+    if (!preSamples) return rendered;
+    const out = new AudioBuffer({ length: s1 - s0, numberOfChannels: rendered.numberOfChannels, sampleRate: this.sampleRate });
+    for (let ch = 0; ch < rendered.numberOfChannels; ch++) out.copyToChannel(rendered.getChannelData(ch).subarray(preSamples), ch);
+    return out;
   }
 
   /** PCM for clip time [a, b): either pre-stretched to timeline speed, or raw source audio played at clip speed. */

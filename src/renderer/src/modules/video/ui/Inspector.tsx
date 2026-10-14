@@ -10,6 +10,7 @@ import { formatTimecode } from '../time';
 import type { TimeStore } from '../timeStore';
 import { KeyBar, KeyNumber, KeySlider, type KeyEdit } from './KeyControls';
 import { ColorGradePanel, EffectsPanel, MaskPanel } from './LookPanels';
+import { SoundPanel } from './SoundPanel';
 import { ProjectPanel } from './ProjectPanel';
 
 interface InspectorProps {
@@ -21,6 +22,7 @@ interface InspectorProps {
   commit: (label: string) => void;
   onOpenSettings: () => void;
   onImportLut: () => Promise<string[]>;
+  onDuck: (clipId: string, amount: number) => void;
   onLink: () => void;
   onUnlink: () => void;
   onSeek: (t: number) => void;
@@ -306,6 +308,19 @@ export function Inspector(props: InspectorProps) {
           <Slider label={t('Fade in')} value={audioTargets[0].fadeIn} min={0} max={fadeMax} step={0.05} onChange={(fadeIn) => liveAudio({ fadeIn })} onCommit={() => done(t('Audio fade'))} format={sec} defaultValue={0} />
           <Slider label={t('Fade out')} value={audioTargets[0].fadeOut} min={0} max={fadeMax} step={0.05} onChange={(fadeOut) => liveAudio({ fadeOut })} onCommit={() => done(t('Audio fade'))} format={sec} defaultValue={0} />
         </Panel>
+      )}
+
+      {audioTargets.length > 0 && (
+        <SoundPanel
+          key={`sound-${audioTargets[0].id}`}
+          targets={audioTargets}
+          time={props.time}
+          keyProps={keyProps(audioTargets)}
+          set={(fn, label) => set((p) => audioTargets.reduce((acc, a) => updateClip(acc, a.id, fn), p), label)}
+          live={(fn) => live((p) => audioTargets.reduce((acc, a) => updateClip(acc, a.id, fn), p))}
+          done={done}
+          onDuck={props.onDuck}
+        />
       )}
 
       {visual && (

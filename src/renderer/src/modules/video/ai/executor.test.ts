@@ -330,7 +330,7 @@ describe('summary', () => {
     // clip a uses source 0–5 s from timeline 0; move the in-point to 2 s at 2× speed
     const q = { ...p, clips: p.clips.map((c) => (c.id === a ? { ...c, in: 2, speed: 2, duration: 2.5 } : c)) };
     const analysis = () => ({
-      audio: { duration: 20, beats: { bpm: 120, period: 0.5, beats: [1, 2.5, 3, 3.5, 6.9, 7.5], downbeats: [3], confidence: 0.8 }, hits: [3], loud: [{ time: 4, db: -3, prominence: 20 }], bursts: [], rises: [] },
+      audio: { duration: 20, beats: { bpm: 120, period: 0.5, beats: [1, 2.5, 3, 3.5, 6.9, 7.5], downbeats: [3], confidence: 0.8 }, hits: [3], loud: [{ time: 4, db: -3, prominence: 20 }], bursts: [], rises: [], envelope: { rate: 20, db: new Float32Array(0) } },
       scenes: { cuts: [5], busiest: [] },
       analysedSeconds: 20,
     });
