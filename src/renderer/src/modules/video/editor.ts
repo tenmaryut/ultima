@@ -55,6 +55,7 @@ import { parseSubtitles, serializeSrt, serializeVtt } from './captions';
 import { DEFAULT_STILL_DURATION, DEFAULT_TITLE_DURATION, DEFAULT_VISUAL, TRANSITIONS, titlePreset } from './presets';
 import { applyAIActions, describeProject, formatResults } from './aiActions';
 import { clipFrameSheets, lookSheet } from './ai/frames';
+import { AnalysisStore } from './analysisStore';
 import { totalLength } from './silence';
 import type { TimelineApi } from './ui/Timeline';
 import type { ExportKind } from './ui/ExportDialog';
@@ -90,6 +91,7 @@ export function useVideoEditor(active: boolean) {
   const project = doc.present;
   const projectRef = useLatest(project);
   const lib = useMemo(() => new MediaLibrary(), []);
+  const analysis = useMemo(() => new AnalysisStore(lib), [lib]);
   const libVersion = useSyncExternalStore(lib.subscribe, lib.getVersion);
   const time = useMemo(() => createTimeStore(), []);
   const [engine, setEngine] = useState<PreviewEngine | null>(null);
@@ -301,6 +303,8 @@ export function useVideoEditor(active: boolean) {
     }
     if (!refs.length) return;
     mediaFiles.slice(0, 3).forEach((f) => rememberRecent(f, 'video'));
+    // beats, loud moments and scene changes for the AI assistant, in the background
+    for (const r of refs) void analysis.ensure(r);
     for (const f of mediaFiles) stash.current.set(`${f.name}|${f.size}`, f);
     const before = projectRef.current;
     let p = addMediaRefs(before, refs);
@@ -384,6 +388,10 @@ export function useVideoEditor(active: boolean) {
   const onRelinked = (refs: MediaRef[]) => {
     const p = projectRef.current;
     doc.set({ ...p, media: p.media.map((m) => refs.find((r) => r.id === m.id) ?? m) }, { record: false });
+    for (const r of refs) {
+      analysis.forget(r.id);
+      void analysis.ensure(r);
+    }
   };
 
   /* -------------------------------- editing actions -------------------------------- */
@@ -664,8 +672,11 @@ export function useVideoEditor(active: boolean) {
   /* --------------------------------------- AI --------------------------------------- */
 
   const aiContext = async ({ images }: { images: boolean }) => {
-    const p = projectRef.current;
-    const summary = describeProject(p, { playhead: playhead(), selection: selectionRef.current, fonts: aiFonts() });
+    let p = projectRef.current;
+    const used = p.media.filter((m) => m.kind !== 'image' && lib.has(m.id) && p.clips.some((c) => c.mediaId === m.id));
+    await analysis.waitFor(used, images ? 8000 : 5000);
+    p = projectRef.current;
+    const summary = describeProject(p, { playhead: playhead(), selection: selectionRef.current, fonts: aiFonts(), analysis: (id) => analysis.get(id) });
     if (!images || !p.clips.length) return { summary };
     const canvas = engine?.canvasElement;
     const image = canvas ? await canvasToAIImage(canvas, { maxSize: 1024 }).catch(() => null) : null;

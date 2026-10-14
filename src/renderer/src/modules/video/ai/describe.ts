@@ -1,6 +1,7 @@
 import type { Clip, Project } from '../types';
 import { clipEnd, getMedia, getTrack, sourceOut, timelineDuration } from '../model';
 import { formatTimecode } from '../time';
+import type { MediaAnalysis } from '../analysisStore';
 
 /* The CURRENT DOCUMENT text the Video Editor AI reads before every request. */
 
@@ -9,6 +10,8 @@ export interface DescribeContext {
   selection: string[];
   /** Font families available for titles. */
   fonts?: string[];
+  /** Content analysis of a media item ('pending' while it runs). */
+  analysis?: (mediaId: string) => MediaAnalysis | 'pending' | null;
 }
 
 const s2 = (t: number) => t.toFixed(2);
@@ -44,6 +47,85 @@ function titleSummary(c: Clip): string {
   return ` | style ${t.font} ${Math.round(t.size)}px w${t.weight} ${t.color}, at (${s2(t.x)}, ${s2(t.y)}) ${t.align}, anim ${t.animation}${extras ? `, ${extras}` : ''}`;
 }
 
+/** Source seconds of a clip's media on the timeline, or null when that part isn't used. */
+function onTimeline(c: Clip, source: number): number | null {
+  const t = c.start + (source - c.in) / c.speed;
+  return t >= c.start - 1e-6 && t <= clipEnd(c) + 1e-6 ? t : null;
+}
+
+function times(c: Clip, source: number[], max: number): string {
+  const tl = source.map((x) => onTimeline(c, x)).filter((x): x is number => x !== null);
+  if (!tl.length) return '';
+  return tl.slice(0, max).map(s2).join(', ') + (tl.length > max ? ` … (+${tl.length - max} more)` : '');
+}
+
+/** What the analysis found in each clip on the timeline, in timeline seconds. */
+function analysisLines(p: Project, ctx: DescribeContext): string[] {
+  if (!ctx.analysis) return [];
+  const lines: string[] = [];
+  const pending: string[] = [];
+  const clips = p.clips.filter((c) => (c.kind === 'video' || c.kind === 'audio') && c.mediaId).sort((a, b) => a.start - b.start);
+  for (const c of clips) {
+    // a video's own sound is described with the video clip
+    if (c.kind === 'audio' && c.linkId && p.clips.some((o) => o.linkId === c.linkId && o.kind === 'video')) continue;
+    const a = ctx.analysis(c.mediaId!);
+    if (a === 'pending') {
+      pending.push(c.id);
+      continue;
+    }
+    if (!a) continue;
+    const parts: string[] = [];
+    const au = a.audio;
+    const b = au?.beats;
+    if (b && (c.kind === 'audio' || b.confidence >= 0.3)) {
+      const beats = times(c, b.beats, 48);
+      if (beats) {
+        parts.push(`≈${Math.round((b.bpm * c.speed) * 10) / 10} BPM (a beat every ${(b.period / c.speed).toFixed(3)} s, steadiness ${b.confidence})`);
+        parts.push(`beats: ${beats}`);
+        const bars = times(c, b.downbeats, 16);
+        if (bars) parts.push(`bar starts: ${bars}`);
+      }
+    }
+    if (au?.hits.length) {
+      const hits = times(c, au.hits, 12);
+      if (hits) parts.push(`strongest hits: ${hits}`);
+    }
+    if (au?.rises.length) {
+      const rises = times(c, au.rises, 6);
+      if (rises) parts.push(`gets louder at: ${rises}`);
+    }
+    if (au?.loud.length) {
+      const loud = au.loud
+        .map((m) => ({ t: onTimeline(c, m.time), m }))
+        .filter((x): x is { t: number; m: (typeof au.loud)[number] } => x.t !== null)
+        .slice(0, 16)
+        .map((x) => `${s2(x.t)} (+${x.m.prominence} dB)`);
+      if (loud.length) parts.push(`loud moments: ${loud.join(', ')}`);
+    }
+    if (au?.bursts.length) {
+      const bursts = au.bursts
+        .map((x) => ({ s: onTimeline(c, x.start), e: onTimeline(c, x.end), n: x.count }))
+        .filter((x) => x.s !== null && x.e !== null)
+        .slice(0, 8)
+        .map((x) => `${s2(x.s!)}–${s2(x.e!)} (${x.n} hits)`);
+      if (bursts.length) parts.push(`bursts: ${bursts.join(', ')}`);
+    }
+    if (a.scenes) {
+      const cuts = times(c, a.scenes.cuts, 20);
+      if (cuts) parts.push(`scene changes: ${cuts}`);
+      const busy = times(c, a.scenes.busiest, 5);
+      if (busy) parts.push(`most movement: ${busy}`);
+    }
+    if (!parts.length) continue;
+    const media = getMedia(p, c.mediaId);
+    const partial = media && a.analysedSeconds < media.duration - 0.5 ? ` [only the first ${Math.round(a.analysedSeconds)} s of the file were analysed]` : '';
+    lines.push(`- ${c.id} ${c.kind} "${c.name}" (${getTrack(p, c.trackId)?.name ?? '?'}): ${parts.join('; ')}${partial}`);
+  }
+  if (lines.length) lines.unshift('Analysis (timeline seconds, approximate — check with look):');
+  if (pending.length) lines.push(`Analysis still running for ${pending.join(', ')}.`);
+  return lines;
+}
+
 /** Plain-text summary of the project for the AI. */
 export function describeProject(p: Project, ctx: DescribeContext): string {
   const { width, height, fps, background } = p.settings;
@@ -71,6 +153,7 @@ export function describeProject(p: Project, ctx: DescribeContext): string {
     );
   }
   if (nonCaption.length > 160) lines.push(`… and ${nonCaption.length - 160} more clips.`);
+  lines.push(...analysisLines(p, ctx));
   const captions = p.clips.filter((c) => c.kind === 'caption').sort((a, b) => a.start - b.start);
   if (captions.length) {
     const cs = p.captionStyle;

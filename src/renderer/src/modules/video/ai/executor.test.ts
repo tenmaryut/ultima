@@ -175,6 +175,23 @@ describe('markers, tracks and the editor', () => {
 });
 
 describe('summary', () => {
+  it('lists analysis in timeline seconds for the part of the source that is used', () => {
+    const { p, a } = project();
+    // clip a uses source 0–5 s from timeline 0; move the in-point to 2 s at 2× speed
+    const q = { ...p, clips: p.clips.map((c) => (c.id === a ? { ...c, in: 2, speed: 2, duration: 2.5 } : c)) };
+    const analysis = () => ({
+      audio: { duration: 20, beats: { bpm: 120, period: 0.5, beats: [1, 2.5, 3, 3.5, 6.9, 7.5], downbeats: [3], confidence: 0.8 }, hits: [3], loud: [{ time: 4, db: -3, prominence: 20 }], bursts: [], rises: [] },
+      scenes: { cuts: [5], busiest: [] },
+      analysedSeconds: 20,
+    });
+    const text = describeProject(q, { playhead: 0, selection: [], analysis });
+    const line = text.split('\n').find((l) => l.startsWith(`- ${a} video`))!;
+    expect(line).toContain('≈240 BPM (a beat every 0.250 s');
+    expect(line).toContain('beats: 0.25, 0.50, 0.75, 2.45');
+    expect(line).toContain('loud moments: 1.00 (+20 dB)');
+    expect(line).toContain('scene changes: 1.50');
+  });
+
   it('lists media ids, how far clips can grow and the fonts', () => {
     const { p, a } = project();
     const text = describeProject(p, { playhead: 0, selection: [], fonts: ['Inter', 'Roboto'] });

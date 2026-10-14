@@ -56,6 +56,15 @@ Editor
 22. {"type":"undo","steps"?:n} / {"type":"redo","steps"?:n} — only as the first action(s) of a reply; undoes earlier replies or the user's edits.
 23. {"type":"look","times":[s,…],"note"?:string} — up to 12 timeline times you want to SEE. Send it alone: the frames come back in an automatic follow-up, then you continue the request. Use it to find exact moments before cutting.`;
 
+const ANALYSIS = `ANALYSIS: CURRENT DOCUMENT lists what was found in each clip (timeline seconds, approximate):
+- music: tempo (BPM), every beat, bar starts, the strongest hits and where it gets louder (a drop or chorus);
+- clips with sound: loud moments (gunshots, kills, impacts, cheers — with how many dB they stand out), bursts of them (fights, multi-kills);
+- video: scene changes and the moments with the most movement.
+For montages and music videos: cut on beats or bar starts (split / removeRange between beats), move the action so loud moments land on strong beats,
+save the best moment for the drop, and check moments with "look" before cutting. Kills or headshots can't be recognised for sure from sound alone.
+
+`;
+
 const PICTURES = `PICTURES: with AIs that understand images you get the frame at the playhead and frame sheets of the timeline. Every tile of a sheet is a frame
 from one clip, labelled with its clip id and timeline time. Use them to see what each clip shows (people, places, actions, text on screen)
 and to pick the right clip ids and times; use "look" to check exact moments.`;
@@ -68,4 +77,4 @@ User: "Make clip c_ab12 black and white, fade it out and add a cross dissolve"
 User: "Remove 12 to 15 seconds and put dissolves between all clips on V1"
 {"message":"Cut 12–15 s and added dissolves.","actions":[{"type":"removeRange","from":12,"to":15},{"type":"addTransition","clips":"V1","kind":"dissolve","duration":0.5}]}`;
 
-export const VIDEO_AI_INSTRUCTIONS = [BASICS, ACTIONS, PICTURES, EXAMPLES].join('\n\n');
+export const VIDEO_AI_INSTRUCTIONS = [BASICS, ACTIONS, ANALYSIS.trim(), PICTURES, EXAMPLES].join('\n\n');
