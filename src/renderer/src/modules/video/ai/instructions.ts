@@ -54,7 +54,20 @@ Editor
 20. {"type":"seek","time":s} — moves the playhead. {"type":"select", [targets]} — selects clips for the user.
 21. {"type":"export","format":"social"|"mp4"|"webm"|"gif"|"wav"|"png"} — opens the export dialog; the user picks where to save and starts it.
 22. {"type":"undo","steps"?:n} / {"type":"redo","steps"?:n} — only as the first action(s) of a reply; undoes earlier replies or the user's edits.
-23. {"type":"look","times":[s,…],"note"?:string} — up to 12 timeline times you want to SEE. Send it alone: the frames come back in an automatic follow-up, then you continue the request. Use it to find exact moments before cutting.`;
+23. {"type":"look","times":[s,…],"note"?:string} — up to 12 timeline times you want to SEE. Send it alone: the frames come back in an automatic follow-up, then you continue the request. Use it to find exact moments before cutting.
+
+Motion and time
+24. {"type":"keyframes", [targets], "prop":"scale"|"x"|"y"|"rotation"|"opacity"|"blur"|"brightness"|"contrast"|"saturation"|"hue"|"temperature"|"volume", "keys":[{"t":s,"v":value,"ease"?:"linear"|"easeIn"|"easeOut"|"easeInOut"|"hold"}], "replace"?:true}
+   — animates one property. "t" = seconds from the clip start (or "at" = timeline seconds). Values use the setClip units (volume = dB of the clip's sound). "ease" shapes the curve towards the next key (default easeInOut); before the first and after the last key the value holds. "replace": false keeps the other keys.
+   Zoom in slowly: "prop":"scale","keys":[{"t":0,"v":1},{"t":3,"v":1.25}]. Punch zoom on a beat at 4.50 s: [{"at":4.42,"v":1},{"at":4.5,"v":1.3,"ease":"easeOut"},{"at":4.9,"v":1}].
+   Camera shake: x (and y) alternating ±15–40 px every 0.03–0.05 s with "linear" over 0.3–0.6 s, back to 0 at the end. Fade the music down: "prop":"volume","keys":[{"at":10,"v":0},{"at":12,"v":-20}].
+25. {"type":"clearKeyframes", [targets], "prop"?:one of the props above|"speed"|"all"} — "speed" removes a speed ramp. Setting a keyframed property with setClip also removes its keyframes.
+26. {"type":"speedRamp", [targets], "preset":"hit"|"fastSlowFast"|"slowFastSlow"|"slowToFast"|"fastToSlow", "fast"?:0.25-4, "slow"?:0.25-4, "keep"?:"length"|"content"} or {…, "keys":[{"t"|"at","v":speed,"ease"?}] instead of "preset"}
+   — a smooth speed change inside a clip (velocity edit). "hit" = fast → slow motion in the middle → fast (put the slow middle on the action: split around a loud moment first); "fastSlowFast" = normal → slow-mo → normal; "slowFastSlow" = speeds up in the middle.
+   "keep":"length" (default): the clip keeps its place and length, so cuts stay on the beat, but it shows a little more or less of its source (shorter when the source runs out).
+   "keep":"content": it shows exactly the same part of the source, so the clip gets longer or shorter and the clips after it on its tracks move. Its sound follows either way. Speeds below 1 look smoother with "frameBlend".
+27. {"type":"freezeFrame","clipId":id,"time":s,"duration"?:s} — holds the frame at that timeline time for "duration" seconds (default 1); everything after it on unlocked tracks moves later.
+   setClip also takes "reverse": true|false (plays the clip backwards, its sound too) and "frameBlend": true|false (smooth slow motion: blends neighbouring frames when a clip plays slower than its frame rate; export only).`;
 
 const ANALYSIS = `ANALYSIS: CURRENT DOCUMENT lists what was found in each clip (timeline seconds, approximate):
 - music: tempo (BPM), every beat, bar starts, the strongest hits and where it gets louder (a drop or chorus);
@@ -75,6 +88,8 @@ User: "Put a big title 'Summer Trip' over the first 3 seconds"
 User: "Make clip c_ab12 black and white, fade it out and add a cross dissolve"
 {"message":"Done — black and white with a fade out and a dissolve.","actions":[{"type":"setClip","clipId":"c_ab12","props":{"saturation":-100,"fadeOut":1}},{"type":"addTransition","clipId":"c_ab12","kind":"dissolve","duration":1}]}
 User: "Remove 12 to 15 seconds and put dissolves between all clips on V1"
-{"message":"Cut 12–15 s and added dissolves.","actions":[{"type":"removeRange","from":12,"to":15},{"type":"addTransition","clips":"V1","kind":"dissolve","duration":0.5}]}`;
+{"message":"Cut 12–15 s and added dissolves.","actions":[{"type":"removeRange","from":12,"to":15},{"type":"addTransition","clips":"V1","kind":"dissolve","duration":0.5}]}
+User: "Slow motion on the headshot in c_k1 (loud moment at 6.20 s) and zoom in on it"
+{"message":"Split around the shot, put a smooth slow-mo ramp on it and a punch zoom.","actions":[{"type":"split","time":5.6,"clipId":"c_k1"},{"type":"split","time":6.8,"clips":{"track":"V1","from":5.5,"to":7}},{"type":"speedRamp","clips":{"track":"V1","from":5.6,"to":6.8},"preset":"hit"},{"type":"setClip","clips":{"track":"V1","from":5.6,"to":6.8},"props":{"frameBlend":true}},{"type":"keyframes","clips":{"track":"V1","from":5.6,"to":6.8},"prop":"scale","keys":[{"t":0,"v":1},{"t":0.4,"v":1.25,"ease":"easeOut"},{"t":1.2,"v":1}]}]}`;
 
 export const VIDEO_AI_INSTRUCTIONS = [BASICS, ACTIONS, ANALYSIS.trim(), PICTURES, EXAMPLES].join('\n\n');

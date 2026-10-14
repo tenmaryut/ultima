@@ -3,6 +3,7 @@ import { DEFAULT_VISUAL } from './presets';
 import { applyChromaKey, applyTemperature, clipLayout, fadeFactor, transitionFx, type TransitionFx } from './fx';
 import { drawCaption, drawTitle } from './text';
 import { clipEnd, getMedia, tracksOfKind } from './model';
+import { animatedVisual, sourceAt } from './keyframes';
 import { EPS } from './time';
 import { parseColor } from '../../core/utils/color';
 
@@ -65,9 +66,9 @@ export function visualLayers(p: Project, t: number): Layer[] {
   return out;
 }
 
-/** Source time of a clip at timeline time t (clamped to the media length). */
+/** Source time of a clip at timeline time t (speed ramps, reverse and freeze included; clamped to the media length). */
 export function sourceTimeAt(clip: Clip, t: number, media?: MediaRef): number {
-  const st = clip.in + (t - clip.start) * clip.speed;
+  const st = sourceAt(clip, t - clip.start);
   if (media && media.duration > 0) return Math.max(0, Math.min(st, media.duration - 0.001));
   return Math.max(0, st);
 }
@@ -197,7 +198,7 @@ export class Compositor {
   private drawClip(ctx: Ctx2D, p: Project, clip: Clip, t: number, provider: FrameProvider, opts: RenderOptions, fx: TransitionFx | null) {
     const { width: W, height: H } = p.settings;
     const local = Math.min(t - clip.start, clip.duration);
-    const v = clip.visual ?? DEFAULT_VISUAL;
+    const v = clip.visual ? animatedVisual(clip, local) : DEFAULT_VISUAL;
     let alpha = v.opacity * fadeFactor(local, clip.duration, clip.fadeIn, clip.fadeOut);
     if (fx) alpha *= fx.bAlpha;
     if (alpha <= 0.002) return;

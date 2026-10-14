@@ -5,6 +5,7 @@ import type { TimeStore } from './timeStore';
 import { getAudioContext } from '../../core/utils/audio';
 import { clipEnd, timelineDuration, tracksOfKind } from './model';
 import { audibleClips, clipGainAt } from './mix';
+import { sourceAt, speedAt } from './keyframes';
 
 /**
  * Real-time preview. Time is driven by performance.now(); <video>/<audio> elements are
@@ -373,7 +374,9 @@ export class PreviewEngine {
       if (!slot) continue;
       used.add(n.clip.id);
       slot.lastUsed = now;
-      this.syncElement(slot.el, n.sourceTime, n.clip.speed, forward, force, fps);
+      // a <video> can't play backwards or stand still while playing: seek frame by frame instead
+      const stepped = Boolean(n.clip.reverse || n.clip.freeze);
+      this.syncElement(slot.el, n.sourceTime, speedAt(n.clip, t - n.clip.start), forward && !stepped, force, fps);
     }
     if (forward) {
       const visible = new Set(tracksOfKind(p, 'video').filter((tr) => !tr.hidden).map((tr) => tr.id));
@@ -384,7 +387,8 @@ export class PreviewEngine {
         used.add(c.id);
         slot.lastUsed = now;
         if (!slot.el.paused) slot.el.pause();
-        if (slot.el.readyState >= 1 && Math.abs(slot.el.currentTime - c.in) > 0.05) slot.el.currentTime = c.in;
+        const first = sourceAt(c, 0);
+        if (slot.el.readyState >= 1 && Math.abs(slot.el.currentTime - first) > 0.05) slot.el.currentTime = first;
       }
     }
     for (const [id, slot] of this.video) if (!used.has(id) && !slot.el.paused) slot.el.pause();
@@ -394,14 +398,15 @@ export class PreviewEngine {
     if (forward && this.rate <= 4) {
       const actx = getAudioContext();
       for (const c of this.audible) {
-        if (c.start - PREROLL > t || clipEnd(c) <= t) continue;
+        // reversed and frozen sound is only in the export
+        if (c.start - PREROLL > t || clipEnd(c) <= t || c.reverse || c.freeze) continue;
         const slot = this.audioSlot(c);
         if (!slot) continue;
         heard.add(c.id);
         slot.lastUsed = now;
         if (t >= c.start) {
-          slot.el.preservesPitch = c.keepPitch;
-          this.syncElement(slot.el, c.in + (t - c.start) * c.speed, c.speed, true, force, fps);
+          slot.el.preservesPitch = c.keepPitch && !c.speedKeys?.length;
+          this.syncElement(slot.el, sourceAt(c, t - c.start), speedAt(c, t - c.start), true, force, fps);
           slot.gain.gain.setTargetAtTime(clipGainAt(c, t), actx.currentTime, 0.015);
         } else {
           if (!slot.el.paused) slot.el.pause();

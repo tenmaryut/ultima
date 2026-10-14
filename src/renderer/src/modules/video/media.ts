@@ -51,6 +51,7 @@ interface Probe {
   hasVideo: boolean;
   hasAudio: boolean;
   decodable: boolean;
+  fps?: number;
 }
 
 async function probeMediabunny(file: File): Promise<Probe | null> {
@@ -68,6 +69,7 @@ async function probeMediabunny(file: File): Promise<Probe | null> {
       hasVideo: Boolean(video),
       hasAudio: Boolean(audio),
       decodable: video ? await video.canDecode() : false,
+      fps: video ? (await video.computePacketStats(90).catch(() => null))?.averagePacketRate : undefined,
     };
   } catch {
     return null;
@@ -216,6 +218,7 @@ export class MediaLibrary {
           width: isVideo ? mb?.width || el?.width || 0 : 0,
           height: isVideo ? mb?.height || el?.height || 0 : 0,
           hasAudio: mb ? mb.hasAudio : true,
+          ...(isVideo && mb?.fps && Number.isFinite(mb.fps) ? { fps: Math.round(mb.fps * 1000) / 1000 } : {}),
         };
         this.items.set(id, { id, file, url, playable, decodable });
       }

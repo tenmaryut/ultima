@@ -33,6 +33,7 @@ import type { TrackKind, TransitionKind } from './types';
 import type { ExportKind } from './ui/ExportDialog';
 import type { PreviewZoom } from './ui/Preview';
 import { TRANSITIONS } from './presets';
+import { RAMP_PRESETS, type RampPreset } from './keyframes';
 
 export interface VideoActions {
   newProject: () => void;
@@ -58,6 +59,9 @@ export interface VideoActions {
   unlink: () => void;
   setTransition: (kind: TransitionKind | 'none') => void;
   setSpeed: (speed: number) => void;
+  setRamp: (preset: RampPreset | 'none') => void;
+  toggleReverse: () => void;
+  freezeFrame: () => void;
   resetEffects: () => void;
   renameClip: () => void;
   addTrack: (kind: TrackKind) => void;
@@ -171,6 +175,13 @@ export function buildMenus(t: TFunction, a: VideoActions, s: MenuState): { label
           disabled: !s.mediaSelected,
           submenu: [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 4].map((v) => ({ label: `${v}×`, onClick: () => a.setSpeed(v) })),
         },
+        {
+          label: t('Speed curve'),
+          disabled: !s.mediaSelected,
+          submenu: [{ label: t('None (one speed)'), onClick: () => a.setRamp('none') }, ...RAMP_PRESETS.map((r) => ({ label: t(r.label), onClick: () => a.setRamp(r.id) }))],
+        },
+        { label: t('Play backwards'), onClick: a.toggleReverse, disabled: !s.mediaSelected },
+        { label: t('Freeze frame at the playhead'), onClick: a.freezeFrame },
         { label: t('Reset effects'), onClick: a.resetEffects, disabled: !s.visualSelected },
         { label: t('Rename…'), onClick: a.renameClip, disabled: !s.hasSelection },
       ],

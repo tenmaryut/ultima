@@ -1,4 +1,5 @@
-import type { CaptionStyle, Clip, MediaRef, Project, TitleStyle, TrackKind, TransitionKind } from '../types';
+import type { CaptionStyle, Clip, Easing, Keyframe, KeyProp, MediaRef, Project, TitleStyle, TrackKind, TransitionKind } from '../types';
+import { EASINGS, KEY_PROPS, KEY_RANGES, RAMP_PRESETS, rampPreset, type RampPreset } from '../keyframes';
 import {
   addCaptionCues,
   addMarker,
@@ -31,6 +32,8 @@ import {
   updateMarker,
   updateTrack,
   clearRange,
+  freezeFrameAt,
+  setSpeedRamp,
 } from '../model';
 import { DEFAULT_STILL_DURATION, FPS_OPTIONS, MAX_SPEED, MAX_VOLUME_DB, MIN_SPEED, MIN_VOLUME_DB, TITLE_PRESETS, TRANSITION_KINDS, titlePreset } from '../presets';
 import { EPS, clampNum, frameDur } from '../time';
@@ -153,12 +156,16 @@ function patchClip(p: Project, cl: Clip, pr: Obj, fonts: string[] | undefined, c
     if (!local.includes(k)) local.push(k);
     if (!changed.includes(k)) changed.push(k);
   };
+  // a keyframed property ignores its plain value, so setting it removes its keyframes
+  const keyed = (k: string) => Boolean(cl.keys?.[k as KeyProp]?.length);
+  const unkeyed: string[] = [];
   if (cl.visual) {
     const v = { ...cl.visual };
     const set = <K extends keyof typeof v>(k: K, val: (typeof v)[K]) => {
-      if (v[k] !== val) {
+      if (v[k] !== val || keyed(k)) {
         v[k] = val;
         mark(k);
+        if (keyed(k)) unkeyed.push(k);
       }
     };
     if (finite(pr.opacity)) set('opacity', clampNum(pr.opacity > 1 ? pr.opacity / 100 : pr.opacity, 0, 1));
@@ -187,14 +194,30 @@ function patchClip(p: Project, cl: Clip, pr: Obj, fonts: string[] | undefined, c
   }
   if ((finite(pr.volume) || pr.muted === true) && cl.kind === 'audio') {
     const vol = pr.muted === true ? MIN_VOLUME_DB : clampNum(pr.volume as number, MIN_VOLUME_DB, MAX_VOLUME_DB);
-    if (vol !== cl.volume) {
+    if (vol !== cl.volume || keyed('volume')) {
       next.volume = vol;
       mark('volume');
+      if (keyed('volume')) unkeyed.push('volume');
     }
+  }
+  if (unkeyed.length) {
+    const keys = { ...cl.keys };
+    for (const k of unkeyed) delete keys[k as KeyProp];
+    next.keys = Object.keys(keys).length ? keys : undefined;
+    mark(`removed the ${unkeyed.join('/')} keyframes`);
   }
   if (typeof pr.keepPitch === 'boolean' && (cl.kind === 'audio' || cl.kind === 'video') && pr.keepPitch !== cl.keepPitch) {
     next.keepPitch = pr.keepPitch;
     mark('keepPitch');
+  }
+  if (typeof pr.reverse === 'boolean' && (cl.kind === 'audio' || cl.kind === 'video') && pr.reverse !== Boolean(cl.reverse)) {
+    next.reverse = pr.reverse || undefined;
+    mark('reverse');
+  }
+  const blend = typeof pr.frameBlend === 'boolean' ? pr.frameBlend : typeof pr.smoothSlowMotion === 'boolean' ? pr.smoothSlowMotion : undefined;
+  if (blend !== undefined && cl.kind === 'video' && blend !== Boolean(cl.frameBlend)) {
+    next.frameBlend = blend || undefined;
+    mark('frameBlend');
   }
   if (finite(pr.fadeIn)) {
     next.fadeIn = clampNum(pr.fadeIn, 0, cl.duration);
@@ -235,6 +258,40 @@ function patchClip(p: Project, cl: Clip, pr: Obj, fonts: string[] | undefined, c
     mark('name');
   }
   return local.length ? next : cl;
+}
+
+/** Converts an AI value to the unit a keyframed property uses (like setClip does). */
+function keyUnit(prop: KeyProp, v: number): number {
+  let x = v;
+  if (prop === 'opacity' && x > 1) x /= 100;
+  if (prop === 'scale' && x > 10) x /= 100;
+  const [lo, hi] = KEY_RANGES[prop];
+  return clampNum(x, lo, hi);
+}
+
+/** Keyframes from the AI: "t" (seconds from the clip start) or "at" (timeline seconds), a value and an easing. */
+function readKeys(c: Clip, raw: unknown, unit: (v: number) => number): Keyframe[] {
+  if (!Array.isArray(raw)) throw new Skip('"keys" must be a list of {"t" or "at", "v", "ease"}');
+  const keys = raw
+    .slice(0, 100)
+    .filter(isObj)
+    .map((k) => {
+      const t = finite(k.t) ? k.t : finite(k.at) ? (k.at as number) - c.start : NaN;
+      const v = finite(k.v) ? k.v : finite(k.value) ? (k.value as number) : NaN;
+      return { t, v, ease: (EASINGS.includes(k.ease as Easing) ? k.ease : 'easeInOut') as Easing };
+    })
+    .filter((k) => Number.isFinite(k.t) && Number.isFinite(k.v))
+    .map((k) => ({ t: clampNum(k.t, 0, c.duration), v: unit(k.v), ease: k.ease }))
+    .sort((a, b) => a.t - b.t);
+  if (!keys.length) throw new Skip('no valid keyframes (each needs "t" or "at" and "v")');
+  return keys;
+}
+
+/** The audio clips that carry a clip's sound (itself, or the audio linked to a video). */
+function soundOf(p: Project, c: Clip): Clip[] {
+  if (c.kind === 'audio') return [c];
+  if (c.kind === 'video' && c.linkId) return p.clips.filter((x) => x.linkId === c.linkId && x.kind === 'audio');
+  return [];
 }
 
 const handlers: Record<string, Handler> = {
@@ -441,6 +498,10 @@ const handlers: Record<string, Handler> = {
         if (s.p !== before && !changed.includes('speed')) changed.push('speed');
       }
       s.p = updateClip(s.p, c.id, (cl) => patchClip(s.p, cl, pr, s.ctx.fonts, changed));
+      // reversing a video reverses its sound too
+      if (typeof pr.reverse === 'boolean' && c.kind === 'video' && c.linkId) {
+        for (const partner of s.p.clips.filter((x) => x.linkId === c.linkId && x.kind === 'audio')) s.p = updateClip(s.p, partner.id, (x) => ({ ...x, reverse: (pr.reverse as boolean) || undefined }));
+      }
       // volume on a video clip applies to its linked audio
       if ((finite(pr.volume) || pr.muted === true) && c.kind === 'video' && c.linkId) {
         const vol = pr.muted === true ? MIN_VOLUME_DB : clampNum(pr.volume as number, MIN_VOLUME_DB, MAX_VOLUME_DB);
@@ -601,6 +662,95 @@ const handlers: Record<string, Handler> = {
     st.background = safeColor(a.background) ?? st.background;
     s.p = changeSettings(s.p, st);
     return `project ${st.width}×${st.height}, ${st.fps} fps, background ${st.background}`;
+  },
+
+  keyframes(s, a) {
+    const prop = a.prop as KeyProp;
+    if (!KEY_PROPS.includes(prop)) throw new Skip(`"prop" must be one of ${KEY_PROPS.join(', ')}`);
+    const { ids, notes } = resolveClips(s.p, a, { selection: s.ctx.selection });
+    let done = 0;
+    for (const id of ids) {
+      const c = getClip(s.p, id)!;
+      const targets = prop === 'volume' ? soundOf(s.p, c) : c.visual ? [c] : [];
+      for (const target of targets) {
+        const keys = readKeys(target, a.keys, (v) => keyUnit(prop, v));
+        s.p = updateClip(s.p, target.id, (x) => {
+          const merged = a.replace === false ? [...(x.keys?.[prop] ?? []).filter((k) => !keys.some((n) => Math.abs(n.t - k.t) < 1 / 120)), ...keys].sort((p1, p2) => p1.t - p2.t) : keys;
+          return { ...x, keys: { ...x.keys, [prop]: merged } };
+        });
+        done++;
+      }
+    }
+    if (!done) throw new Skip(prop === 'volume' ? 'none of those clips has sound' : 'none of those clips has a picture');
+    return `${prop} keyframes on ${done} clip(s)${notes.length ? ` (${notes.join('; ')})` : ''}`;
+  },
+
+  clearKeyframes(s, a) {
+    const { ids } = resolveClips(s.p, a, { selection: s.ctx.selection });
+    const prop = typeof a.prop === 'string' && a.prop !== 'all' ? (a.prop as KeyProp) : null;
+    if (prop && !KEY_PROPS.includes(prop) && a.prop !== 'speed') throw new Skip(`unknown prop ${String(a.prop)}`);
+    let done = 0;
+    for (const id of ids) {
+      const c = getClip(s.p, id)!;
+      for (const target of [c, ...soundOf(s.p, c).filter((x) => x.id !== c.id)]) {
+        s.p = updateClip(s.p, target.id, (x) => {
+          if (a.prop === 'speed') return x.speedKeys ? { ...x, speedKeys: undefined } : x;
+          if (!x.keys) return x;
+          if (!prop) return { ...x, keys: undefined };
+          if (!x.keys[prop]) return x;
+          const keys = { ...x.keys };
+          delete keys[prop];
+          return { ...x, keys: Object.keys(keys).length ? keys : undefined };
+        });
+        done++;
+      }
+    }
+    return `cleared ${a.prop === 'speed' ? 'the speed ramp' : prop ? `${prop} keyframes` : 'all keyframes'} on ${done} clip(s)`;
+  },
+
+  speedRamp(s, a) {
+    const { ids } = resolveClips(s.p, a, { kinds: ['video', 'audio'], selection: s.ctx.selection });
+    const keep = a.keep === 'content' ? 'content' : 'length';
+    const notes: string[] = [];
+    const done = new Set<string>();
+    for (const id of ids) {
+      const c = getClip(s.p, id);
+      if (!c || done.has(c.id)) continue;
+      if (c.freeze) {
+        notes.push(`${c.id} is a freeze frame`);
+        continue;
+      }
+      let keys: Keyframe[];
+      if (typeof a.preset === 'string') {
+        if (!RAMP_PRESETS.some((r) => r.id === a.preset)) throw new Skip(`unknown preset ${a.preset} (use ${RAMP_PRESETS.map((r) => r.id).join(', ')})`);
+        keys = rampPreset(a.preset as RampPreset, c.duration, finite(a.fast) ? clampNum(a.fast, MIN_SPEED, MAX_SPEED) : 2, finite(a.slow) ? clampNum(a.slow, MIN_SPEED, MAX_SPEED) : 0.35);
+      } else keys = readKeys(c, a.keys, (v) => clampNum(v, MIN_SPEED, MAX_SPEED));
+      const r = setSpeedRamp(s.p, c.id, keys, keep);
+      if (!r) {
+        notes.push(`${c.id}: no source left for this ramp`);
+        continue;
+      }
+      // the linked sound got the same ramp
+      for (const x of r.project.clips) if (x.linkId && x.linkId === c.linkId) done.add(x.id);
+      done.add(c.id);
+      s.p = r.project;
+      if (keep === 'content') notes.push(`${c.id} is now ${r.duration.toFixed(2)} s long${r.moved ? `; ${r.moved} later clip(s) moved ${sec(r.duration - c.duration)}` : ''}`);
+      else if (r.duration < c.duration - 1e-3) notes.push(`${c.id} got shorter (${r.duration.toFixed(2)} s) because the source ends`);
+    }
+    if (!done.size) throw new Skip(notes.join('; ') || 'no clips to ramp');
+    return `speed ramp on ${done.size} clip(s)${notes.length ? ` (${notes.join('; ')})` : ''}`;
+  },
+
+  freezeFrame(s, a) {
+    const c = getClip(s.p, String(a.clipId ?? ''));
+    if (!c || c.kind !== 'video') throw new Skip('freezeFrame needs the "clipId" of a video clip');
+    const time = finite(a.time) ? a.time : finite(a.at) ? (a.at as number) : NaN;
+    if (!Number.isFinite(time)) throw new Skip('freezeFrame needs "time" (timeline seconds inside the clip)');
+    const duration = clampNum(finite(a.duration) ? a.duration : 1, 0.1, 30);
+    const r = freezeFrameAt(s.p, c.id, time, duration);
+    if (!r.id) throw new Skip(`${sec(time)} is not inside ${c.id}, or its track is locked`);
+    s.p = r.project;
+    return `freeze frame ${r.id} at ${sec(time)} for ${duration.toFixed(2)} s; everything after moved ${duration.toFixed(2)} s later`;
   },
 
   seek(s, a) {

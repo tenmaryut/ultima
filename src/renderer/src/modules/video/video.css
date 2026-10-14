@@ -619,6 +619,19 @@
   border-right: 1px dashed color-mix(in srgb, var(--text-0) 60%, transparent);
   pointer-events: none;
 }
+/* keyframes on a clip */
+.vd-clip-key {
+  position: absolute;
+  bottom: 2px;
+  width: 7px;
+  height: 7px;
+  margin-left: -3.5px;
+  background: var(--accent);
+  border: 1px solid rgba(0, 0, 0, 0.55);
+  transform: rotate(45deg);
+  pointer-events: none;
+  z-index: 2;
+}
 .vd-clip-fade {
   position: absolute;
   top: 0;
@@ -811,4 +824,44 @@
   border-radius: var(--radius-sm);
   background: var(--bg-2);
   font-size: 12px;
+}
+
+/* keyframe controls in the inspector */
+.vd-keyrow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 4px;
+}
+.vd-keyrow .vd-keybtn {
+  margin-bottom: 1px;
+  color: var(--text-2);
+}
+.vd-keyrow .vd-keybtn.animated {
+  color: var(--accent);
+}
+.vd-keyrow .vd-keybtn.on {
+  color: var(--accent);
+}
+.vd-keyrow .vd-keybtn.on svg {
+  fill: var(--accent);
+}
+.vd-keybar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-1);
+}
+.vd-keybar .vd-keybar-icon {
+  color: var(--accent);
+  fill: var(--accent);
+}
+.vd-keybar > span:not(.spacer) {
+  white-space: nowrap;
+}
+.vd-keybar .select {
+  max-width: 120px;
 }

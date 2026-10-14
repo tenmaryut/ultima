@@ -42,6 +42,9 @@ import {
   removeTrack,
   rippleDeleteRanges,
   setClipSpeed,
+  clipEnd,
+  setSpeedRamp,
+  freezeFrameAt,
   splitAt,
   timelineDuration,
   unlinkClips,
@@ -53,6 +56,7 @@ import {
 import { parseProject, serializeProject } from './project';
 import { parseSubtitles, serializeSrt, serializeVtt } from './captions';
 import { DEFAULT_STILL_DURATION, DEFAULT_TITLE_DURATION, DEFAULT_VISUAL, TRANSITIONS, titlePreset } from './presets';
+import { RAMP_PRESETS, rampPreset, type RampPreset } from './keyframes';
 import { applyAIActions, describeProject, formatResults } from './aiActions';
 import { clipFrameSheets, lookSheet } from './ai/frames';
 import { AnalysisStore } from './analysisStore';
@@ -548,9 +552,40 @@ export function useVideoEditor(active: boolean) {
     }
     change(p, { label: t('Change speed') });
   };
+  /** A speed curve preset (or 'none') on the selected video/audio clips, keeping their length. */
+  const setRamp = (preset: RampPreset | 'none') => {
+    let p = projectRef.current;
+    const done = new Set<string>();
+    for (const c of clipsSelected()) {
+      if ((c.kind !== 'video' && c.kind !== 'audio') || c.freeze || done.has(c.id)) continue;
+      expandLinked(p, [c.id]).forEach((id) => done.add(id));
+      const r = setSpeedRamp(p, c.id, preset === 'none' ? undefined : rampPreset(preset, c.duration));
+      if (r) p = r.project;
+    }
+    change(p, { label: preset === 'none' ? t('Remove speed curve') : t('Speed curve') });
+  };
+  const toggleReverse = () => {
+    const sel = clipsSelected().filter((c) => (c.kind === 'video' || c.kind === 'audio') && !c.freeze);
+    if (!sel.length) return;
+    const on = !sel[0].reverse;
+    let p = projectRef.current;
+    for (const id of expandLinked(p, sel.map((c) => c.id))) p = updateClip(p, id, (x) => (x.kind === 'video' || x.kind === 'audio' ? { ...x, reverse: on || undefined } : x));
+    change(p, { label: t('Reverse') });
+  };
+  const freezeFrame = () => {
+    const now = playhead();
+    const clip = clipsSelected().find((c) => c.kind === 'video' && c.start <= now && now < clipEnd(c)) ?? projectRef.current.clips.find((c) => c.kind === 'video' && !c.freeze && c.start <= now && now < clipEnd(c));
+    const r = clip ? freezeFrameAt(projectRef.current, clip.id, now, 1) : null;
+    if (!r?.id) {
+      toast.info(t('Put the playhead over a video clip first.'));
+      return;
+    }
+    change(r.project, { label: t('Freeze frame') });
+    setSelectionState([r.id]);
+  };
   const resetEffects = () => {
     let p = projectRef.current;
-    for (const c of clipsSelected()) if (c.visual) p = updateClip(p, c.id, (x) => ({ ...x, visual: { ...DEFAULT_VISUAL }, fadeIn: 0, fadeOut: 0, transition: undefined }));
+    for (const c of clipsSelected()) if (c.visual) p = updateClip(p, c.id, (x) => ({ ...x, visual: { ...DEFAULT_VISUAL }, keys: undefined, fadeIn: 0, fadeOut: 0, transition: undefined }));
     change(p, { label: t('Reset effects') });
   };
   const renameClip = async () => {
@@ -586,7 +621,14 @@ export function useVideoEditor(active: boolean) {
       { type: 'separator' },
       clip.linkId ? { label: t('Unlink clips'), onClick: () => change(unlinkClips(projectRef.current, selectionRef.current), { label: t('Unlink clips') }) } : { label: t('Link clips'), onClick: () => change(linkClips(projectRef.current, selectionRef.current), { label: t('Link clips') }), disabled: selectionRef.current.length < 2 },
       ...(visual ? [{ label: t('Transition in'), submenu: [{ label: t('None'), onClick: () => setTransition('none') }, ...TRANSITIONS.map((tr) => ({ label: t(tr.label), onClick: () => setTransition(tr.kind) }))] }] : []),
-      ...(media ? [{ label: t('Speed'), submenu: [0.25, 0.5, 1, 1.5, 2, 4].map((v) => ({ label: `${v}×`, onClick: () => setSpeed(v) })) }] : []),
+      ...(media && !clip.freeze
+        ? [
+            { label: t('Speed'), submenu: [0.25, 0.5, 1, 1.5, 2, 4].map((v) => ({ label: `${v}×`, onClick: () => setSpeed(v) })) },
+            { label: t('Speed curve'), submenu: [{ label: t('None (one speed)'), onClick: () => setRamp('none') }, ...RAMP_PRESETS.map((r) => ({ label: t(r.label), onClick: () => setRamp(r.id) }))] },
+            { label: t('Play backwards'), checked: Boolean(clip.reverse), onClick: toggleReverse },
+          ]
+        : []),
+      ...(clip.kind === 'video' ? [{ label: t('Freeze frame at the playhead'), onClick: freezeFrame }] : []),
       { label: t('Rename…'), onClick: () => void renameClip() },
     ];
   };
@@ -643,6 +685,9 @@ export function useVideoEditor(active: boolean) {
     unlink: () => change(unlinkClips(projectRef.current, selectionRef.current), { label: t('Unlink clips') }),
     setTransition,
     setSpeed,
+    setRamp,
+    toggleReverse,
+    freezeFrame,
     resetEffects,
     renameClip: () => void renameClip(),
     addTrack: addTrackOf,

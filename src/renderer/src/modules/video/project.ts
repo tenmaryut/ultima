@@ -1,4 +1,5 @@
-import type { CaptionStyle, Clip, ClipKind, MediaRef, Project, TitleStyle, Track, Transition, VisualProps } from './types';
+import type { CaptionStyle, Clip, ClipKind, Easing, Keyframe, KeyProp, MediaRef, Project, TitleStyle, Track, Transition, VisualProps } from './types';
+import { EASINGS, KEY_PROPS, KEY_RANGES } from './keyframes';
 import { DEFAULT_SETTINGS, DEFAULT_VISUAL, MAX_SPEED, MAX_VOLUME_DB, MIN_SPEED, MIN_VOLUME_DB, TRANSITION_KINDS, defaultCaptionStyle, defaultTitle } from './presets';
 import { createProject, normalizeLinks, trackKindForClip } from './model';
 import { clampNum } from './time';
@@ -42,6 +43,29 @@ function n(v: unknown, fallback: number, min = -Infinity, max = Infinity): numbe
   return typeof v === 'number' && Number.isFinite(v) ? clampNum(v, min, max) : fallback;
 }
 const color = (v: unknown, fallback: string) => (typeof v === 'string' && v.length < 64 && /^[#a-z0-9(),.\s%-]+$/i.test(v) ? v : fallback);
+
+/** A validated keyframe list (sorted, values clamped to `range`). */
+function parseKeyList(v: unknown, range: [number, number], maxT: number): Keyframe[] | undefined {
+  if (!Array.isArray(v)) return undefined;
+  const list = v
+    .slice(0, 500)
+    .filter(isObj)
+    .filter((k) => typeof k.t === 'number' && Number.isFinite(k.t) && typeof k.v === 'number' && Number.isFinite(k.v))
+    .map((k) => ({ t: clampNum(k.t as number, 0, maxT), v: clampNum(k.v as number, range[0], range[1]), ease: (EASINGS.includes(k.ease as Easing) ? k.ease : 'linear') as Easing }))
+    .sort((a, b) => a.t - b.t);
+  return list.length ? list : undefined;
+}
+
+function parseKeys(v: unknown, maxT: number, visual: boolean, audio: boolean): Clip['keys'] {
+  if (!isObj(v)) return undefined;
+  const out: Partial<Record<KeyProp, Keyframe[]>> = {};
+  for (const k of KEY_PROPS) {
+    if (k === 'volume' ? !audio : !visual) continue;
+    const list = parseKeyList(v[k], KEY_RANGES[k], maxT);
+    if (list) out[k] = list;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
 
 function parseVisual(v: unknown): VisualProps {
   const o = isObj(v) ? v : {};
@@ -159,6 +183,7 @@ export function parseProject(input: string | unknown): Project {
       size: n(m.size, 0, 0, 1e15),
       mime: str(m.mime, '', 200),
       hasAudio: bool(m.hasAudio, kind !== 'image'),
+      fps: kind === 'video' && typeof m.fps === 'number' && m.fps > 0 && m.fps <= 1000 ? m.fps : undefined,
       path: typeof m.path === 'string' ? m.path.slice(0, 4000) : undefined,
       lastModified: typeof m.lastModified === 'number' ? m.lastModified : undefined,
     });
@@ -213,6 +238,11 @@ export function parseProject(input: string | unknown): Project {
       visual: visualKind ? parseVisual(c.visual) : undefined,
       title: kind === 'title' ? parseTitle(c.title, settings.height) : undefined,
       text: kind === 'caption' ? str(c.text, '', 2000) : undefined,
+      keys: parseKeys(c.keys, duration, visualKind, kind === 'audio'),
+      speedKeys: kind === 'video' || kind === 'audio' ? parseKeyList(c.speedKeys, [MIN_SPEED, MAX_SPEED], duration) : undefined,
+      reverse: (kind === 'video' || kind === 'audio') && c.reverse === true ? true : undefined,
+      freeze: (kind === 'video' || kind === 'audio') && c.freeze === true ? true : undefined,
+      frameBlend: kind === 'video' && c.frameBlend === true ? true : undefined,
     });
   }
 

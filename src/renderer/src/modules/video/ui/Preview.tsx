@@ -10,7 +10,7 @@ import { visualLayers } from '../compositor';
 import { clipLayout, hitLayout, layoutCorners } from '../fx';
 import { titleBox } from '../text';
 import { formatTimecode, parseTimecode } from '../time';
-import { DEFAULT_VISUAL } from '../presets';
+import { animatedVisual, setValueAt } from '../keyframes';
 
 export type PreviewZoom = 'fit' | 0.25 | 0.5 | 1;
 
@@ -37,10 +37,13 @@ interface PreviewProps {
   onStep: (frames: number) => void;
 }
 
-/** Frame corners (project px) of a visual clip as currently drawn, or null. */
-function clipCorners(p: Project, clip: Clip): { x: number; y: number }[] | null {
+/** Seconds into a clip at timeline time `t`. */
+const localOf = (c: Clip, t: number) => Math.min(Math.max(0, t - c.start), c.duration);
+
+/** Frame corners (project px) of a visual clip as drawn at time `now`, or null. */
+function clipCorners(p: Project, clip: Clip, now: number): { x: number; y: number }[] | null {
   const { width: W, height: H } = p.settings;
-  const v = clip.visual ?? DEFAULT_VISUAL;
+  const v = animatedVisual(clip, localOf(clip, now));
   if (clip.kind === 'title' && clip.title) {
     const b = titleBox(clip.title, W, H);
     const rad = (v.rotation * Math.PI) / 180;
@@ -94,12 +97,12 @@ function Overlay({ project, time, selection, safe, change, commit, setSelection,
   const t = useT();
   const now = usePlayhead(time);
   const { width: W, height: H } = project.settings;
-  const drag = useRef<{ x0: number; y0: number; base: Project; id: string; vx: number; vy: number; moved: boolean } | null>(null);
+  const drag = useRef<{ x0: number; y0: number; base: Project; id: string; vx: number; vy: number; local: number; moved: boolean } | null>(null);
   const active = selection
     .map((id) => getClip(project, id))
     .filter((c): c is Clip => Boolean(c && (c.kind === 'video' || c.kind === 'image' || c.kind === 'title') && c.start <= now && now < clipEnd(c)));
   const sel = active[0];
-  const corners = sel ? clipCorners(project, sel) : null;
+  const corners = sel ? clipCorners(project, sel, now) : null;
 
   const toProject = (e: React.PointerEvent) => {
     const r = (e.currentTarget as SVGSVGElement).getBoundingClientRect();
@@ -114,12 +117,12 @@ function Overlay({ project, time, selection, safe, change, commit, setSelection,
       const layers = visualLayers(project, now).reverse();
       for (const l of layers) {
         const c = l.clip;
-        const pts = clipCorners(project, c);
+        const pts = clipCorners(project, c, now);
         if (pts && inside(pts, p.x, p.y)) {
           target = c;
           break;
         }
-        if (!pts && c.visual && hitLayout(clipLayout(W, H, W, H, c.visual), p.x, p.y)) {
+        if (!pts && c.visual && hitLayout(clipLayout(W, H, W, H, animatedVisual(c, localOf(c, now))), p.x, p.y)) {
           target = c;
           break;
         }
@@ -130,8 +133,9 @@ function Overlay({ project, time, selection, safe, change, commit, setSelection,
     const track = project.tracks.find((tr) => tr.id === target!.trackId);
     if (track?.locked) return;
     (e.currentTarget as Element).setPointerCapture(e.pointerId);
-    const v = target.visual ?? DEFAULT_VISUAL;
-    drag.current = { x0: e.clientX, y0: e.clientY, base: project, id: target.id, vx: v.x, vy: v.y, moved: false };
+    // with keyframes, dragging moves (or adds) the position keyframe at the playhead
+    const v = animatedVisual(target, localOf(target, now));
+    drag.current = { x0: e.clientX, y0: e.clientY, base: project, id: target.id, vx: v.x, vy: v.y, local: localOf(target, now), moved: false };
   };
   const onMove = (e: React.PointerEvent<SVGSVGElement>) => {
     const d = drag.current;
@@ -145,7 +149,7 @@ function Overlay({ project, time, selection, safe, change, commit, setSelection,
       if (Math.abs(x) < W * 0.008) x = 0;
       if (Math.abs(y) < H * 0.008) y = 0;
     }
-    change(updateClip(d.base, d.id, (c) => ({ ...c, visual: { ...(c.visual ?? DEFAULT_VISUAL), x: Math.round(x), y: Math.round(y) } })), { record: false });
+    change(updateClip(d.base, d.id, (c) => setValueAt(setValueAt(c, 'x', d.local, Math.round(x)), 'y', d.local, Math.round(y))), { record: false });
   };
   const onUp = () => {
     if (drag.current?.moved) commit(t('Move in frame'));

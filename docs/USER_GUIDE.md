@@ -358,6 +358,19 @@ the clip in the preview); Speed 0.25–4× with *Keep audio pitch*; volume and a
 Transition in (Cross dissolve, Dip to black/white, Wipe, Slide, Zoom); Color & blur (brightness, contrast,
 saturation, temperature, hue, blur); Chroma key for green or blue screens.
 
+**Keyframes, speed curves and freeze frames.**
+- Click **◆** next to position, scale, rotation, opacity, a color value, blur or volume to add a keyframe at the
+  playhead. Once a value has keyframes, changing it at another time (or dragging the clip in the preview) adds
+  another one. The keyframe bar at the top of the inspector jumps to the previous/next keyframe, sets the easing of
+  the keyframe at the playhead (Linear, Ease in, Ease out, Ease in-out, Hold) and removes all keyframes. Keyframes
+  show as small diamonds on the clip in the timeline.
+- *Speed curve* (Inspector → Speed, or right-click a clip): Montage hit (fast → slow-mo → fast), Slow-mo in the
+  middle, Speed up in the middle, Slow to fast and Fast to slow. *A new curve keeps* the clip length (cuts stay on
+  the beat) or all content (the clip gets longer or shorter and the clips after it move).
+- *Play backwards* reverses a clip and its sound. *Smooth slow motion* blends neighbouring frames on export when a
+  clip plays slower than it was recorded. *Freeze frame at the playhead* holds that frame for one second and moves
+  everything after it.
+
 **Titles and captions.** *Titles* tab: Basic title, Lower third, Big bold, Bottom text, Typewriter, Pop label and
 End card — click or drag one onto the timeline, then edit its text, font, colors, outline, background and
 animation (Fade, Slide up, Pop, Typewriter). *Captions* tab: add captions by hand, import or export SRT/VTT,
@@ -372,8 +385,19 @@ set the caption style, or create them with **Auto captions…**.
 - **Voice-over from text…** — type a script, choose a voice, listen, then *Add to timeline*: the speech is placed at
   the playhead on a free audio track, so it never cuts the sound already there (desktop app; see [Text to speech](AI_SETUP.md#text-to-speech)).
 
-The assistant can add titles and captions, split, trim, move and delete clips, change clip properties, add
-transitions and markers, and change the project format.
+**The assistant** (AI panel) reads the whole timeline — every clip, Media bin item (with its id), marker, track and
+font — and, with an AI that accepts pictures, sees the frame at the playhead plus frames from every clip. It can ask
+to *look* at exact moments before it cuts. Ultima also analyses the sound and picture of your media for it: tempo
+(BPM), beats and bar starts, the strongest hits, loud moments (gunshots, impacts, cheers) and bursts of them, and
+scene changes — so it can cut on the beat or build a montage around the action (kills or headshots can't be told
+apart for sure from sound alone).
+
+It can add clips from the Media bin; split, trim, move, shift, delete and duplicate clips, close gaps and remove a
+time range; link and unlink sound; change one clip, a whole track or all clips at once; animate with keyframes
+(zoom, pan, shake, fades, volume); add speed curves, reverse clips and freeze frames; restyle titles; add
+transitions; add, move, rename and delete markers; add, mute, lock and delete tracks; set the work area; move the
+playhead; undo; and open the export dialog. After you press *Apply* (or with *Apply AI edits automatically* on) the
+AI is told what happened to every step, and *What happened to each step* shows you the same list.
 
 **Export** (Ctrl+E): MP4 (H.264 + AAC) or WebM (VP9 + Opus) for the whole timeline or the work area, with
 resolution, frame rate, quality or bitrate, audio and *Burn captions into the picture*; *MP4/MOV via FFmpeg*
@@ -395,7 +419,7 @@ files were moved, *Relink missing media…* finds them by name.
 
 **Good to know.** Files your system can't preview show *No preview*; right-click → *Convert with FFmpeg*
 (desktop app). Captions are burned into the picture or exported as SRT/VTT files (no subtitle track inside the
-MP4). For keyframe animation use Motion Graphics.
+MP4). For animated text and shapes use Motion Graphics.
 
 ## Motion Graphics
 

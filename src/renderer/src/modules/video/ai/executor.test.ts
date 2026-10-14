@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { applyAIActions, formatResults } from './executor';
 import { describeProject } from './describe';
 import { findTrack, resolveClips } from './targets';
-import { addMarker, addMediaToTimeline, clipEnd, createProject, getClip, tracksOfKind } from '../model';
+import { addMarker, addMediaToTimeline, clipEnd, createProject, getClip, tracksOfKind, updateClip } from '../model';
+import { sourceSpan } from '../keyframes';
 import type { MediaRef, Project } from '../types';
 
 const beach: MediaRef = { id: 'm_beach', name: 'beach.mp4', kind: 'video', duration: 20, width: 1920, height: 1080, size: 1, mime: 'video/mp4', hasAudio: true };
@@ -171,6 +172,104 @@ describe('markers, tracks and the editor', () => {
     const r = run(p, [{ type: 'seek', time: 99 }, { type: 'select', clipId: b }, { type: 'export', format: 'social' }, { type: 'setWorkArea', start: 1, end: 4 }]);
     expect(r.effects).toEqual([{ kind: 'seek', time: 12 }, { kind: 'select', ids: [b] }, { kind: 'export', exportKind: 'social' }]);
     expect(r.project.workArea).toEqual({ start: 1, end: 4 });
+  });
+});
+
+describe('motion and time', () => {
+  const linkedAudio = (p: Project, id: string) => p.clips.find((c) => c.kind === 'audio' && c.linkId === getClip(p, id)!.linkId)!;
+
+  it('sets keyframes in clip or timeline seconds, in setClip units, and on the sound of a video', () => {
+    const { p, b } = project();
+    let r = run(p, [
+      { type: 'keyframes', clipId: b, prop: 'scale', keys: [{ at: 8, v: 100 }, { t: 1, v: 130, ease: 'easeOut' }, { t: 99, v: 1 }] },
+      { type: 'keyframes', clipId: b, prop: 'volume', keys: [{ t: 0, v: 0 }, { t: 2, v: -20 }] },
+      { type: 'keyframes', clipId: b, prop: 'wobble', keys: [] },
+    ]);
+    expect(getClip(r.project, b)!.keys!.scale).toEqual([
+      { t: 0, v: 1, ease: 'easeInOut' },
+      { t: 1, v: 1.3, ease: 'easeOut' },
+      { t: 4, v: 1, ease: 'easeInOut' },
+    ]);
+    expect(linkedAudio(r.project, b).keys!.volume).toHaveLength(2);
+    expect(r.results[2].detail).toContain('"prop" must be one of');
+    // "replace": false keeps the other keys
+    r = run(r.project, [{ type: 'keyframes', clipId: b, prop: 'scale', replace: false, keys: [{ t: 2, v: 2 }] }]);
+    expect(getClip(r.project, b)!.keys!.scale!.map((k) => k.t)).toEqual([0, 1, 2, 4]);
+  });
+
+  it('clears keyframes, and setClip on a keyframed property replaces its keyframes', () => {
+    const { p, a } = project();
+    const keyed = run(p, [{ type: 'keyframes', clipId: a, prop: 'opacity', keys: [{ t: 0, v: 0 }, { t: 1, v: 1 }] }, { type: 'keyframes', clipId: a, prop: 'x', keys: [{ t: 0, v: 50 }] }]).project;
+    let r = run(keyed, [{ type: 'setClip', clipId: a, props: { opacity: 1 } }]);
+    expect(r.applied).toBe(1);
+    expect(getClip(r.project, a)!.keys).toEqual({ x: [{ t: 0, v: 50, ease: 'easeInOut' }] });
+    expect(r.results[0].detail).toContain('removed the opacity keyframes');
+    r = run(keyed, [{ type: 'clearKeyframes', clipId: a }]);
+    expect(getClip(r.project, a)!.keys).toBeUndefined();
+  });
+
+  it('ramps the speed of a clip and its sound, keeping its length', () => {
+    const { p, a } = project();
+    const r = run(p, [{ type: 'speedRamp', clipId: a, preset: 'hit' }]);
+    const c = getClip(r.project, a)!;
+    expect(c.duration).toBe(5);
+    expect(c.speedKeys!.map((k) => k.v)).toEqual([2, 0.35, 0.35, 2]);
+    expect(linkedAudio(r.project, a).speedKeys).toEqual(c.speedKeys);
+    // near the end of the file the clip gets shorter instead of running out of source
+    const late = updateClip(p, a, (x) => ({ ...x, in: 16 }));
+    const short = run(late, [{ type: 'speedRamp', clipId: a, keys: [{ t: 0, v: 2 }, { t: 5, v: 2 }] }]);
+    expect(getClip(short.project, a)!.duration).toBeCloseTo(2, 2);
+    expect(short.results[0].detail).toContain('got shorter');
+    expect(run(p, [{ type: 'speedRamp', clipId: a, preset: 'zigzag' }]).results[0].detail).toContain('unknown preset');
+    expect(run(r.project, [{ type: 'clearKeyframes', clipId: a, prop: 'speed' }]).project.clips.every((x) => !x.speedKeys)).toBe(true);
+  });
+
+  it('keeps the content of a ramped clip and moves the clips after it', () => {
+    const { p, a, b } = project();
+    const r = run(p, [{ type: 'speedRamp', clipId: a, preset: 'fastSlowFast', keep: 'content' }]);
+    const c = getClip(r.project, a)!;
+    expect(sourceSpan(c)).toBeCloseTo(5, 2);
+    expect(c.duration).toBeGreaterThan(7);
+    expect(linkedAudio(r.project, a).duration).toBe(c.duration);
+    expect(getClip(r.project, b)!.start).toBeCloseTo(8 + c.duration - 5, 6);
+    expect(linkedAudio(r.project, b).start).toBeCloseTo(getClip(r.project, b)!.start, 6);
+  });
+
+  it('freezes a frame and pushes everything after it', () => {
+    let { p, a, b } = project();
+    p = addMarker(p, 9, 'later').project;
+    const r = run(p, [{ type: 'freezeFrame', clipId: a, time: 2, duration: 1.5 }]);
+    const still = r.project.clips.find((c) => c.freeze)!;
+    expect([still.start, still.duration, still.in, still.kind]).toEqual([2, 1.5, 2, 'video']);
+    expect(clipEnd(getClip(r.project, a)!)).toBe(2);
+    const right = r.project.clips.filter((c) => c.kind === 'video' && c.start === 3.5);
+    expect(right).toHaveLength(1);
+    expect(getClip(r.project, b)!.start).toBe(9.5);
+    expect(r.project.markers[0].time).toBe(10.5);
+    expect(run(p, [{ type: 'freezeFrame', clipId: a, time: 7 }]).results[0].ok).toBe(false);
+  });
+
+  it('reverses a video with its sound and turns on smooth slow motion', () => {
+    const { p, a } = project();
+    const r = run(p, [{ type: 'setClip', clipId: a, props: { reverse: true, frameBlend: true } }]);
+    expect([getClip(r.project, a)!.reverse, getClip(r.project, a)!.frameBlend, linkedAudio(r.project, a).reverse]).toEqual([true, true, true]);
+    expect(r.results[0].detail).toContain('reverse, frameBlend');
+  });
+
+  it('describes keyframes, ramps, reversed and frozen clips', () => {
+    const { p, a, b } = project();
+    const r = run(p, [
+      { type: 'keyframes', clipId: a, prop: 'scale', keys: [{ t: 0, v: 1, ease: 'linear' }, { t: 2, v: 1.3 }] },
+      { type: 'speedRamp', clipId: b, preset: 'slowToFast' },
+      { type: 'setClip', clipId: a, props: { reverse: true } },
+      { type: 'freezeFrame', clipId: a, time: 4, duration: 1 },
+    ]);
+    const text = describeProject(r.project, { playhead: 0, selection: [] });
+    expect(text).toContain('keyframes (clip seconds=value): scale 0=1 (linear) → 2=1.3');
+    expect(text).toContain('speed ramp (clip seconds=speed) 0=0.35 (easeIn) → 4=2');
+    expect(text).toMatch(/source 1\.00–5\.00 s of 20\.00 s \(played backwards\) \(end can extend 1\.00 s\)/);
+    expect(text).toContain('holds the frame at source 1.00 s');
+    expect(text).toContain('freeze frame (still)');
   });
 });
 

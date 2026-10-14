@@ -1,5 +1,6 @@
-import type { Clip, Project } from '../types';
+import type { Clip, Keyframe, KeyProp, Project } from '../types';
 import { clipEnd, getMedia, getTrack, sourceOut, timelineDuration } from '../model';
+import { KEY_PROPS, speedAt, timeOfSource } from '../keyframes';
 import { formatTimecode } from '../time';
 import type { MediaAnalysis } from '../analysisStore';
 
@@ -16,6 +17,14 @@ export interface DescribeContext {
 
 const s2 = (t: number) => t.toFixed(2);
 
+/** "0=1 → 1.2=1.3 (easeOut) → 2=1": keyframe times are seconds from the clip start. */
+function keyList(keys: Keyframe[], digits: number): string {
+  const list = keys.slice(0, 10).map((k) => `${+k.t.toFixed(2)}=${+k.v.toFixed(digits)}${k.ease !== 'easeInOut' && k !== keys[keys.length - 1] ? ` (${k.ease})` : ''}`);
+  return list.join(' → ') + (keys.length > 10 ? ` … (+${keys.length - 10} more)` : '');
+}
+
+const KEY_DIGITS: Partial<Record<KeyProp, number>> = { x: 0, y: 0, rotation: 1, opacity: 2, scale: 3, volume: 1 };
+
 function effectsSummary(c: Clip): string {
   const parts: string[] = [];
   const v = c.visual;
@@ -29,12 +38,18 @@ function effectsSummary(c: Clip): string {
     if (crop.some(Boolean)) parts.push(`crop L${s2(v.cropLeft)} R${s2(v.cropRight)} T${s2(v.cropTop)} B${s2(v.cropBottom)}`);
     if (v.chromaKey) parts.push(`chroma key ${v.chromaColor}`);
   }
-  if (c.speed !== 1) parts.push(`speed ${c.speed}x`);
-  if ((c.kind === 'audio' || c.kind === 'video') && !c.keepPitch && c.speed !== 1) parts.push('pitch follows speed');
+  if (c.freeze) parts.push('freeze frame (still)');
+  else if (c.speedKeys?.length) parts.push(`speed ramp (clip seconds=speed) ${keyList(c.speedKeys, 2)}`);
+  else if (c.speed !== 1) parts.push(`speed ${c.speed}x`);
+  if (c.reverse) parts.push('reversed');
+  if (c.frameBlend) parts.push('smooth slow motion (frame blending)');
+  if ((c.kind === 'audio' || c.kind === 'video') && !c.keepPitch && c.speed !== 1 && !c.speedKeys?.length) parts.push('pitch follows speed');
   if (c.kind === 'audio' && c.volume) parts.push(`volume ${c.volume.toFixed(1)} dB`);
   if (c.fadeIn) parts.push(`fade in ${s2(c.fadeIn)}s`);
   if (c.fadeOut) parts.push(`fade out ${s2(c.fadeOut)}s`);
   if (c.transition) parts.push(`transition in ${c.transition.kind} ${c.transition.duration}s`);
+  const keyed = KEY_PROPS.filter((k) => c.keys?.[k]?.length);
+  if (keyed.length) parts.push(`keyframes (clip seconds=value): ${keyed.map((k) => `${k} ${keyList(c.keys![k]!, KEY_DIGITS[k] ?? 0)}`).join('; ')}`);
   return parts.join(', ');
 }
 
@@ -48,13 +63,14 @@ function titleSummary(c: Clip): string {
 }
 
 /** Source seconds of a clip's media on the timeline, or null when that part isn't used. */
-function onTimeline(c: Clip, source: number): number | null {
-  const t = c.start + (source - c.in) / c.speed;
-  return t >= c.start - 1e-6 && t <= clipEnd(c) + 1e-6 ? t : null;
-}
+const onTimeline = timeOfSource;
 
 function times(c: Clip, source: number[], max: number): string {
-  const tl = source.map((x) => onTimeline(c, x)).filter((x): x is number => x !== null);
+  // reversed clips meet their source backwards
+  const tl = source
+    .map((x) => onTimeline(c, x))
+    .filter((x): x is number => x !== null)
+    .sort((a, b) => a - b);
   if (!tl.length) return '';
   return tl.slice(0, max).map(s2).join(', ') + (tl.length > max ? ` … (+${tl.length - max} more)` : '');
 }
@@ -80,7 +96,8 @@ function analysisLines(p: Project, ctx: DescribeContext): string[] {
     if (b && (c.kind === 'audio' || b.confidence >= 0.3)) {
       const beats = times(c, b.beats, 48);
       if (beats) {
-        parts.push(`≈${Math.round((b.bpm * c.speed) * 10) / 10} BPM (a beat every ${(b.period / c.speed).toFixed(3)} s, steadiness ${b.confidence})`);
+        if (c.speedKeys?.length) parts.push(`the tempo follows the speed ramp (${b.bpm} BPM at 1×)`);
+        else parts.push(`≈${Math.round(b.bpm * c.speed * 10) / 10} BPM (a beat every ${(b.period / c.speed).toFixed(3)} s, steadiness ${b.confidence})`);
         parts.push(`beats: ${beats}`);
         const bars = times(c, b.downbeats, 16);
         if (bars) parts.push(`bar starts: ${bars}`);
@@ -98,6 +115,7 @@ function analysisLines(p: Project, ctx: DescribeContext): string[] {
       const loud = au.loud
         .map((m) => ({ t: onTimeline(c, m.time), m }))
         .filter((x): x is { t: number; m: (typeof au.loud)[number] } => x.t !== null)
+        .sort((x, y) => x.t - y.t)
         .slice(0, 16)
         .map((x) => `${s2(x.t)} (+${x.m.prominence} dB)`);
       if (loud.length) parts.push(`loud moments: ${loud.join(', ')}`);
@@ -105,9 +123,11 @@ function analysisLines(p: Project, ctx: DescribeContext): string[] {
     if (au?.bursts.length) {
       const bursts = au.bursts
         .map((x) => ({ s: onTimeline(c, x.start), e: onTimeline(c, x.end), n: x.count }))
-        .filter((x) => x.s !== null && x.e !== null)
+        .filter((x): x is { s: number; e: number; n: number } => x.s !== null && x.e !== null)
+        .map((x) => ({ s: Math.min(x.s, x.e), e: Math.max(x.s, x.e), n: x.n }))
+        .sort((x, y) => x.s - y.s)
         .slice(0, 8)
-        .map((x) => `${s2(x.s!)}–${s2(x.e!)} (${x.n} hits)`);
+        .map((x) => `${s2(x.s)}–${s2(x.e)} (${x.n} hits)`);
       if (bursts.length) parts.push(`bursts: ${bursts.join(', ')}`);
     }
     if (a.scenes) {
@@ -144,8 +164,13 @@ export function describeProject(p: Project, ctx: DescribeContext): string {
     const label = c.kind === 'title' ? `"${(c.title?.text ?? '').slice(0, 60)}"` : `"${c.name}"`;
     let src = '';
     if ((c.kind === 'video' || c.kind === 'audio') && media) {
-      const room = media.duration > 0 ? Math.max(0, (media.duration - sourceOut(c)) / c.speed) : 0;
-      src = ` | media ${media.id}, source ${s2(c.in)}–${s2(sourceOut(c))} s of ${s2(media.duration)} s${room > 0.05 ? ` (end can extend ${s2(room)} s)` : ''}`;
+      if (c.freeze) src = ` | media ${media.id}, holds the frame at source ${s2(c.in)} s`;
+      else {
+        // a reversed clip grows at its end by showing source from before its in-point
+        const left = c.reverse ? c.in : media.duration - sourceOut(c);
+        const room = media.duration > 0 ? Math.max(0, left / Math.max(1e-6, speedAt(c, c.duration))) : 0;
+        src = ` | media ${media.id}, source ${s2(c.in)}–${s2(sourceOut(c))} s of ${s2(media.duration)} s${c.reverse ? ' (played backwards)' : ''}${room > 0.05 ? ` (end can extend ${s2(room)} s)` : ''}`;
+      }
     } else if (c.kind === 'image' && media) src = ` | media ${media.id}`;
     const fx = effectsSummary(c);
     lines.push(

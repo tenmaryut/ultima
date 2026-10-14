@@ -258,6 +258,7 @@ export default function VideoModule({ active }: ModuleProps) {
         right={
           <Inspector
             project={project}
+            time={time}
             selection={selection}
             fonts={ed.fonts}
             change={ed.change}

@@ -25,6 +25,7 @@ import { uid } from '../../core/utils/id';
 import type { Clip, Project, TimeRange } from './types';
 import type { MediaLibrary, RuntimeMedia } from './media';
 import { Compositor, frameNeeds } from './compositor';
+import { speedAt } from './keyframes';
 import { TimelineMixer } from './mix';
 import { getMedia } from './model';
 import { QUALITY_MODE_BITRATE, avcCodecString } from '../../core/utils/avc';
@@ -183,11 +184,26 @@ export class FrameRenderer {
     for (let i = 0; i < this.frameCount; i++) {
       for (const n of frameNeeds(job.project, this.time(i))) {
         const list = this.plan.get(n.clip.id) ?? [];
-        list.push(n.sourceTime + 1e-3);
+        const blend = this.blendOf(n.clip, n.sourceTime, this.time(i));
+        if (blend) list.push(blend.a + 1e-3, blend.b + 1e-3);
+        else list.push(n.sourceTime + 1e-3);
         this.plan.set(n.clip.id, list);
       }
     }
   }
+
+  /** Smooth slow motion: the two source frames around `sourceTime` and how much of the second to mix in. */
+  private blendOf(clip: Clip, sourceTime: number, t: number): { a: number; b: number; w: number } | null {
+    if (!clip.frameBlend || clip.freeze || speedAt(clip, t - clip.start) >= 0.999) return null;
+    const fps = getMedia(this.job.project, clip.mediaId)?.fps || 30;
+    const pos = sourceTime * fps;
+    const a = Math.floor(pos) / fps;
+    const w = pos - Math.floor(pos);
+    if (w < 0.02) return null;
+    return { a, b: a + 1 / fps, w };
+  }
+
+  private blendCanvas: HTMLCanvasElement | null = null;
 
   time(i: number): number {
     return this.job.range.start + i / this.job.fps;
@@ -215,6 +231,21 @@ export class FrameRenderer {
     this.frames.clear();
     for (const n of frameNeeds(project, t)) {
       const reader = this.reader(n.clip);
+      const blend = this.blendOf(n.clip, n.sourceTime, t);
+      if (reader && blend) {
+        const first = await reader.next(blend.a + 1e-3);
+        const firstCopy = first ? this.copyFrame(first) : null;
+        const second = await reader.next(blend.b + 1e-3);
+        if (firstCopy && second) {
+          const ctx2 = firstCopy.getContext('2d')!;
+          ctx2.globalAlpha = blend.w;
+          ctx2.drawImage(second, 0, 0, firstCopy.width, firstCopy.height);
+          ctx2.globalAlpha = 1;
+        }
+        this.frames.set(n.clip.id, firstCopy ?? second);
+        this.used.set(n.clip.id, (this.used.get(n.clip.id) ?? 0) + 2);
+        continue;
+      }
       this.frames.set(n.clip.id, reader ? await reader.next(n.sourceTime + 1e-3) : null);
       this.used.set(n.clip.id, (this.used.get(n.clip.id) ?? 0) + 1);
     }
@@ -235,6 +266,21 @@ export class FrameRenderer {
         }
       }
     }
+  }
+
+  /** A private copy of a decoded frame (decoders reuse their canvases). */
+  private copyFrame(src: CanvasImageSource): HTMLCanvasElement {
+    const s = src as { width: number; height: number };
+    if (!this.blendCanvas) this.blendCanvas = document.createElement('canvas');
+    const c = this.blendCanvas;
+    if (c.width !== s.width || c.height !== s.height) {
+      c.width = Math.max(1, s.width);
+      c.height = Math.max(1, s.height);
+    }
+    const ctx = c.getContext('2d')!;
+    ctx.clearRect(0, 0, c.width, c.height);
+    ctx.drawImage(src, 0, 0);
+    return c;
   }
 
   async dispose(): Promise<void> {

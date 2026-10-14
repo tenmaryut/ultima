@@ -1,15 +1,19 @@
-import { useRef } from 'react';
-import { Captions, Image as ImageIcon, Link2, Music, RotateCcw, Settings2, Type, Unlink2, Video } from 'lucide-react';
-import type { Clip, Project, TitleStyle, TransitionKind, VisualProps } from '../types';
+import { useRef, useState } from 'react';
+import { Captions, Image as ImageIcon, Link2, Music, RotateCcw, Settings2, Snowflake, Type, Unlink2, Video } from 'lucide-react';
+import type { Clip, KeyProp, Project, TitleStyle, TransitionKind, VisualProps } from '../types';
 import { useT, type TFunction } from '../../../core/i18n';
 import { Button, ColorPicker, Field, IconButton, NumberField, Panel, Segmented, Select, Slider, TextArea, TextInput, Toggle } from '../../../components/ui';
-import { clipEnd, getClip, getMedia, getTrack, moveClips, setClipSpeed, trimClip, updateClip } from '../model';
+import { clipEnd, freezeFrameAt, getClip, getMedia, getTrack, moveClips, setClipSpeed, setSpeedRamp, sourceOut, trimClip, updateClip, type RampKeep } from '../model';
 import { DEFAULT_VISUAL, MAX_VOLUME_DB, MIN_VOLUME_DB, TITLE_ANIMATIONS, TITLE_PRESETS, TRANSITIONS, titlePreset } from '../presets';
+import { RAMP_PRESETS, rampPreset, withoutKeys, type RampPreset } from '../keyframes';
 import { formatTimecode } from '../time';
+import type { TimeStore } from '../timeStore';
+import { KeyBar, KeyNumber, KeySlider, type KeyEdit } from './KeyControls';
 import { ProjectPanel } from './ProjectPanel';
 
 interface InspectorProps {
   project: Project;
+  time: TimeStore;
   selection: string[];
   fonts: string[];
   change: (next: Project, opts?: { record?: boolean; label?: string }) => void;
@@ -25,6 +29,16 @@ const KIND_ICON = { video: Video, image: ImageIcon, audio: Music, title: Type, c
 const KIND_LABEL: Record<Clip['kind'], string> = { video: 'Video clip', image: 'Image clip', audio: 'Audio clip', title: 'Title', caption: 'Caption' };
 
 const dbLabel = (v: number) => (v <= MIN_VOLUME_DB ? '−∞ dB' : `${v > 0 ? '+' : ''}${v.toFixed(1)} dB`);
+
+/** The ramp preset a speed curve was made from (with the default speeds), or 'custom'. */
+function rampOf(c: Clip): RampPreset | 'custom' {
+  const keys = c.speedKeys ?? [];
+  const match = RAMP_PRESETS.find(({ id }) => {
+    const ref = rampPreset(id, c.duration);
+    return ref.length === keys.length && ref.every((k, i) => Math.abs(k.t - keys[i].t) < 1e-3 && Math.abs(k.v - keys[i].v) < 1e-3 && k.ease === keys[i].ease);
+  });
+  return match?.id ?? 'custom';
+}
 const pct = (v: number) => `${Math.round(v)}%`;
 const sec = (v: number) => `${v.toFixed(2)} s`;
 
@@ -32,6 +46,7 @@ export function Inspector(props: InspectorProps) {
   const t = useT();
   const { project, selection, change, commit } = props;
   const baseRef = useRef<Project | null>(null);
+  const [rampKeep, setRampKeep] = useState<RampKeep>('length');
   const clips = selection.map((id) => getClip(project, id)).filter((c): c is Clip => Boolean(c));
   const clip = clips.find((c) => c.kind === 'video' || c.kind === 'image' || c.kind === 'title') ?? clips[0];
 
@@ -64,6 +79,36 @@ export function Inspector(props: InspectorProps) {
   const setTitle = (patch: Partial<TitleStyle>, label = t('Edit title')) => set(editClip(clip.id, (c) => (c.title ? { ...c, title: { ...c.title, ...patch } } : c)), label);
   const liveAudio = (patch: Partial<Clip>) =>
     live((p) => audioTargets.reduce((acc, a) => updateClip(acc, a.id, (c) => ({ ...c, ...patch })), p));
+  /** Keyframe-aware edits of `targets` (fn gets each clip and the playhead time). */
+  const keyLive = (targets: Clip[]): KeyEdit => (fn) => {
+    const now = props.time.get();
+    live((p) => targets.reduce((acc, x) => updateClip(acc, x.id, (c) => fn(c, now)), p));
+  };
+  const keyApply = (targets: Clip[]): KeyEdit => (fn, label = t('Edit clip')) => {
+    const now = props.time.get();
+    set((p) => targets.reduce((acc, x) => updateClip(acc, x.id, (c) => fn(c, now)), p), label);
+  };
+  const keyProps = (targets: Clip[]) => ({ time: props.time, live: keyLive(targets), apply: keyApply(targets), done });
+  /** Resets plain values and removes the keyframes of the same properties. */
+  const resetVisual = (patch: Partial<VisualProps>, label: string) =>
+    set(
+      editClip(clip.id, (c) => {
+        let next: Clip = { ...c, visual: { ...(c.visual ?? DEFAULT_VISUAL), ...patch } };
+        for (const k of Object.keys(patch)) next = withoutKeys(next, k as KeyProp);
+        return next;
+      }),
+      label,
+    );
+  const sourceClips = [clip, ...audioTargets.filter((a) => a.id !== clip.id)];
+  const setOnSource = (patch: Partial<Clip>, label: string) => set((p) => sourceClips.reduce((acc, a) => updateClip(acc, a.id, (c) => ({ ...c, ...patch })), p), label);
+  const applyRamp = (id: RampPreset | 'none', keep: RampKeep) => {
+    const r = setSpeedRamp(project, clip.id, id === 'none' ? undefined : rampPreset(id, clip.duration), keep);
+    if (r) set(() => r.project, id === 'none' ? t('Remove speed curve') : t('Speed curve'));
+  };
+  const freeze = () => {
+    const r = freezeFrameAt(project, clip.id, props.time.get(), 1);
+    if (r.id) set(() => r.project, t('Freeze frame'));
+  };
   const v = clip.visual ?? DEFAULT_VISUAL;
   const Icon = KIND_ICON[clip.kind];
   const media = getMedia(project, clip.mediaId);
@@ -97,9 +142,15 @@ export function Inspector(props: InspectorProps) {
         </div>
         <div className="faint" style={{ fontSize: 11 }}>
           {formatTimecode(clip.start, fps)} → {formatTimecode(clipEnd(clip), fps)}
-          {(clip.kind === 'video' || clip.kind === 'audio') && media ? ` · ${t('source')} ${clip.in.toFixed(2)}–${(clip.in + clip.duration * clip.speed).toFixed(2)} s / ${media.duration.toFixed(2)} s` : ''}
+          {(clip.kind === 'video' || clip.kind === 'audio') && media
+            ? clip.freeze
+              ? ` · ${t('frame at')} ${clip.in.toFixed(2)} s`
+              : ` · ${t('source')} ${clip.in.toFixed(2)}–${sourceOut(clip).toFixed(2)} s / ${media.duration.toFixed(2)} s`
+            : ''}
         </div>
       </div>
+
+      <KeyBar time={props.time} clips={sourceClips} onSeek={props.onSeek} apply={keyApply(sourceClips)} />
 
       {clip.kind === 'title' && clip.title && <TitleEditor t={t} title={clip.title} fonts={props.fonts} liveTitle={liveTitle} setTitle={setTitle} done={done} project={project} />}
 
@@ -118,21 +169,18 @@ export function Inspector(props: InspectorProps) {
               size="sm"
               icon={RotateCcw}
               label={t('Reset transform')}
-              onClick={() => setVisual({ x: 0, y: 0, scale: 1, rotation: 0, opacity: 1, cropLeft: 0, cropRight: 0, cropTop: 0, cropBottom: 0 }, t('Reset transform'))}
+              onClick={() => resetVisual({ x: 0, y: 0, scale: 1, rotation: 0, opacity: 1, cropLeft: 0, cropRight: 0, cropTop: 0, cropBottom: 0 }, t('Reset transform'))}
             />
           }
         >
           <div className="vd-grid2">
-            <Field label={t('Position X')}>
-              <NumberField small value={Math.round(v.x)} suffix="px" onChange={(x) => setVisual({ x }, t('Transform'))} />
-            </Field>
-            <Field label={t('Position Y')}>
-              <NumberField small value={Math.round(v.y)} suffix="px" onChange={(y) => setVisual({ y }, t('Transform'))} />
-            </Field>
+            <KeyNumber {...keyProps([clip])} clip={clip} prop="x" label={t('Position X')} suffix="px" />
+            <KeyNumber {...keyProps([clip])} clip={clip} prop="y" label={t('Position Y')} suffix="px" />
           </div>
-          <Slider label={t('Scale')} value={Math.round(v.scale * 100)} min={5} max={400} onChange={(s) => liveVisual({ scale: s / 100 })} onCommit={() => done(t('Transform'))} format={pct} defaultValue={100} />
-          <Slider label={t('Rotation')} value={v.rotation} min={-180} max={180} onChange={(rotation) => liveVisual({ rotation })} onCommit={() => done(t('Transform'))} format={(x) => `${Math.round(x)}°`} defaultValue={0} />
-          <Slider label={t('Opacity')} value={Math.round(v.opacity * 100)} min={0} max={100} onChange={(o) => liveVisual({ opacity: o / 100 })} onCommit={() => done(t('Transform'))} format={pct} defaultValue={100} />
+          <KeySlider {...keyProps([clip])} clip={clip} prop="scale" label={t('Scale')} unit={100} min={5} max={400} format={pct} defaultValue={100} commitLabel={t('Transform')} />
+          <KeySlider {...keyProps([clip])} clip={clip} prop="rotation" label={t('Rotation')} min={-180} max={180} format={(x) => `${Math.round(x)}°`} defaultValue={0} commitLabel={t('Transform')} />
+          <KeySlider {...keyProps([clip])} clip={clip} prop="opacity" label={t('Opacity')} unit={100} min={0} max={100} format={pct} defaultValue={100} commitLabel={t('Transform')} />
+          <div className="vd-hint">{t('◆ animates a value: it adds a keyframe at the playhead, and changes at other times add more.')}</div>
           {clip.kind !== 'title' && (
             <>
               <div className="vd-section-title">{t('Crop')}</div>
@@ -156,44 +204,90 @@ export function Inspector(props: InspectorProps) {
         </Panel>
       )}
 
-      {(clip.kind === 'video' || clip.kind === 'audio') && (
+      {(clip.kind === 'video' || clip.kind === 'audio') && clip.freeze && (
         <Panel title={t('Speed')}>
-          <Slider
-            label={t('Speed')}
-            value={Math.log2(clip.speed)}
-            min={-2}
-            max={2}
-            step={0.01}
-            onChange={(x) => live((p) => setClipSpeed(p, clip.id, Math.round(2 ** x * 100) / 100))}
-            onCommit={() => done(t('Change speed'))}
-            format={() => `${clip.speed.toFixed(2)}×`}
-            defaultValue={0}
-          />
-          <Segmented
-            value={String(clip.speed)}
-            onChange={(s) => set((p) => setClipSpeed(p, clip.id, parseFloat(s)), t('Change speed'))}
-            options={['0.25', '0.5', '1', '1.5', '2', '4'].map((s) => ({ value: s, label: `${s}×` }))}
-          />
-          <Toggle
-            checked={clip.keepPitch}
-            onChange={(keepPitch) => set((p) => [clip, ...audioTargets].reduce((acc, a) => updateClip(acc, a.id, (c) => ({ ...c, keepPitch })), p), t('Keep pitch'))}
-            label={t('Keep audio pitch')}
-          />
+          <div className="row" style={{ gap: 6 }}>
+            <Snowflake size={13} color="var(--accent)" />
+            <span className="vd-hint">{t('Freeze frame: shows one frame of the video for the whole clip.')}</span>
+          </div>
+        </Panel>
+      )}
+
+      {(clip.kind === 'video' || clip.kind === 'audio') && !clip.freeze && (
+        <Panel title={t('Speed')}>
+          {clip.speedKeys?.length ? (
+            <div className="vd-hint">{t('A speed curve changes the speed inside the clip. Pick "None" to go back to one speed.')}</div>
+          ) : (
+            <>
+              <Slider
+                label={t('Speed')}
+                value={Math.log2(clip.speed)}
+                min={-2}
+                max={2}
+                step={0.01}
+                onChange={(x) => live((p) => setClipSpeed(p, clip.id, Math.round(2 ** x * 100) / 100))}
+                onCommit={() => done(t('Change speed'))}
+                format={() => `${clip.speed.toFixed(2)}×`}
+                defaultValue={0}
+              />
+              <Segmented
+                value={String(clip.speed)}
+                onChange={(s) => set((p) => setClipSpeed(p, clip.id, parseFloat(s)), t('Change speed'))}
+                options={['0.25', '0.5', '1', '1.5', '2', '4'].map((s) => ({ value: s, label: `${s}×` }))}
+              />
+            </>
+          )}
+          <Field label={t('Speed curve')}>
+            <Select<string>
+              small
+              value={clip.speedKeys?.length ? rampOf(clip) : 'none'}
+              onChange={(id) => id !== 'custom' && applyRamp(id as RampPreset | 'none', rampKeep)}
+              options={[
+                { value: 'none', label: t('None (one speed)') },
+                ...RAMP_PRESETS.map((r) => ({ value: r.id, label: t(r.label) })),
+                ...(clip.speedKeys?.length && rampOf(clip) === 'custom' ? [{ value: 'custom', label: t('Custom curve') }] : []),
+              ]}
+            />
+          </Field>
+          <Field label={t('A new curve keeps')}>
+            <Segmented
+              value={rampKeep}
+              onChange={setRampKeep}
+              options={[
+                { value: 'length', label: t('Clip length') },
+                { value: 'content', label: t('All content') },
+              ]}
+            />
+          </Field>
+          <div className="vd-hint">
+            {rampKeep === 'length' ? t('The clip keeps its place and length, so cuts stay on the beat.') : t('The clip shows the same part of the video and gets longer or shorter; later clips move.')}
+          </div>
+          <Toggle checked={Boolean(clip.reverse)} onChange={(on) => setOnSource({ reverse: on || undefined }, t('Reverse'))} label={t('Play backwards')} />
+          {clip.kind === 'video' && (
+            <Toggle checked={Boolean(clip.frameBlend)} onChange={(on) => set(editClip(clip.id, (c) => ({ ...c, frameBlend: on || undefined })), t('Smooth slow motion'))} label={t('Smooth slow motion (blend frames on export)')} />
+          )}
+          <Toggle checked={clip.keepPitch} onChange={(keepPitch) => setOnSource({ keepPitch }, t('Keep pitch'))} label={t('Keep audio pitch')} />
+          {clip.kind === 'video' && (
+            <Button size="sm" icon={Snowflake} onClick={freeze}>
+              {t('Freeze frame at the playhead')}
+            </Button>
+          )}
         </Panel>
       )}
 
       {audioTargets.length > 0 && (
         <Panel title={clip.kind === 'video' ? t('Audio (linked)') : t('Audio')}>
-          <Slider
+          <KeySlider
+            {...keyProps(audioTargets)}
+            clip={audioTargets[0]}
+            prop="volume"
             label={t('Volume')}
-            value={audioTargets[0].volume}
             min={MIN_VOLUME_DB}
             max={MAX_VOLUME_DB}
             step={0.5}
-            onChange={(volume) => liveAudio({ volume })}
-            onCommit={() => done(t('Volume'))}
             format={dbLabel}
             defaultValue={0}
+            commitLabel={t('Volume')}
           />
           <Slider label={t('Fade in')} value={audioTargets[0].fadeIn} min={0} max={fadeMax} step={0.05} onChange={(fadeIn) => liveAudio({ fadeIn })} onCommit={() => done(t('Audio fade'))} format={sec} defaultValue={0} />
           <Slider label={t('Fade out')} value={audioTargets[0].fadeOut} min={0} max={fadeMax} step={0.05} onChange={(fadeOut) => liveAudio({ fadeOut })} onCommit={() => done(t('Audio fade'))} format={sec} defaultValue={0} />
@@ -238,23 +332,25 @@ export function Inspector(props: InspectorProps) {
           title={t('Color & blur')}
           defaultOpen={clip.kind !== 'title'}
           actions={
-            <IconButton size="sm" icon={RotateCcw} label={t('Reset color')} onClick={() => setVisual({ brightness: 0, contrast: 0, saturation: 0, hue: 0, temperature: 0, blur: 0 }, t('Reset color'))} />
+            <IconButton size="sm" icon={RotateCcw} label={t('Reset color')} onClick={() => resetVisual({ brightness: 0, contrast: 0, saturation: 0, hue: 0, temperature: 0, blur: 0 }, t('Reset color'))} />
           }
         >
           {(['brightness', 'contrast', 'saturation', 'temperature'] as const).map((k) => (
-            <Slider
+            <KeySlider
               key={k}
+              {...keyProps([clip])}
+              clip={clip}
+              prop={k}
               label={t({ brightness: 'Brightness', contrast: 'Contrast', saturation: 'Saturation', temperature: 'Temperature' }[k])}
-              value={v[k]}
               min={-100}
               max={100}
-              onChange={(x) => liveVisual({ [k]: x })}
-              onCommit={() => done(t('Color'))}
+              format={(x) => String(Math.round(x))}
               defaultValue={0}
+              commitLabel={t('Color')}
             />
           ))}
-          <Slider label={t('Hue')} value={v.hue} min={-180} max={180} onChange={(hue) => liveVisual({ hue })} onCommit={() => done(t('Color'))} format={(x) => `${Math.round(x)}°`} defaultValue={0} />
-          <Slider label={t('Blur')} value={v.blur} min={0} max={50} step={0.5} onChange={(blur) => liveVisual({ blur })} onCommit={() => done(t('Blur'))} format={(x) => `${x} px`} defaultValue={0} />
+          <KeySlider {...keyProps([clip])} clip={clip} prop="hue" label={t('Hue')} min={-180} max={180} format={(x) => `${Math.round(x)}°`} defaultValue={0} commitLabel={t('Color')} />
+          <KeySlider {...keyProps([clip])} clip={clip} prop="blur" label={t('Blur')} min={0} max={50} step={0.5} format={(x) => `${+x.toFixed(1)} px`} defaultValue={0} commitLabel={t('Blur')} />
         </Panel>
       )}
 

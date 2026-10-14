@@ -32,6 +32,8 @@ export interface MediaRef {
   size: number;
   mime: string;
   hasAudio: boolean;
+  /** Frames per second of a video (when known). */
+  fps?: number;
   /** Absolute path on disk (desktop) — only used to help the user relink. */
   path?: string;
   lastModified?: number;
@@ -116,6 +118,19 @@ export interface TitleStyle {
   animDuration: number;
 }
 
+/** How a keyframe moves towards the next one. */
+export type Easing = 'linear' | 'easeIn' | 'easeOut' | 'easeInOut' | 'hold';
+
+export interface Keyframe {
+  /** Seconds from the clip start. */
+  t: number;
+  v: number;
+  ease: Easing;
+}
+
+/** Animatable clip properties (visual ones and the volume in dB). */
+export type KeyProp = 'x' | 'y' | 'scale' | 'rotation' | 'opacity' | 'blur' | 'brightness' | 'contrast' | 'saturation' | 'hue' | 'temperature' | 'volume';
+
 export interface Clip {
   id: string;
   kind: ClipKind;
@@ -146,6 +161,16 @@ export interface Clip {
   title?: TitleStyle;
   /** Caption text. */
   text?: string;
+  /** Animated properties. */
+  keys?: Partial<Record<KeyProp, Keyframe[]>>;
+  /** Speed over time (speed ramp); replaces `speed` while present. */
+  speedKeys?: Keyframe[];
+  /** Plays the source backwards. */
+  reverse?: boolean;
+  /** Holds the frame at `in` for the whole clip (freeze frame, silent). */
+  freeze?: boolean;
+  /** Blends neighbouring source frames in slow motion (export). */
+  frameBlend?: boolean;
 }
 
 export interface Marker {

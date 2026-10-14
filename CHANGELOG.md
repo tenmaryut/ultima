@@ -2,6 +2,23 @@
 
 All notable changes to Ultima are listed here. Versions follow [semantic versioning](https://semver.org).
 
+## [Unreleased]
+
+### Video Editor AI
+
+- The AI is told what happened to every step after *Apply* (done, or skipped with the reason) and the panel shows
+  the same list; edits can be applied automatically. Nothing the AI does fails silently anymore.
+- The AI sees every clip: with an AI that accepts pictures it gets frames from all clips, not only the playhead,
+  and it can ask to look at exact moments before cutting.
+- Content analysis of your media: tempo (BPM), beats and bar starts, strongest hits, loud moments and bursts
+  (gunshots, impacts), where the sound gets louder, and scene changes — for cutting on the beat and montages.
+- Many new AI actions: clips from the Media bin, shift, close gaps, remove a time range, unlink, edits on a whole
+  track or all clips at once, title restyling, marker and track editing, work area, seek, select, export dialog,
+  undo/redo; markers placed after the end of the timeline are flagged.
+- Keyframes for position, scale, rotation, opacity, color, blur and volume (◆ in the inspector, diamonds on the
+  timeline), speed curves (Montage hit, slow-mo in the middle…), play backwards, freeze frame and smooth slow motion
+  — in the editor and for the AI.
+
 ## [0.1.0] — 2026-10-11
 
 First public version.

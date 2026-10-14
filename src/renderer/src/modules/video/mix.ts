@@ -4,6 +4,7 @@ import { fadeFactor } from './fx';
 import { dbToGain } from './time';
 import { readPcm, type Pcm } from './audioSource';
 import { timeStretch } from './stretch';
+import { animatedVolume, isRemapped, sourceAt } from './keyframes';
 import type { MediaLibrary } from './media';
 
 /* Offline timeline audio mix (OfflineAudioContext), rendered chunk by chunk to bound memory. */
@@ -21,9 +22,32 @@ export function audibleClips(p: Project): Clip[] {
   return p.clips.filter((c) => c.kind === 'audio' && tracks.has(c.trackId) && c.mediaId).sort((a, b) => a.start - b.start);
 }
 
-/** Gain of a clip at timeline time t (volume + fades). */
+/** Gain of a clip at timeline time t (volume with its keyframes, fades; frozen clips are silent). */
 export function clipGainAt(c: Clip, t: number): number {
-  return dbToGain(c.volume) * fadeFactor(t - c.start, c.duration, c.fadeIn, c.fadeOut);
+  if (c.freeze) return 0;
+  return dbToGain(animatedVolume(c, t - c.start)) * fadeFactor(t - c.start, c.duration, c.fadeIn, c.fadeOut);
+}
+
+/**
+ * Source audio laid out on the timeline for [a, b) of a clip whose time is remapped (speed ramp
+ * or reverse): every output sample reads the source at sourceAt() (pitch follows the speed).
+ */
+export function remapPcm(clip: Clip, src: Pcm, srcFrom: number, a: number, b: number): Pcm {
+  const sr = src.sampleRate;
+  const len = Math.max(0, Math.round((b - a) * sr));
+  const channels = src.channels.map(() => new Float32Array(len));
+  const n = src.channels[0]?.length ?? 0;
+  for (let i = 0; i < len; i++) {
+    const pos = (sourceAt(clip, a - clip.start + i / sr) - srcFrom) * sr;
+    const j = Math.floor(pos);
+    if (j < 0 || j >= n) continue;
+    const f = pos - j;
+    for (let c = 0; c < channels.length; c++) {
+      const ch = src.channels[c];
+      channels[c][i] = ch[j] + (j + 1 < n ? (ch[j + 1] - ch[j]) * f : 0);
+    }
+  }
+  return { sampleRate: sr, channels };
 }
 
 export interface MixOptions {
@@ -105,7 +129,17 @@ export class TimelineMixer {
   private async clipAudio(clip: Clip, a: number, b: number): Promise<{ pcm: Pcm; stretched: boolean } | null> {
     const media = getMedia(this.project, clip.mediaId);
     const file = this.lib.file(clip.mediaId);
-    if (!media || !file) return null;
+    if (!media || !file || clip.freeze) return null;
+    if (isRemapped(clip)) {
+      // ramps and reverse: read the clip's whole source range once, then map it sample by sample
+      let p = this.stretched.get(clip.id);
+      if (!p) {
+        p = readPcm(media, file, clip.in, sourceOut(clip) + 0.05);
+        this.stretched.set(clip.id, p);
+      }
+      const whole = await p;
+      return whole ? { pcm: remapPcm(clip, whole, clip.in, a, b), stretched: true } : null;
+    }
     if (clip.speed !== 1 && clip.keepPitch && clip.duration * clip.speed <= STRETCH_WHOLE_LIMIT) {
       let p = this.stretched.get(clip.id);
       if (!p) {

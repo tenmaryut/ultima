@@ -364,6 +364,19 @@ pratinjau); *Kecepatan* 0,25–4× dengan *Pertahankan nada audio*; volume dan f
 (Cross dissolve, Celup ke hitam/putih, Sapu ke kiri/kanan, Geser, Zoom); *Warna & buram* (kecerahan, kontras, saturasi,
 suhu, rona, blur); *Chroma key (layar hijau)* untuk layar hijau atau biru.
 
+**Keyframe, kurva kecepatan, dan frame beku.**
+- Klik **◆** di samping posisi, skala, rotasi, opasitas, nilai warna, blur, atau volume untuk menambah keyframe di
+  playhead. Setelah sebuah nilai punya keyframe, mengubahnya di waktu lain (atau menyeret klip di pratinjau) menambah
+  keyframe baru. Bilah keyframe di atas inspektor melompat ke keyframe sebelumnya/berikutnya, mengatur easing keyframe di
+  playhead (Linear, Ease in, Ease out, Ease in-out, Tahan), dan menghapus semua keyframe. Keyframe tampil sebagai belah
+  ketupat kecil pada klip di timeline.
+- *Kurva kecepatan* (Inspektor → Kecepatan, atau klik kanan klip): Montage hit (cepat → slow-mo → cepat), Slow-mo di
+  tengah, Dipercepat di tengah, Lambat ke cepat, dan Cepat ke lambat. *Kurva baru mempertahankan* panjang klip (potongan
+  tetap pas dengan beat) atau semua isi (klip menjadi lebih panjang atau pendek dan klip sesudahnya ikut bergeser).
+- *Putar mundur* membalik klip beserta suaranya. *Slow motion halus* membaurkan frame yang berdekatan saat ekspor jika
+  klip diputar lebih lambat dari rekamannya. *Bekukan frame di playhead* menahan frame itu selama satu detik dan menggeser
+  semua yang ada sesudahnya.
+
 **Judul dan subtitle.** Tab *Judul*: Judul dasar, Lower third, Besar tebal, Teks bawah, Mesin tik, Label pop, dan Kartu
 penutup — klik atau seret ke timeline, lalu ubah teks, font, warna, garis tepi, latar, dan animasinya (Fade, Geser ke
 atas, Pop, Mesin tik). Tab *Subtitle*: tambah subtitle manual, impor atau ekspor SRT/VTT, atur *Gaya subtitle*, atau buat
@@ -379,8 +392,20 @@ otomatis dengan **Subtitle otomatis…**.
 - **Sulih suara dari teks…** — ketik naskah, pilih suara, dengarkan, lalu *Tambah ke timeline*: suaranya ditempatkan
   di playhead pada trek audio yang kosong, jadi tidak memotong suara yang sudah ada (aplikasi desktop; lihat [Teks ke suara](AI_SETUP.md#teks-ke-suara)).
 
-Asisten bisa menambah judul dan subtitle, membelah, memangkas, memindahkan, dan menghapus klip, mengubah properti klip,
-menambah transisi dan penanda, serta mengubah format proyek.
+**Asisten** (panel AI) membaca seluruh timeline — setiap klip, item di bin Media (beserta id-nya), penanda, trek, dan
+font — dan, dengan AI yang bisa menerima gambar, melihat frame di playhead serta frame dari setiap klip. Asisten bisa
+meminta untuk *melihat* momen tertentu sebelum memotong. Ultima juga menganalisis suara dan gambar media Anda untuknya:
+tempo (BPM), beat dan awal bar, hentakan terkuat, momen keras (tembakan, benturan, sorakan) beserta rentetannya, dan
+pergantian adegan — sehingga asisten bisa memotong pas di beat atau menyusun montage di sekitar aksi (kill atau
+headshot tidak bisa dipastikan hanya dari suara).
+
+Asisten bisa menambah klip dari bin Media; membelah, memangkas, memindahkan, menggeser, menghapus, dan menggandakan
+klip, merapatkan celah, dan membuang rentang waktu; menautkan dan melepas suara; mengubah satu klip, satu trek, atau
+semua klip sekaligus; menganimasikan dengan keyframe (zoom, geser, guncangan, fade, volume); menambah kurva kecepatan,
+memutar mundur klip, dan membekukan frame; mengubah gaya judul; menambah transisi; menambah, memindahkan, mengganti nama,
+dan menghapus penanda; menambah, membisukan, mengunci, dan menghapus trek; mengatur area kerja; memindahkan playhead;
+membatalkan (undo); dan membuka dialog ekspor. Setelah Anda menekan *Terapkan* (atau jika *Terapkan editan AI secara
+otomatis* menyala), AI diberi tahu hasil setiap langkah, dan *Hasil tiap langkah* menampilkan daftar yang sama untuk Anda.
 
 **Ekspor** (Ctrl+E): MP4 (H.264 + AAC) atau WebM (VP9 + Opus) untuk seluruh timeline atau area kerja, dengan resolusi,
 frame rate, kualitas atau bitrate, audio, dan *Tanamkan subtitle ke gambar*; *MP4/MOV lewat FFmpeg* (aplikasi desktop
@@ -402,7 +427,7 @@ file dipindahkan, *Tautkan ulang media yang hilang…* mencarinya berdasarkan na
 
 **Perlu diketahui.** File yang tidak bisa dipratinjau sistem Anda tampil *Tanpa pratinjau*; klik kanan → *Konversi dengan
 FFmpeg* (aplikasi desktop). Subtitle ditanam ke gambar atau diekspor sebagai file SRT/VTT (tidak ada trek subtitle di
-dalam MP4). Untuk animasi keyframe pakai Motion Grafis.
+dalam MP4). Untuk animasi teks dan bentuk pakai Motion Grafis.
 
 ## Motion Grafis
 

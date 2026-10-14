@@ -103,7 +103,8 @@ export function resolveClips(p: Project, a: Obj, opts: TargetOptions = {}): { id
       const kind = typeof sel.kind === 'string' ? sel.kind : null;
       picked.push(
         ...p.clips.filter(
-          (c) => !picked.includes(c) && (!track || c.trackId === track.id) && (!kind || c.kind === kind) && clipEnd(c) > from && c.start < to,
+          // a clip that only touches the range (ends exactly at "from") is not in it
+          (c) => !picked.includes(c) && (!track || c.trackId === track.id) && (!kind || c.kind === kind) && clipEnd(c) > from + 1e-3 && c.start < to - 1e-3,
         ),
       );
       return;

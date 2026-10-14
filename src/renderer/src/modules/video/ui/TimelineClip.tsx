@@ -1,8 +1,9 @@
 import { memo, useLayoutEffect, useRef } from 'react';
-import { Captions, Image as ImageIcon, Link2, Music, Type, Video } from 'lucide-react';
+import { Captions, Image as ImageIcon, Link2, Music, Rewind, Snowflake, Type, Video } from 'lucide-react';
 import type { Clip, MediaRef } from '../types';
 import type { MediaLibrary, RuntimeMedia } from '../media';
 import { dbToGain } from '../time';
+import { animatedVolume, keyTimes, sourceAt } from '../keyframes';
 import { useAppStore } from '../../../core/store';
 
 export interface ClipViewProps {
@@ -73,7 +74,7 @@ export const ClipView = memo(function ClipView(props: ClipViewProps) {
         let frame: CanvasImageSource | null = null;
         if (clip.kind === 'image') frame = runtime.image ?? null;
         else if (strip && strip.frames.length) {
-          const st = clip.in + ((x + tw / 2) / pps) * clip.speed;
+          const st = sourceAt(clip, (x + tw / 2) / pps);
           let best = 0;
           let bestD = Infinity;
           strip.times.forEach((tt, i) => {
@@ -93,12 +94,16 @@ export const ClipView = memo(function ClipView(props: ClipViewProps) {
       const buckets = data.length / 2;
       const mid = h / 2 + 5;
       const amp = (h - 14) / 2;
-      const gain = Math.min(3, dbToGain(clip.volume));
       ctx.fillStyle = cssVar(canvas, '--text-0', '#ffffff');
       ctx.globalAlpha = 0.6;
       for (let px = 0; px < w; px++) {
-        const t0 = clip.in + ((offset + px) / pps) * clip.speed;
-        const t1 = clip.in + ((offset + px + 1) / pps) * clip.speed;
+        const local = (offset + px) / pps;
+        const gain = Math.min(3, dbToGain(animatedVolume(clip, local)));
+        // a reversed clip meets its source backwards
+        const a = sourceAt(clip, local);
+        const b = sourceAt(clip, (offset + px + 1) / pps);
+        const t0 = Math.min(a, b);
+        const t1 = Math.max(a, b);
         let b0 = Math.floor(t0 * perSecond);
         const b1 = Math.max(b0 + 1, Math.floor(t1 * perSecond));
         if (b0 >= buckets) break;
@@ -131,9 +136,16 @@ export const ClipView = memo(function ClipView(props: ClipViewProps) {
           {width > 40 && <Icon size={11} style={{ flex: '0 0 auto' }} />}
           {clip.linkId && width > 60 && <Link2 size={10} style={{ flex: '0 0 auto' }} />}
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
-          {clip.speed !== 1 && width > 90 && <span className="vd-badge">{+clip.speed.toFixed(2)}×</span>}
+          {clip.freeze && width > 30 && <Snowflake size={10} style={{ flex: '0 0 auto' }} />}
+          {clip.reverse && width > 30 && <Rewind size={10} style={{ flex: '0 0 auto' }} />}
+          {clip.speedKeys?.length ? width > 90 && <span className="vd-badge">{'⤳'}</span> : clip.speed !== 1 && width > 90 && <span className="vd-badge">{+clip.speed.toFixed(2)}×</span>}
         </div>
       )}
+      {clip.keys &&
+        width > 10 &&
+        keyTimes(clip)
+          .slice(0, 300)
+          .map((k) => <span key={k} className="vd-clip-key" style={{ left: k * pps }} />)}
       {!locked && width > 14 && (
         <>
           <div className="vd-clip-handle left" data-part="start" />
