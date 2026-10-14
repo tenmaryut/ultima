@@ -1,0 +1,79 @@
+{
+  "name": "ultima",
+  "productName": "Ultima",
+  "version": "0.1.0",
+  "description": "Ultima — a free, open-source all-in-one creative suite (photo, vector, video, audio, layout, motion, PDF) with AI powered by the subscriptions you already have.",
+  "main": "./out/main/index.js",
+  "author": {
+    "name": "Ultima contributors",
+    "email": "tenmaryut@users.noreply.github.com",
+    "url": "https://github.com/tenmaryut/ultima"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/tenmaryut/ultima",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tenmaryut/ultima.git"
+  },
+  "private": true,
+  "scripts": {
+    "dev": "electron-vite dev",
+    "start": "electron-vite preview",
+    "build": "npm run typecheck && electron-vite build",
+    "build:web": "vite build --config vite.web.config.ts",
+    "preview:web": "vite preview --config vite.web.config.ts",
+    "typecheck": "npm run typecheck:node && npm run typecheck:web",
+    "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
+    "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "dist": "npm run build && electron-builder",
+    "dist:win": "npm run build && electron-builder --win",
+    "dist:mac": "npm run build && electron-builder --mac",
+    "dist:linux": "npm run build && electron-builder --linux",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "dependencies": {
+    "cross-spawn": "^7.0.6"
+  },
+  "devDependencies": {
+    "@types/cross-spawn": "^6.0.6",
+    "@types/node": "^22.20.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^5.2.0",
+    "ag-psd": "^31.0.3",
+    "dompurify": "^3.4.16",
+    "electron": "^44.7.0",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
+    "gifenc": "^1.0.3",
+    "jszip": "^3.10.2",
+    "lucide-react": "^1.55.0",
+    "mediabunny": "^1.61.3",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^6.4.299",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "typescript": "~5.9.3",
+    "vite": "^7.3.7",
+    "vitest": "^5.0.3",
+    "zustand": "^5.0.15"
+  },
+  "keywords": [
+    "photo-editor",
+    "image-editor",
+    "vector",
+    "video-editor",
+    "audio-editor",
+    "pdf",
+    "design",
+    "electron",
+    "ai",
+    "open-source"
+  ],
+  "engines": {
+    "node": ">=20.19"
+  },
+  "desktopName": "ultima.desktop"
+}

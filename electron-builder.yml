@@ -1,0 +1,92 @@
+# Packaging for Windows, macOS and Linux — https://www.electron.build
+appId: io.github.tenmaryut.ultima
+productName: Ultima
+copyright: Copyright © 2026 Ultima contributors
+directories:
+  output: release
+  buildResources: build
+files:
+  - out/**/*
+  - resources/**/*
+  - package.json
+  - '!**/*.map'
+# Version-less file names keep "releases/latest/download/<file>" links stable.
+artifactName: ${productName}-${os}-${arch}.${ext}
+fileAssociations:
+  - ext: ultima
+    name: Ultima Project
+    description: Ultima project file
+    role: Editor
+    mimeType: application/x-ultima-project
+
+win:
+  icon: build/icon.png
+  target:
+    - target: nsis
+      arch: [x64, arm64]
+    - target: portable
+      arch: [x64]
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Ultima
+  # Only the per-architecture installers the download links use (Ultima-Setup-x64.exe, Ultima-Setup-arm64.exe).
+  # By default electron-builder also builds Ultima-Setup.exe, which carries both architectures at twice the size.
+  buildUniversalInstaller: false
+  artifactName: ${productName}-Setup-${arch}.${ext}
+portable:
+  artifactName: ${productName}-Portable-${arch}.${ext}
+
+mac:
+  icon: build/icon.png
+  artifactName: ${productName}-mac-${arch}.${ext}
+  category: public.app-category.graphics-design
+  # No paid Apple certificate: sign ad-hoc so the app runs on Apple Silicon.
+  # Users open it the first time with right-click → Open (see docs/INSTALL.md).
+  identity: '-'
+  hardenedRuntime: false
+  gatekeeperAssess: false
+  notarize: false
+  extendInfo:
+    NSMicrophoneUsageDescription: Ultima uses the microphone to record audio and voice-overs.
+    NSCameraUsageDescription: Ultima can use the camera to record video clips.
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+    - target: zip
+      arch: [arm64, x64]
+dmg:
+  sign: false
+  artifactName: ${productName}-mac-${arch}.${ext}
+
+linux:
+  icon: build/icon.png
+  # ${arch} becomes the distro's name per format: x86_64 (AppImage, rpm), amd64 (deb), x64 (tar.gz).
+  artifactName: ${productName}-linux-${arch}.${ext}
+  syncDesktopName: true
+  category: Graphics
+  synopsis: All-in-one creative suite with AI from your own subscriptions
+  description: Ultima is a free, open-source all-in-one editor for photos, vector graphics, layout, video, motion graphics, audio and PDF, with AI powered by the subscriptions you already have or free local models.
+  maintainer: Ultima contributors <tenmaryut@users.noreply.github.com>
+  target:
+    - target: AppImage
+      arch: [x64, arm64]
+    - target: deb
+      arch: [x64, arm64]
+    - target: rpm
+      arch: [x64]
+    - target: tar.gz
+      arch: [x64, arm64]
+  desktop:
+    entry:
+      StartupWMClass: Ultima
+      Keywords: photo;image;editor;vector;video;audio;pdf;design;ai;
+
+publish:
+  provider: github
+  owner: tenmaryut
+  repo: ultima
+  releaseType: draft

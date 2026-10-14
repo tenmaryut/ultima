@@ -1,0 +1,635 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ultima</title>
+<meta name="description" content="Ultima is a free, open-source all-in-one creative suite for Windows, macOS and Linux: photo, vector, layout, video, motion, audio and PDF editing with AI from the subscriptions you already have.">
+<link rel="icon" type="image/png" href="icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@112..125,700..900&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a print proof sheet. Crop-marked hero, then a single ruled column of sections on a
+   12-column grid; process-ink control strips separate the parts of the page. */
+:root {
+  --paper: #eef0f4;
+  --sheet: #ffffff;
+  --ink: #14151b;
+  --ink-2: #4a4f5c;
+  --ink-3: #737987;
+  --rule: #d5d8e0;
+  --accent: #5b34e0;
+  --accent-ink: #ffffff;
+  --accent-soft: #e7e1fd;
+  --cyan: #009fd1;
+  --magenta: #df0a78;
+  --yellow: #f0be00;
+  --k: #121218;
+  --code-bg: #f5f6f9;
+  --display: 'Archivo', 'Arial Narrow', 'Helvetica Neue', Arial, sans-serif;
+  --body: 'Instrument Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --step--1: 0.82rem;
+  --step-0: 1rem;
+  --step-1: 1.2rem;
+  --step-2: 1.6rem;
+  --step-3: clamp(1.9rem, 4vw, 2.6rem);
+  --step-4: clamp(2.5rem, 7.2vw, 5.4rem);
+  --radius: 10px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0f1015;
+    --sheet: #171920;
+    --ink: #eceef4;
+    --ink-2: #aab0be;
+    --ink-3: #7e8494;
+    --rule: #2b2e39;
+    --accent: #a48bff;
+    --accent-ink: #120f1f;
+    --accent-soft: #2a2342;
+    --cyan: #2bbbe6;
+    --magenta: #ff3d9a;
+    --yellow: #ffd23a;
+    --k: #050507;
+    --code-bg: #12131a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0f1015;
+  --sheet: #171920;
+  --ink: #eceef4;
+  --ink-2: #aab0be;
+  --ink-3: #7e8494;
+  --rule: #2b2e39;
+  --accent: #a48bff;
+  --accent-ink: #120f1f;
+  --accent-soft: #2a2342;
+  --cyan: #2bbbe6;
+  --magenta: #ff3d9a;
+  --yellow: #ffd23a;
+  --k: #050507;
+  --code-bg: #12131a;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } * { transition: none !important; animation: none !important; } }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: var(--step-0);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--accent); text-underline-offset: 3px; }
+a:focus-visible, button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+h1, h2, h3 { font-family: var(--display); font-stretch: 118%; text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+p { margin: 0; }
+code, .mono { font-family: var(--mono); }
+.wrap { width: min(1160px, 100%); margin-inline: auto; padding-inline: 20px; }
+
+/* ------------------------------ Top bar ------------------------------ */
+.topbar {
+  position: sticky;
+  top: env(safe-area-inset-top, 0px);
+  z-index: 10;
+  background: color-mix(in srgb, var(--paper) 88%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--rule);
+}
+.topbar .wrap { display: flex; align-items: center; gap: 18px; min-height: 58px; flex-wrap: wrap; }
+.brand { display: flex; align-items: center; gap: 10px; font-family: var(--display); font-weight: 900; font-stretch: 125%; font-size: 1.15rem; color: var(--ink); text-decoration: none; }
+.brand img { width: 30px; height: 30px; }
+.nav { display: flex; gap: 16px; flex-wrap: wrap; margin-left: auto; align-items: center; }
+.nav a { color: var(--ink-2); text-decoration: none; font-weight: 500; font-size: 0.95rem; }
+.nav a:hover { color: var(--ink); }
+.lang { display: inline-flex; border: 1px solid var(--rule); border-radius: 999px; padding: 2px; background: var(--sheet); }
+.lang button { border: 0; background: transparent; color: var(--ink-2); font: 600 0.78rem/1 var(--mono); padding: 6px 10px; border-radius: 999px; cursor: pointer; }
+.lang button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+
+/* ------------------------------ Hero sheet ------------------------------ */
+.hero { padding-block: 44px 28px; }
+.sheet {
+  position: relative;
+  background: var(--sheet);
+  border: 1px solid var(--rule);
+  padding: clamp(22px, 4vw, 52px);
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  gap: clamp(22px, 4vw, 48px);
+  align-items: center;
+}
+.crop { position: absolute; width: 22px; height: 22px; pointer-events: none; }
+.crop::before, .crop::after { content: ''; position: absolute; background: var(--ink-3); }
+.crop::before { width: 22px; height: 1px; }
+.crop::after { width: 1px; height: 22px; }
+.crop.tl { top: -12px; left: -12px; } .crop.tl::before { top: 11px; left: -10px; } .crop.tl::after { left: 11px; top: -10px; }
+.crop.tr { top: -12px; right: -12px; } .crop.tr::before { top: 11px; right: -10px; } .crop.tr::after { right: 11px; top: -10px; }
+.crop.bl { bottom: -12px; left: -12px; } .crop.bl::before { bottom: 11px; left: -10px; } .crop.bl::after { left: 11px; bottom: -10px; }
+.crop.br { bottom: -12px; right: -12px; } .crop.br::before { bottom: 11px; right: -10px; } .crop.br::after { right: 11px; bottom: -10px; }
+.slug { position: absolute; top: -26px; left: 14px; font: 500 0.68rem/1 var(--mono); color: var(--ink-3); letter-spacing: 0.04em; white-space: nowrap; overflow: hidden; max-width: calc(100% - 28px); text-overflow: ellipsis; }
+
+.eyebrow { font: 600 0.74rem/1.3 var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-3); }
+.hero h1 { font-size: var(--step-4); font-weight: 900; font-stretch: 125%; line-height: 0.95; margin-block: 14px 18px; letter-spacing: -0.025em; }
+.hero h1 .ink { background: linear-gradient(100deg, #7b4dff 0%, #e2368f 55%, #f19a1a 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.lede { font-size: var(--step-1); color: var(--ink-2); max-width: 60ch; }
+.cta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; align-items: center; }
+.btn { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 600; border-radius: var(--radius); padding: 12px 18px; border: 1px solid var(--rule); color: var(--ink); background: var(--sheet); transition: transform .12s ease, border-color .12s ease; }
+.btn:hover { transform: translateY(-1px); border-color: var(--ink-3); }
+.btn.primary { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.btn.primary small { font: 500 0.72rem/1 var(--mono); opacity: 0.75; }
+.btn svg { width: 18px; height: 18px; flex: 0 0 auto; }
+.meta { margin-top: 14px; font: 500 0.78rem/1.5 var(--mono); color: var(--ink-3); }
+
+.shot { position: relative; min-width: 0; }
+.shot img { display: block; width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--rule); box-shadow: 0 30px 60px -30px rgba(20, 21, 27, 0.45); }
+.shot figcaption { margin-top: 10px; font: 500 0.72rem/1.4 var(--mono); color: var(--ink-3); }
+
+/* Process-ink control strip */
+.strip { display: grid; grid-template-columns: repeat(11, minmax(0, 1fr)); margin-top: 26px; border: 1px solid var(--rule); }
+.strip span { height: 16px; }
+.strip-labels { display: flex; justify-content: space-between; gap: 8px; margin-top: 6px; font: 500 0.66rem/1 var(--mono); color: var(--ink-3); letter-spacing: 0.06em; flex-wrap: wrap; }
+
+/* ------------------------------ Sections ------------------------------ */
+section.block { padding-block: 56px; border-top: 1px solid var(--rule); }
+.head { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 24px; align-items: end; margin-bottom: 30px; }
+.head h2 { font-size: var(--step-3); font-weight: 800; line-height: 1.02; }
+.head p { color: var(--ink-2); max-width: 62ch; }
+
+/* Downloads */
+.dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.os { background: var(--sheet); border: 1px solid var(--rule); border-radius: var(--radius); padding: 20px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.os.recommended { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.os h3 { font-size: var(--step-2); font-weight: 800; display: flex; align-items: center; gap: 10px; }
+.os h3 .tag { font: 600 0.66rem/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent-ink); background: var(--accent); padding: 5px 7px; border-radius: 4px; }
+.os .req { color: var(--ink-3); font-size: var(--step--1); }
+.files { display: flex; flex-direction: column; gap: 8px; }
+.file { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--rule); border-radius: 8px; text-decoration: none; color: var(--ink); background: var(--paper); min-width: 0; }
+.file:hover { border-color: var(--ink-3); }
+.file .name { font: 600 0.8rem/1.3 var(--mono); overflow-wrap: anywhere; }
+.file .what { font-size: 0.84rem; color: var(--ink-2); }
+.file .col { display: flex; flex-direction: column; min-width: 0; }
+.file svg { width: 18px; height: 18px; flex: 0 0 auto; color: var(--ink-3); }
+.first { border-top: 1px dashed var(--rule); padding-top: 12px; font-size: 0.9rem; color: var(--ink-2); display: flex; flex-direction: column; gap: 8px; }
+.first strong { color: var(--ink); }
+.cmd { display: flex; align-items: stretch; border: 1px solid var(--rule); border-radius: 8px; background: var(--code-bg); min-width: 0; }
+.cmd code { flex: 1; min-width: 0; padding: 9px 11px; font-size: 0.78rem; overflow-x: auto; white-space: pre; color: var(--ink); }
+.cmd button { border: 0; border-left: 1px solid var(--rule); background: transparent; color: var(--ink-2); font: 600 0.72rem/1 var(--mono); padding: 0 12px; cursor: pointer; border-radius: 0 8px 8px 0; }
+.cmd button:hover { color: var(--ink); background: var(--sheet); }
+.after { margin-top: 18px; display: flex; flex-wrap: wrap; gap: 8px 22px; font-size: 0.92rem; color: var(--ink-2); }
+
+/* Modules */
+.mods { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 0; border-top: 1px solid var(--rule); border-left: 1px solid var(--rule); }
+.mod { padding: 18px; border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule); background: var(--sheet); display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.mod .k { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.mod h3 { font-size: 1.05rem; font-weight: 800; font-stretch: 112%; }
+.mod .instead { font: 500 0.7rem/1.2 var(--mono); color: var(--ink-3); text-align: right; }
+.mod p { color: var(--ink-2); font-size: 0.92rem; }
+.mod .fmt { display: flex; flex-wrap: wrap; gap: 5px; margin-top: auto; padding-top: 4px; }
+.mod .fmt span { font: 500 0.68rem/1 var(--mono); padding: 4px 6px; border-radius: 4px; background: var(--paper); border: 1px solid var(--rule); color: var(--ink-2); }
+.swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; margin-right: 8px; }
+
+/* AI */
+.ai { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+.flow { background: var(--sheet); border: 1px solid var(--rule); border-radius: var(--radius); padding: 18px; display: flex; flex-direction: column; gap: 10px; }
+.node { display: flex; gap: 12px; align-items: center; padding: 12px 14px; border-radius: 8px; border: 1px solid var(--rule); background: var(--paper); }
+.node b { font-family: var(--display); font-stretch: 112%; font-size: 1rem; }
+.node span { color: var(--ink-2); font-size: 0.88rem; }
+.node .dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; }
+.arrow { font: 600 0.72rem/1 var(--mono); color: var(--ink-3); padding-left: 18px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+.chip { font-size: 0.84rem; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--rule); background: var(--sheet); color: var(--ink); }
+.chip.free { border-color: color-mix(in srgb, #18a058 55%, var(--rule)); }
+.chip.free::after { content: ' · free'; color: #18a058; font-weight: 600; }
+.points { display: flex; flex-direction: column; gap: 12px; margin-top: 18px; padding: 0; list-style: none; }
+.points li { padding-left: 18px; position: relative; color: var(--ink-2); }
+.points li::before { content: ''; position: absolute; left: 0; top: 0.62em; width: 8px; height: 8px; background: var(--magenta); }
+.points li:nth-child(2)::before { background: var(--cyan); }
+.points li:nth-child(3)::before { background: var(--yellow); }
+.points li:nth-child(4)::before { background: var(--k); outline: 1px solid var(--rule); }
+.note { margin-top: 16px; font-size: 0.86rem; color: var(--ink-3); border-left: 2px solid var(--rule); padding-left: 12px; }
+
+/* Steps */
+.steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; counter-reset: step; }
+.step { background: var(--sheet); border: 1px solid var(--rule); border-radius: var(--radius); padding: 20px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.step .n { font: 900 2.4rem/1 var(--display); font-stretch: 125%; color: var(--accent); }
+.step h3 { font-size: 1.15rem; font-weight: 800; }
+.step p { color: var(--ink-2); font-size: 0.94rem; }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.tabs button { border: 1px solid var(--rule); background: var(--paper); color: var(--ink-2); border-radius: 999px; padding: 5px 10px; font: 600 0.74rem/1 var(--mono); cursor: pointer; }
+.tabs button[aria-selected="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.panel { display: flex; flex-direction: column; gap: 8px; }
+.panel .plan { font-size: 0.86rem; color: var(--ink-3); }
+
+footer { border-top: 1px solid var(--rule); padding-block: 30px 46px; color: var(--ink-3); font-size: 0.88rem; }
+footer .wrap { display: flex; flex-wrap: wrap; gap: 10px 26px; justify-content: space-between; }
+footer nav { display: flex; gap: 16px; flex-wrap: wrap; }
+footer a { color: var(--ink-2); }
+
+@media (max-width: 900px) {
+  .sheet, .head, .ai { grid-template-columns: 1fr; }
+  .dl, .steps { grid-template-columns: 1fr; }
+}
+@media (max-width: 560px) {
+  .nav a:not(.keep) { display: none; }
+  .hero { padding-block: 34px 18px; }
+  .strip-labels span:nth-child(even) { display: none; }
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap">
+    <a class="brand" href="#top"><img src="icon.png" alt="" width="30" height="30">Ultima</a>
+    <nav class="nav" aria-label="Page">
+      <a href="#download" class="keep" data-i18n="nav.download">Download</a>
+      <a href="#modules" data-i18n="nav.modules">Tools</a>
+      <a href="#ai" data-i18n="nav.ai">AI</a>
+      <a href="https://github.com/tenmaryut/ultima/blob/main/docs/USER_GUIDE.md" data-i18n="nav.guide">Guide</a>
+      <a href="https://github.com/tenmaryut/ultima">GitHub</a>
+      <span class="lang" role="group" aria-label="Language">
+        <button type="button" id="lang-en" data-lang="en" aria-pressed="true">EN</button>
+        <button type="button" id="lang-id" data-lang="id" aria-pressed="false">ID</button>
+      </span>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+  <div class="wrap hero">
+    <div class="sheet">
+      <span class="crop tl"></span><span class="crop tr"></span><span class="crop bl"></span><span class="crop br"></span>
+      <span class="slug">ultima_v0.1.0_proof.pdf — 1/1 — CMYK + RGB</span>
+      <div>
+        <div class="eyebrow" data-i18n="hero.eyebrow">Free · Open source · Windows / macOS / Linux</div>
+        <h1><span data-i18n="hero.title1">Every creative tool.</span> <span class="ink" data-i18n="hero.title2">One free app.</span></h1>
+        <p class="lede" data-i18n="hero.lede">Edit photos, develop whole shoots, draw vectors, lay out posters and books, cut videos, animate titles, clean up audio and fix PDFs — in one open-source app. Its AI runs on the subscriptions you already pay for, or on free local models. No API keys, no per-token bills.</p>
+        <div class="cta">
+          <a class="btn primary" id="primary-dl" href="https://github.com/tenmaryut/ultima/releases/latest">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+            <span><span id="primary-label" data-i18n="hero.download">Download</span> <small id="primary-file"></small></span>
+          </a>
+          <a class="btn" href="#download" data-i18n="hero.other">All downloads</a>
+          <a class="btn" href="https://tenmaryut.github.io/ultima/app/" data-i18n="hero.web">Try it in the browser</a>
+        </div>
+        <p class="meta" data-i18n="hero.meta">MIT license · 64-bit · No account needed</p>
+      </div>
+      <figure class="shot">
+        <img src="screenshot.webp" alt="The Ultima window with the side rail of tools and the Layout &amp; Publishing module open on an event poster" width="1440" height="900" loading="eager">
+        <figcaption data-i18n="hero.caption">Fig. 1 — One window, every tool. Switch with the rail on the left; your work stays open.</figcaption>
+      </figure>
+    </div>
+    <div class="strip" aria-hidden="true">
+      <span style="background: var(--cyan)"></span><span style="background: var(--magenta)"></span><span style="background: var(--yellow)"></span><span style="background: var(--k)"></span>
+      <span style="background: #2155ff"></span><span style="background: #12a150"></span><span style="background: #e5322d"></span>
+      <span style="background: #ffffff"></span><span style="background: #bfc2c9"></span><span style="background: #7a7e88"></span><span style="background: #3b3e46"></span>
+    </div>
+    <div class="strip-labels" aria-hidden="true"><span>C 100</span><span>M 100</span><span>Y 100</span><span>K 100</span><span>R</span><span>G</span><span>B</span><span>0%</span><span>25%</span><span>50%</span><span>75%</span></div>
+  </div>
+
+  <section class="block" id="download">
+    <div class="wrap">
+      <div class="head">
+        <h2 data-i18n="dl.title">Download for your computer</h2>
+        <p data-i18n="dl.lede">Pick your system. Every file comes from the official GitHub Releases page of the project and is built automatically from the public source code.</p>
+      </div>
+      <div class="dl">
+        <article class="os" id="os-windows">
+          <h3>Windows <span class="tag" data-i18n="dl.yours" hidden>Your system</span></h3>
+          <div class="req" data-i18n="dl.win.req">Windows 10 or 11 · 64-bit (x64 or ARM)</div>
+          <div class="files">
+            <a class="file" href="https://github.com/tenmaryut/ultima/releases/latest/download/Ultima-Setup-x64.exe">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+              <span class="col"><span class="name">Ultima-Setup-x64.exe</span><span class="what" data-i18n="dl.win.setup">Installer (most PCs)</span></span>
+            </a>
+            <a class="file" href="https://github.com/tenmaryut/ultima/releases/latest/download/Ultima-Setup-arm64.exe">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+              <span class="col"><span class="name">Ultima-Setup-arm64.exe</span><span class="what" data-i18n="dl.win.arm">Installer for ARM laptops (Snapdragon)</span></span>
+            </a>
+            <a class="file" href="https://github.com/tenmaryut/ultima/releases/latest/download/Ultima-Portable-x64.exe">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+              <span class="col"><span class="name">Ultima-Portable-x64.exe</span><span class="what" data-i18n="dl.win.portable">Portable, no installation</span></span>
+            </a>
+          </div>
+          <div class="first">
+            <span data-i18n-html="dl.win.first"><strong>First launch:</strong> if Windows SmartScreen says “Windows protected your PC”, click <em>More info</em> → <em>Run anyway</em>. The installer is not code-signed yet.</span>
+          </div>
+        </article>
+
+        <article class="os" id="os-mac">
+          <h3>macOS <span class="tag" data-i18n="dl.yours" hidden>Your system</span></h3>
+          <div class="req" data-i18n="dl.mac.req">macOS 12 Monterey or newer</div>
+          <div class="files">
+            <a class="file" href="https://github.com/tenmaryut/ultima/releases/latest/download/Ultima-mac-arm64.dmg">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+              <span class="col"><span class="name">Ultima-mac-arm64.dmg</span><span class="what" data-i18n="dl.mac.arm">Apple Silicon (M1, M2, M3, M4…)</span></span>
+            </a>
+            <a class="file" href="https://github.com/tenmaryut/ultima/releases/latest/download/Ultima-mac-x64.dmg">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+              <span class="col"><span class="name">Ultima-mac-x64.dmg</span><span class="what" data-i18n="dl.mac.intel">Intel Macs</span></span>
+            </a>
+          </div>
+          <div class="first">
+            <span data-i18n-html="dl.mac.first"><strong>First launch:</strong> drag Ultima into Applications, then right-click it → <em>Open</em> → <em>Open</em>. If macOS says the app “is damaged”, run this once in Terminal:</span>
+            <div class="cmd"><code>xattr -dr com.apple.quarantine /Applications/Ultima.app</code><button type="button" data-copy data-i18n="copy">Copy</button></div>
+          </div>
+        </article>
+
+        <article class="os" id="os-linux">
+          <h3>Linux <span class="tag" data-i18n="dl.yours" hidden>Your system</span></h3>
+          <div class="req" data-i18n="dl.linux.req">Any modern distribution · x64 or ARM64</div>
+          <div class="files">
+            <a class="file" href="https://github.com/tenmaryut/ultima/releases/latest/download/Ultima-linux-x86_64.AppImage">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+              <span class="col"><span class="name">Ultima-linux-x86_64.AppImage</span><span class="what" data-i18n="dl.linux.appimage">Runs on any distribution</span></span>
+            </a>
+            <a class="file" href="https://github.com/tenmaryut/ultima/releases/latest/download/Ultima-linux-amd64.deb">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+              <span class="col"><span class="name">Ultima-linux-amd64.deb</span><span class="what">Ubuntu, Debian, Linux Mint, Pop!_OS</span></span>
+            </a>
+            <a class="file" href="https://github.com/tenmaryut/ultima/releases/latest/download/Ultima-linux-x86_64.rpm">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+              <span class="col"><span class="name">Ultima-linux-x86_64.rpm</span><span class="what">Fedora, openSUSE, RHEL</span></span>
+            </a>
+          </div>
+          <div class="first">
+            <span data-i18n-html="dl.linux.first"><strong>AppImage:</strong> make it executable, then run it:</span>
+            <div class="cmd"><code>chmod +x Ultima-linux-x86_64.AppImage &amp;&amp; ./Ultima-linux-x86_64.AppImage</code><button type="button" data-copy data-i18n="copy">Copy</button></div>
+            <div class="cmd"><code>sudo apt install ./Ultima-linux-amd64.deb</code><button type="button" data-copy data-i18n="copy">Copy</button></div>
+          </div>
+        </article>
+      </div>
+      <div class="after">
+        <a href="https://github.com/tenmaryut/ultima/releases" data-i18n="dl.all">All versions and ARM64 Linux builds</a>
+        <a href="https://github.com/tenmaryut/ultima/blob/main/docs/INSTALL.md" data-i18n="dl.help">Step-by-step install guide</a>
+        <a href="https://github.com/tenmaryut/ultima#build-from-source" data-i18n="dl.source">Build it yourself from source</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="modules">
+    <div class="wrap">
+      <div class="head">
+        <h2 data-i18n="mod.title">Ten tools, one window</h2>
+        <p data-i18n="mod.lede">Each tool covers the everyday work of a familiar professional app. They share one interface, one set of shortcuts and one AI assistant, and they hand work to each other.</p>
+      </div>
+      <div class="mods" id="mods"></div>
+    </div>
+  </section>
+
+  <section class="block" id="ai">
+    <div class="wrap ai">
+      <div>
+        <div class="eyebrow" data-i18n="ai.eyebrow">AI without API bills</div>
+        <h2 style="font-size: var(--step-3); font-weight: 800; line-height: 1.02; margin-top: 10px;" data-i18n="ai.title">Use the AI you already pay for</h2>
+        <ul class="points">
+          <li data-i18n="ai.p1">Ultima starts the official command-line tool you installed and signed in to — Claude Code, Codex, Antigravity CLI, GitHub Copilot and others — exactly as you would in a terminal.</li>
+          <li data-i18n="ai.p2">Your requests count against your own plan. Ultima never sees, stores or sends your password or tokens, and it removes API-key variables so nothing is billed per token.</li>
+          <li data-i18n="ai.p3">No subscription? Run a free model on your own computer with Ollama or LM Studio. It works offline.</li>
+          <li data-i18n="ai.p4">The assistant edits your document directly: describe the change, review the steps, apply. Every tool has one.</li>
+        </ul>
+        <p class="note" data-i18n="ai.note">Each AI tool runs under its vendor's terms. Ultima shows those terms before you turn a tool on. Anthropic's terms do not clearly cover third-party apps that start Claude Code, so please read them before enabling it.</p>
+      </div>
+      <div>
+        <div class="flow" aria-label="How a request travels">
+          <div class="node"><span class="dot" style="background: var(--magenta)"></span><div><b data-i18n="ai.f1">You</b><br><span data-i18n="ai.f1s">“Make the sky warmer and add a title”</span></div></div>
+          <div class="arrow">↓ <span data-i18n="ai.fa">on your computer</span></div>
+          <div class="node"><span class="dot" style="background: var(--cyan)"></span><div><b>Ultima</b><br><span data-i18n="ai.f2s">adds the document context and sends it on standard input</span></div></div>
+          <div class="arrow">↓ <span class="mono">claude · codex · agy · copilot · ollama</span></div>
+          <div class="node"><span class="dot" style="background: var(--yellow)"></span><div><b data-i18n="ai.f3">Your AI tool</b><br><span data-i18n="ai.f3s">signed in with your plan, or a local model</span></div></div>
+          <div class="arrow">↓ <span data-i18n="ai.fb">edit steps as JSON</span></div>
+          <div class="node"><span class="dot" style="background: var(--k)"></span><div><b data-i18n="ai.f4">Your document</b><br><span data-i18n="ai.f4s">you review the steps, then apply them as one undo step</span></div></div>
+        </div>
+        <div class="chips" aria-label="Supported AI connections">
+          <span class="chip">Claude Code</span><span class="chip">Codex CLI</span><span class="chip">Antigravity CLI</span><span class="chip">GitHub Copilot CLI</span>
+          <span class="chip">Qwen Code</span><span class="chip">Cursor CLI</span><span class="chip">opencode</span><span class="chip">Kimi Code</span>
+          <span class="chip free">Ollama</span><span class="chip free">LM Studio</span><span class="chip free">llama.cpp</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="start">
+    <div class="wrap">
+      <div class="head">
+        <h2 data-i18n="st.title">Up and running in three steps</h2>
+        <p data-i18n="st.lede">The editors work without any AI. Connect one when you want the assistant.</p>
+      </div>
+      <div class="steps">
+        <article class="step">
+          <span class="n">1</span>
+          <h3 data-i18n="st.1t">Install Ultima</h3>
+          <p data-i18n="st.1p">Download the file for your system above and open it. On first launch you land on the Home screen with every tool.</p>
+        </article>
+        <article class="step">
+          <span class="n">2</span>
+          <h3 data-i18n="st.2t">Install and sign in to an AI tool</h3>
+          <div class="tabs" role="tablist" aria-label="AI tools">
+            <button type="button" role="tab" id="tab-claude" aria-selected="true" data-tab="claude">Claude</button>
+            <button type="button" role="tab" id="tab-codex" aria-selected="false" data-tab="codex">Codex</button>
+            <button type="button" role="tab" id="tab-antigravity" aria-selected="false" data-tab="antigravity">Gemini</button>
+            <button type="button" role="tab" id="tab-copilot" aria-selected="false" data-tab="copilot">Copilot</button>
+            <button type="button" role="tab" id="tab-ollama" aria-selected="false" data-tab="ollama">Ollama</button>
+          </div>
+          <div class="panel" data-panel="claude">
+            <span class="plan" data-i18n="st.claude">Claude Pro or Max</span>
+            <div class="cmd"><code>curl -fsSL https://claude.ai/install.sh | bash</code><button type="button" data-copy data-i18n="copy">Copy</button></div>
+            <div class="cmd"><code>claude auth login</code><button type="button" data-copy data-i18n="copy">Copy</button></div>
+          </div>
+          <div class="panel" data-panel="codex" hidden>
+            <span class="plan" data-i18n="st.codex">ChatGPT Plus, Pro or Business</span>
+            <div class="cmd"><code>npm install -g @openai/codex</code><button type="button" data-copy data-i18n="copy">Copy</button></div>
+            <div class="cmd"><code>codex login</code><button type="button" data-copy data-i18n="copy">Copy</button></div>
+          </div>
+          <div class="panel" data-panel="antigravity" hidden>
+            <span class="plan" data-i18n="st.gemini">Google AI Pro or Ultra — Antigravity CLI</span>
+            <div class="cmd"><code>curl -fsSL https://antigravity.google/cli/install.sh | bash</code><button type="button" data-copy data-i18n="copy">Copy</button></div>
+            <div class="cmd"><code>agy</code><button type="button" data-copy data-i18n="copy">Copy</button></div>
+          </div>
+          <div class="panel" data-panel="copilot" hidden>
+            <span class="plan" data-i18n="st.copilot">GitHub Copilot plan</span>
+            <div class="cmd"><code>npm install -g @github/copilot</code><button type="button" data-copy data-i18n="copy">Copy</button></div>
+            <div class="cmd"><code>copilot login</code><button type="button" data-copy data-i18n="copy">Copy</button></div>
+          </div>
+          <div class="panel" data-panel="ollama" hidden>
+            <span class="plan" data-i18n="st.ollama">Free, runs offline on your computer</span>
+            <div class="cmd"><code>curl -fsSL https://ollama.com/install.sh | sh</code><button type="button" data-copy data-i18n="copy">Copy</button></div>
+            <div class="cmd"><code>ollama pull gemma3</code><button type="button" data-copy data-i18n="copy">Copy</button></div>
+          </div>
+        </article>
+        <article class="step">
+          <span class="n">3</span>
+          <h3 data-i18n="st.3t">Turn it on in Ultima</h3>
+          <p data-i18n="st.3p">Open Settings → AI connections. Ultima finds the tools on your computer. Switch one on, press Test, and open the AI panel in any tool with Ctrl/⌘ + J.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span data-i18n="ft.license">Ultima is free software under the MIT license. Not affiliated with Adobe, Anthropic, OpenAI, Google, GitHub or any other company named here.</span>
+    <nav aria-label="Footer">
+      <a href="https://github.com/tenmaryut/ultima">GitHub</a>
+      <a href="https://github.com/tenmaryut/ultima/blob/main/docs/USER_GUIDE.md" data-i18n="nav.guide">Guide</a>
+      <a href="https://github.com/tenmaryut/ultima/blob/main/docs/AI_SETUP.md" data-i18n="ft.ai">AI setup</a>
+      <a href="https://github.com/tenmaryut/ultima/issues" data-i18n="ft.issues">Report a problem</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var MODULES = [
+    { c: '#31a8ff', en: ['Photo Editor', 'Layers, masks, selections, brushes, filters, adjustments and retouching.'], id: ['Editor Foto', 'Layer, mask, seleksi, kuas, filter, penyesuaian, dan retouch.'], instead: 'Photoshop', fmt: ['.psd', '.png', '.jpg', '.webp'] },
+    { c: '#22c3e6', en: ['Photo Develop', 'Non-destructive develop sliders, presets and batch export for whole shoots.'], id: ['Olah Foto', 'Slider olah non-destruktif, preset, dan ekspor massal satu sesi foto.'], instead: 'Lightroom', fmt: ['.jpg', '.png', '.zip'] },
+    { c: '#ff9a00', en: ['Vector Designer', 'Pen tool, shapes, gradients, Pathfinder and type for logos and illustrations.'], id: ['Desain Vektor', 'Pen tool, bentuk, gradien, Pathfinder, dan teks untuk logo dan ilustrasi.'], instead: 'Illustrator', fmt: ['.svg', '.pdf', '.png'] },
+    { c: '#ff3d71', en: ['Layout & Publishing', 'Multi-page documents, templates and print-ready PDF with bleed.'], id: ['Tata Letak & Publikasi', 'Dokumen multi-halaman, template, dan PDF siap cetak dengan bleed.'], instead: 'InDesign · Express', fmt: ['.pdf', '.png'] },
+    { c: '#8b7bff', en: ['Video Editor', 'Multi-track timeline, titles, transitions and automatic captions.'], id: ['Editor Video', 'Timeline multi-track, judul, transisi, dan subtitle otomatis.'], instead: 'Premiere Pro', fmt: ['.mp4', '.webm', '.srt'] },
+    { c: '#c084fc', en: ['Motion Graphics', 'Keyframes, easing curves and animation presets for text and shapes.'], id: ['Motion Grafis', 'Keyframe, kurva easing, dan preset animasi untuk teks dan bentuk.'], instead: 'After Effects', fmt: ['.mp4', '.gif', '.png'] },
+    { c: '#10d9b0', en: ['Audio Editor', 'Waveform and multitrack editing, noise reduction, effects and recording.'], id: ['Editor Audio', 'Edit gelombang dan multitrack, reduksi noise, efek, dan rekam.'], instead: 'Audition', fmt: ['.wav', '.mp3', '.ogg'] },
+    { c: '#f43f5e', en: ['PDF Studio', 'Merge, split, annotate, sign, redact and fill PDF forms.'], id: ['Studio PDF', 'Gabung, pisah, anotasi, tanda tangan, sensor, dan isi formulir PDF.'], instead: 'Acrobat', fmt: ['.pdf'] },
+    { c: '#f59e0b', en: ['Color Studio', 'Harmony wheel, palettes from photos and contrast checks.'], id: ['Studio Warna', 'Roda harmoni, palet dari foto, dan cek kontras.'], instead: 'Adobe Color', fmt: ['.ase', '.gpl', '.css'] },
+    { c: '#a855f7', en: ['AI Studio', 'Chat, prompt templates and image generation with your own AI.'], id: ['Studio AI', 'Chat, template prompt, dan pembuatan gambar dengan AI Anda.'], instead: 'Firefly', fmt: ['.md', '.png'] }
+  ];
+
+  var ID = {
+    'nav.download': 'Unduh', 'nav.modules': 'Fitur', 'nav.ai': 'AI', 'nav.guide': 'Panduan',
+    'hero.eyebrow': 'Gratis · Open source · Windows / macOS / Linux',
+    'hero.title1': 'Semua alat kreatif.', 'hero.title2': 'Satu aplikasi gratis.',
+    'hero.lede': 'Edit foto, olah satu sesi pemotretan, gambar vektor, tata poster dan buku, potong video, animasikan judul, bersihkan audio, dan perbaiki PDF — dalam satu aplikasi open source. AI-nya memakai langganan yang sudah Anda bayar, atau model lokal gratis. Tanpa API key, tanpa tagihan per token.',
+    'hero.download': 'Unduh', 'hero.other': 'Semua unduhan', 'hero.web': 'Coba di browser',
+    'hero.meta': 'Lisensi MIT · 64-bit · Tanpa perlu akun',
+    'hero.caption': 'Gbr. 1 — Satu jendela, semua alat. Pindah lewat rail di kiri; pekerjaan Anda tetap terbuka.',
+    'dl.title': 'Unduh untuk komputer Anda', 'dl.lede': 'Pilih sistem Anda. Semua file berasal dari halaman GitHub Releases resmi proyek dan dibuat otomatis dari kode sumber publik.',
+    'dl.yours': 'Sistem Anda',
+    'dl.win.req': 'Windows 10 atau 11 · 64-bit (x64 atau ARM)', 'dl.win.setup': 'Installer (kebanyakan PC)', 'dl.win.arm': 'Installer untuk laptop ARM (Snapdragon)', 'dl.win.portable': 'Portable, tanpa instalasi',
+    'dl.win.first': '<strong>Saat pertama dibuka:</strong> jika Windows SmartScreen menampilkan “Windows protected your PC”, klik <em>More info</em> → <em>Run anyway</em>. Installer belum ditandatangani (code-signed).',
+    'dl.mac.req': 'macOS 12 Monterey atau lebih baru', 'dl.mac.arm': 'Apple Silicon (M1, M2, M3, M4…)', 'dl.mac.intel': 'Mac Intel',
+    'dl.mac.first': '<strong>Saat pertama dibuka:</strong> seret Ultima ke Applications, lalu klik kanan → <em>Open</em> → <em>Open</em>. Jika macOS menyebut aplikasi “rusak”, jalankan sekali di Terminal:',
+    'dl.linux.req': 'Distribusi modern apa pun · x64 atau ARM64', 'dl.linux.appimage': 'Jalan di distribusi apa pun',
+    'dl.linux.first': '<strong>AppImage:</strong> jadikan bisa dieksekusi, lalu jalankan:',
+    'dl.all': 'Semua versi dan build Linux ARM64', 'dl.help': 'Panduan instalasi langkah demi langkah', 'dl.source': 'Build sendiri dari kode sumber',
+    'mod.title': 'Sepuluh alat, satu jendela', 'mod.lede': 'Setiap alat mencakup pekerjaan sehari-hari aplikasi profesional yang Anda kenal. Semuanya berbagi satu tampilan, satu set pintasan, dan satu asisten AI, serta bisa saling mengirim hasil kerja.',
+    'ai.eyebrow': 'AI tanpa tagihan API', 'ai.title': 'Pakai AI yang sudah Anda bayar',
+    'ai.p1': 'Ultima menjalankan alat baris perintah resmi yang Anda pasang dan login-kan sendiri — Claude Code, Codex, Antigravity CLI, GitHub Copilot, dan lainnya — persis seperti Anda menjalankannya di terminal.',
+    'ai.p2': 'Permintaan Anda dihitung dalam paket Anda sendiri. Ultima tidak pernah melihat, menyimpan, atau mengirim kata sandi atau token Anda, dan menghapus variabel API key agar tidak ada tagihan per token.',
+    'ai.p3': 'Tidak berlangganan? Jalankan model gratis di komputer sendiri dengan Ollama atau LM Studio. Bisa offline.',
+    'ai.p4': 'Asisten langsung mengedit dokumen Anda: jelaskan perubahannya, tinjau langkahnya, terapkan. Setiap alat punya asisten.',
+    'ai.note': 'Setiap alat AI tunduk pada ketentuan vendornya. Ultima menampilkan ketentuan itu sebelum Anda mengaktifkan sebuah alat. Ketentuan Anthropic belum jelas mencakup aplikasi pihak ketiga yang menjalankan Claude Code, jadi bacalah sebelum mengaktifkannya.',
+    'ai.f1': 'Anda', 'ai.f1s': '“Buat langit lebih hangat dan tambahkan judul”', 'ai.fa': 'di komputer Anda',
+    'ai.f2s': 'menambahkan konteks dokumen dan mengirimnya lewat standard input',
+    'ai.f3': 'Alat AI Anda', 'ai.f3s': 'login dengan paket Anda, atau model lokal', 'ai.fb': 'langkah edit dalam JSON',
+    'ai.f4': 'Dokumen Anda', 'ai.f4s': 'Anda meninjau langkahnya, lalu menerapkannya sebagai satu langkah undo',
+    'st.title': 'Siap dalam tiga langkah', 'st.lede': 'Semua editor bisa dipakai tanpa AI. Hubungkan AI saat Anda ingin memakai asisten.',
+    'st.1t': 'Pasang Ultima', 'st.1p': 'Unduh file untuk sistem Anda di atas lalu buka. Saat pertama dijalankan Anda masuk ke layar Beranda berisi semua alat.',
+    'st.2t': 'Pasang dan login ke alat AI', 'st.claude': 'Claude Pro atau Max', 'st.codex': 'ChatGPT Plus, Pro, atau Business', 'st.gemini': 'Google AI Pro atau Ultra — Antigravity CLI', 'st.copilot': 'Paket GitHub Copilot', 'st.ollama': 'Gratis, berjalan offline di komputer Anda',
+    'st.3t': 'Aktifkan di Ultima', 'st.3p': 'Buka Pengaturan → Koneksi AI. Ultima menemukan alat di komputer Anda. Aktifkan salah satunya, tekan Uji, lalu buka panel AI di alat mana pun dengan Ctrl/⌘ + J.',
+    'ft.license': 'Ultima adalah perangkat lunak bebas berlisensi MIT. Tidak berafiliasi dengan Adobe, Anthropic, OpenAI, Google, GitHub, atau perusahaan lain yang disebut di sini.',
+    'ft.ai': 'Pengaturan AI', 'ft.issues': 'Laporkan masalah', 'copy': 'Salin', 'copied': 'Tersalin'
+  };
+  var EN = {};
+  var lang = 'en';
+
+  function renderModules() {
+    var host = document.getElementById('mods');
+    host.textContent = '';
+    MODULES.forEach(function (m) {
+      var t = lang === 'id' ? m.id : m.en;
+      var el = document.createElement('article');
+      el.className = 'mod';
+      var k = document.createElement('div'); k.className = 'k';
+      var h = document.createElement('h3');
+      var sw = document.createElement('span'); sw.className = 'swatch'; sw.style.background = m.c;
+      h.appendChild(sw); h.appendChild(document.createTextNode(t[0]));
+      var ins = document.createElement('span'); ins.className = 'instead'; ins.textContent = (lang === 'id' ? 'seperti ' : 'like ') + m.instead;
+      k.appendChild(h); k.appendChild(ins);
+      var p = document.createElement('p'); p.textContent = t[1];
+      var f = document.createElement('div'); f.className = 'fmt';
+      m.fmt.forEach(function (x) { var s = document.createElement('span'); s.textContent = x; f.appendChild(s); });
+      el.appendChild(k); el.appendChild(p); el.appendChild(f);
+      host.appendChild(el);
+    });
+  }
+
+  function applyLang(next) {
+    lang = next;
+    document.documentElement.lang = next;
+    document.querySelectorAll('[data-i18n]').forEach(function (el) {
+      var key = el.getAttribute('data-i18n');
+      if (!(key in EN)) EN[key] = el.textContent;
+      el.textContent = next === 'id' && ID[key] ? ID[key] : EN[key];
+    });
+    document.querySelectorAll('[data-i18n-html]').forEach(function (el) {
+      var key = el.getAttribute('data-i18n-html');
+      if (!(key in EN)) EN[key] = el.innerHTML;
+      el.innerHTML = next === 'id' && ID[key] ? ID[key] : EN[key];
+    });
+    document.querySelectorAll('.lang button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.lang === next)); });
+    renderModules();
+    detectOs();
+    try { localStorage.setItem('ultima-site-lang', next); } catch (e) { /* storage unavailable */ }
+  }
+
+  function detectOs() {
+    var p = ((navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || navigator.userAgent || '').toLowerCase();
+    var os = /win/.test(p) ? 'windows' : /mac|iphone|ipad/.test(p) ? 'mac' : /linux|x11|cros/.test(p) ? 'linux' : null;
+    var files = { windows: 'Ultima-Setup-x64.exe', mac: 'Ultima-mac-arm64.dmg', linux: 'Ultima-linux-x86_64.AppImage' };
+    var names = { windows: 'Windows', mac: 'macOS', linux: 'Linux' };
+    ['windows', 'mac', 'linux'].forEach(function (k) {
+      var card = document.getElementById('os-' + k);
+      card.classList.toggle('recommended', k === os);
+      card.querySelector('.tag').hidden = k !== os;
+    });
+    if (os) {
+      document.getElementById('primary-dl').href = 'https://github.com/tenmaryut/ultima/releases/latest/download/' + files[os];
+      document.getElementById('primary-label').textContent = (lang === 'id' ? 'Unduh untuk ' : 'Download for ') + names[os];
+      document.getElementById('primary-file').textContent = files[os];
+    }
+  }
+
+  document.querySelectorAll('.lang button').forEach(function (b) { b.addEventListener('click', function () { applyLang(b.dataset.lang); }); });
+
+  document.querySelectorAll('[data-tab]').forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      document.querySelectorAll('[data-tab]').forEach(function (t) { t.setAttribute('aria-selected', String(t === tab)); });
+      document.querySelectorAll('[data-panel]').forEach(function (p) { p.hidden = p.dataset.panel !== tab.dataset.tab; });
+    });
+  });
+
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest && e.target.closest('[data-copy]');
+    if (!btn) return;
+    var code = btn.parentElement.querySelector('code');
+    var text = code.textContent;
+    var done = function () {
+      var old = btn.textContent;
+      btn.textContent = lang === 'id' ? ID.copied : 'Copied';
+      setTimeout(function () { btn.textContent = old; }, 1400);
+    };
+    var select = function () {
+      var range = document.createRange(); range.selectNodeContents(code);
+      var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+    };
+    try {
+      navigator.clipboard.writeText(text).then(done, select);
+    } catch (err) { select(); }
+  });
+
+  var saved = null;
+  try { saved = localStorage.getItem('ultima-site-lang'); } catch (e) { saved = null; }
+  var initial = saved || ((navigator.language || '').toLowerCase().indexOf('id') === 0 ? 'id' : 'en');
+  applyLang(initial);
+})();
+</script>
+</body>
+</html>

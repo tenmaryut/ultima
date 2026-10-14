@@ -1,0 +1,708 @@
+/* Motion Graphics module — every class is prefixed with mo- */
+
+.mo-root {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+.mo-root > .mod {
+  flex: 1;
+  min-height: 0;
+}
+
+/* --------------------------------- Stage --------------------------------- */
+
+.mo-stage {
+  touch-action: none;
+}
+.mo-stage-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* ------------------------------- Right panel ------------------------------ */
+
+.mo-right {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+.mo-right-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+.mo-props {
+  display: flex;
+  flex-direction: column;
+}
+.mo-props-head {
+  display: flex;
+  gap: 6px;
+  padding: 10px 10px 4px;
+  align-items: center;
+}
+.mo-grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  align-items: end;
+}
+.mo-anim-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+}
+.mo-anim-label {
+  flex: 0 0 82px;
+  font-size: 12px;
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mo-anim-value {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+.mo-subhead {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-2);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 4px;
+}
+.mo-hint {
+  font-size: 11px;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.mo-text-area {
+  min-height: 60px;
+  font-size: 13px;
+}
+.mo-wiggle-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-2);
+}
+.mo-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+.mo-preset {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-2);
+  color: var(--text-0);
+  cursor: pointer;
+  font-size: 12px;
+  text-align: left;
+}
+.mo-preset:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.mo-preset:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.mo-preset svg {
+  color: var(--accent);
+  flex: 0 0 auto;
+}
+.mo-shortcuts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mo-warn {
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  border: 1px solid color-mix(in srgb, var(--warning) 50%, transparent);
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+  color: var(--text-0);
+  font-size: 12px;
+}
+.mo-suggest-list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text-1);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* --------------------------------- Widgets -------------------------------- */
+
+.mo-scrub {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 1px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  cursor: ew-resize;
+  white-space: nowrap;
+  user-select: none;
+  border-bottom: 1px dotted color-mix(in srgb, var(--accent) 50%, transparent);
+}
+.mo-scrub:hover {
+  background: var(--bg-3);
+}
+.mo-scrub:focus-visible {
+  outline: 1px solid var(--accent);
+}
+.mo-scrub.disabled {
+  color: var(--text-3);
+  cursor: default;
+  border-bottom-color: transparent;
+}
+.mo-scrub-suffix {
+  color: var(--text-3);
+  font-size: 10px;
+  margin-left: 1px;
+}
+.mo-scrub-input {
+  height: 20px;
+  padding: 0 4px;
+  font-size: 12px;
+  border-radius: 3px;
+  border: 1px solid var(--accent);
+  background: var(--bg-2);
+  color: var(--text-0);
+  outline: none;
+}
+.mo-vec {
+  display: inline-flex;
+  gap: 2px;
+}
+
+/* -------------------------------- Timeline -------------------------------- */
+
+.mo-timeline {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.mo-tl-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  min-height: 36px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.mo-tl-toolbar .vsep {
+  margin: 4px 6px;
+}
+.mo-timecode {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.1;
+  padding: 2px 8px;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: text;
+  min-width: 92px;
+}
+.mo-timecode .mono:first-child {
+  color: var(--accent);
+  font-size: 15px;
+  font-weight: 600;
+}
+.mo-timecode .faint {
+  font-size: 10px;
+}
+.mo-timecode:hover {
+  border-color: var(--border-strong);
+}
+.mo-timecode-input {
+  width: 110px;
+}
+.mo-zoom-range {
+  width: 90px;
+  accent-color: var(--accent);
+}
+.mo-easing-controls .select {
+  padding-right: 22px;
+}
+
+.mo-tl-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  position: relative;
+  background: var(--bg-1);
+  touch-action: none;
+}
+.mo-tl-content {
+  position: relative;
+}
+.mo-tl-header {
+  position: sticky;
+  top: 0;
+  z-index: 7;
+  display: flex;
+  background: var(--bg-1);
+  border-bottom: 1px solid var(--border);
+}
+.mo-tl-corner {
+  position: sticky;
+  left: 0;
+  z-index: 8;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  background: var(--bg-1);
+  border-right: 1px solid var(--border);
+}
+.mo-corner-parent {
+  width: 92px;
+}
+.mo-ruler {
+  position: relative;
+  flex: 0 0 auto;
+  height: 100%;
+  cursor: ew-resize;
+}
+.mo-ruler-canvas {
+  position: absolute;
+  top: 0;
+  pointer-events: none;
+}
+.mo-work {
+  position: absolute;
+  bottom: 0;
+  height: 6px;
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+  border-radius: 3px;
+  cursor: grab;
+}
+.mo-work-handle {
+  position: absolute;
+  top: -3px;
+  width: 8px;
+  height: 12px;
+  border-radius: 2px;
+  background: var(--accent);
+  cursor: ew-resize;
+}
+.mo-work-handle.start {
+  left: -4px;
+}
+.mo-work-handle.end {
+  right: -4px;
+}
+.mo-playhead-head {
+  position: absolute;
+  top: 0;
+  width: 11px;
+  height: 14px;
+  margin-left: -5px;
+  background: var(--accent);
+  clip-path: polygon(0 0, 100% 0, 100% 60%, 50% 100%, 0 60%);
+  pointer-events: none;
+}
+.mo-playhead {
+  position: absolute;
+  top: 0;
+  width: 1px;
+  background: var(--accent);
+  z-index: 3;
+  pointer-events: none;
+}
+
+.mo-row {
+  display: flex;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+}
+.mo-row-left {
+  position: sticky;
+  left: 0;
+  z-index: 6;
+  flex: 0 0 340px;
+  width: 340px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 6px;
+  background: var(--bg-1);
+  border-right: 1px solid var(--border);
+  min-width: 0;
+  overflow: hidden;
+}
+.mo-layer-row .mo-row-left {
+  cursor: pointer;
+}
+.mo-layer-row:hover .mo-row-left {
+  background: var(--bg-2);
+}
+.mo-layer-row.selected .mo-row-left {
+  background: color-mix(in srgb, var(--accent) 16%, var(--bg-1));
+  color: var(--text-0);
+}
+.mo-layer-row.selected .mo-row-track {
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+}
+.mo-prop-left {
+  padding-left: 30px;
+  gap: 5px;
+  background: var(--bg-0);
+}
+.mo-prop-row .mo-row-track {
+  background: color-mix(in srgb, var(--bg-0) 60%, transparent);
+}
+.mo-group-left {
+  padding-left: 30px;
+  font-size: 11px;
+  color: var(--text-2);
+}
+.mo-row-track {
+  position: relative;
+  flex: 0 0 auto;
+}
+.mo-label-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex: 0 0 auto;
+  margin-right: 2px;
+}
+.mo-sw {
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  flex: 0 0 auto;
+  padding: 0;
+}
+.mo-sw:hover:not(:disabled) {
+  background: var(--bg-3);
+  color: var(--text-0);
+}
+.mo-sw.on {
+  color: var(--text-1);
+}
+.mo-sw.on.accent {
+  color: var(--accent);
+}
+.mo-sw:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.mo-twirl {
+  width: 16px;
+  height: 18px;
+  border: none;
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  flex: 0 0 auto;
+}
+.mo-row-index {
+  font-size: 10px;
+  min-width: 14px;
+  text-align: right;
+}
+.mo-row-icon {
+  color: var(--text-2);
+  flex: 0 0 auto;
+}
+.mo-row-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--text-0);
+}
+.mo-rename {
+  flex: 1;
+  min-width: 0;
+  height: 20px;
+  font-size: 12px;
+  padding: 0 4px;
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  background: var(--bg-2);
+  color: var(--text-0);
+  outline: none;
+}
+.mo-parent-select {
+  width: 92px;
+  flex: 0 0 92px;
+  height: 20px;
+  font-size: 11px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--text-1);
+  padding: 0 4px;
+}
+.mo-bar {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--bar, var(--accent)) 30%, transparent);
+  border: 1px solid color-mix(in srgb, var(--bar, var(--accent)) 70%, transparent);
+  cursor: grab;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+}
+.mo-bar.selected {
+  background: color-mix(in srgb, var(--bar, var(--accent)) 48%, transparent);
+  border-color: var(--bar, var(--accent));
+}
+.mo-bar.hidden {
+  opacity: 0.4;
+}
+.mo-bar-label {
+  flex: 1;
+  min-width: 0;
+  padding: 0 8px;
+  font-size: 10.5px;
+  color: var(--text-0);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+.mo-bar-edge {
+  width: 6px;
+  align-self: stretch;
+  cursor: ew-resize;
+  flex: 0 0 auto;
+}
+.mo-bar-edge:hover {
+  background: color-mix(in srgb, var(--bar, var(--accent)) 80%, transparent);
+}
+.mo-key-dot {
+  position: absolute;
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  margin: -2px 0 0 -2px;
+  border-radius: 50%;
+  background: var(--text-1);
+  pointer-events: none;
+  opacity: 0.8;
+}
+.mo-kf {
+  position: absolute;
+  top: 50%;
+  width: 9px;
+  height: 9px;
+  margin: -4.5px 0 0 -4.5px;
+  background: var(--text-2);
+  border: 1px solid var(--bg-0);
+  transform: rotate(45deg);
+  cursor: pointer;
+  z-index: 1;
+}
+.mo-kf.eased {
+  border-radius: 3px;
+  background: var(--text-1);
+}
+.mo-kf.hold {
+  transform: none;
+  border-radius: 1px;
+}
+.mo-kf:hover {
+  background: var(--text-0);
+}
+.mo-kf.selected {
+  background: var(--accent);
+  border-color: var(--text-0);
+}
+.mo-stopwatch {
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  padding: 0;
+  flex: 0 0 auto;
+}
+.mo-stopwatch:hover:not(:disabled) {
+  background: var(--bg-3);
+  color: var(--text-0);
+}
+.mo-stopwatch.on {
+  color: var(--accent);
+}
+.mo-prop-label {
+  flex: 0 0 86px;
+  font-size: 11.5px;
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mo-keynav {
+  display: inline-flex;
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+.mo-keynav .mo-sw {
+  width: 16px;
+}
+.mo-wiggle-icon {
+  color: var(--accent);
+  flex: 0 0 auto;
+}
+.mo-wiggle-bar {
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  border-radius: 3px;
+  background: repeating-linear-gradient(90deg, color-mix(in srgb, var(--accent) 45%, transparent) 0 6px, transparent 6px 9px);
+}
+.mo-tl-empty {
+  position: absolute;
+  top: 46px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-3);
+  font-size: 12px;
+  pointer-events: none;
+}
+.mo-tl-marquee {
+  position: absolute;
+  border: 1px dashed var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  pointer-events: none;
+  z-index: 4;
+}
+
+/* ------------------------------ Graph editor ------------------------------ */
+
+.mo-popover {
+  position: fixed;
+  z-index: 950;
+  width: 236px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-radius: var(--radius-lg);
+  background: var(--bg-2);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow);
+}
+.mo-popover-title {
+  font-weight: 600;
+  color: var(--text-0);
+}
+.mo-graph {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
+}
+.mo-graph-svg {
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius);
+  background: var(--bg-0);
+  border: 1px solid var(--border);
+  touch-action: none;
+}
+.mo-graph-box {
+  fill: none;
+  stroke: var(--border-strong);
+  stroke-dasharray: 3 3;
+}
+.mo-graph-diag {
+  stroke: var(--border);
+}
+.mo-graph-curve {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+}
+.mo-graph-arm {
+  stroke: var(--text-2);
+  stroke-width: 1;
+}
+.mo-graph-handle {
+  fill: var(--bg-1);
+  stroke: var(--accent);
+  stroke-width: 2;
+  cursor: grab;
+}
+.mo-graph-values {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+.mo-graph-value {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 10px;
+}
+.mo-graph-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.mo-chip-active {
+  border-color: var(--accent);
+  color: var(--text-0);
+  background: var(--accent-soft);
+}

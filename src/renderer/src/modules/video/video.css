@@ -1,0 +1,814 @@
+/* Video Editor — every class is prefixed with vd- */
+
+.vd-root {
+  position: relative;
+  height: 100%;
+  --vd-video: color-mix(in srgb, var(--info) 46%, var(--bg-2));
+  --vd-image: color-mix(in srgb, var(--accent) 44%, var(--bg-2));
+  --vd-title: color-mix(in srgb, var(--warning) 48%, var(--bg-2));
+  --vd-audio: color-mix(in srgb, var(--success) 40%, var(--bg-2));
+  --vd-caption: color-mix(in srgb, var(--danger) 34%, var(--bg-2));
+  --vd-playhead: var(--danger);
+}
+
+/* ------------------------------- left panel ------------------------------- */
+
+.vd-left {
+  width: 268px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.vd-left .tabs {
+  flex: 0 0 auto;
+}
+.vd-left-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.vd-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-2);
+  margin: 4px 0 0;
+}
+.vd-hint {
+  font-size: 12px;
+  color: var(--text-2);
+  line-height: 1.45;
+}
+
+.vd-bin-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.vd-bin-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  padding: 4px;
+  cursor: grab;
+  min-width: 0;
+  position: relative;
+}
+.vd-bin-item:hover {
+  border-color: var(--border-strong);
+}
+.vd-bin-item.missing {
+  border-color: color-mix(in srgb, var(--danger) 60%, transparent);
+}
+.vd-bin-thumb {
+  aspect-ratio: 16 / 9;
+  border-radius: 4px;
+  background: var(--bg-0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  color: var(--text-3);
+  position: relative;
+}
+.vd-bin-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+.vd-bin-thumb .vd-bin-dur {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  font-size: 10px;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+.vd-bin-name {
+  font-size: 11.5px;
+  color: var(--text-0);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vd-bin-meta {
+  font-size: 10.5px;
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vd-dropzone {
+  border: 1.5px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  padding: 16px 10px;
+  text-align: center;
+  color: var(--text-2);
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.vd-preset-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.vd-preset {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-2);
+  padding: 6px;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text-1);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.vd-preset:hover {
+  border-color: var(--accent);
+}
+.vd-preset-art {
+  aspect-ratio: 16 / 9;
+  border-radius: 4px;
+  /* represents a video frame, so it stays dark in both themes */
+  background: linear-gradient(135deg, #454b60, #15171d);
+  position: relative;
+  overflow: hidden;
+  font-size: 10px;
+  color: #fff;
+}
+.vd-preset-art span {
+  position: absolute;
+  white-space: nowrap;
+}
+.vd-preset-name {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-0);
+}
+.vd-preset-desc {
+  font-size: 10.5px;
+  color: var(--text-3);
+}
+
+.vd-cap-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.vd-cap {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-2);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.vd-cap.active {
+  border-color: var(--accent);
+}
+.vd-cap textarea {
+  min-height: 44px;
+  font-size: 12px;
+}
+.vd-cap-time {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.vd-cap-time:hover {
+  color: var(--text-0);
+}
+
+/* --------------------------------- preview -------------------------------- */
+
+.vd-preview {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.vd-stage {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.vd-stage.zoomed {
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+.vd-frame {
+  position: relative;
+  flex: 0 0 auto;
+  box-shadow: var(--shadow-sm);
+  margin: auto;
+}
+.vd-frame canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.vd-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.vd-overlay .vd-safe {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.45);
+  stroke-dasharray: 6 5;
+  vector-effect: non-scaling-stroke;
+}
+.vd-overlay .vd-sel {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+.vd-overlay .vd-sel-hit {
+  fill: transparent;
+  cursor: move;
+}
+.vd-empty-hint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--text-2);
+  text-align: center;
+  padding: 24px;
+  pointer-events: none;
+}
+.vd-empty-hint > * {
+  pointer-events: auto;
+}
+.vd-empty-hint h2 {
+  margin: 0;
+  color: var(--text-0);
+  font-size: 17px;
+}
+.vd-transport {
+  flex: 0 0 auto;
+  height: 40px;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 10px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-1);
+  /* Narrow windows: scroll the controls instead of painting over the inspector. */
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+.vd-timecode {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--text-0);
+  font-variant-numeric: tabular-nums;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--bg-0);
+  border: 1px solid var(--border);
+  cursor: text;
+  min-width: 98px;
+  text-align: center;
+}
+.vd-timecode.dim {
+  color: var(--text-2);
+  cursor: default;
+}
+.vd-rate {
+  font-size: 11px;
+  color: var(--accent);
+  font-weight: 600;
+  min-width: 28px;
+}
+
+/* -------------------------------- inspector ------------------------------- */
+
+.vd-inspector {
+  display: flex;
+  flex-direction: column;
+}
+.vd-insp-head {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.vd-grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 8px;
+}
+.vd-grid3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 6px;
+}
+.vd-row-label {
+  font-size: 11px;
+  color: var(--text-2);
+  min-width: 70px;
+}
+.vd-kv {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 10px;
+  font-size: 12px;
+}
+.vd-kv span:nth-child(odd) {
+  color: var(--text-2);
+}
+.vd-swatches {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* --------------------------------- timeline -------------------------------- */
+
+.vd-tl {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.vd-tl-toolbar {
+  flex: 0 0 auto;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.vd-tl-toolbar .vsep {
+  margin: 8px 4px;
+}
+.vd-zoom-range {
+  width: 110px;
+}
+.vd-tl-main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.vd-tl-heads {
+  flex: 0 0 150px;
+  width: 150px;
+  overflow: hidden;
+  border-right: 1px solid var(--border);
+  background: var(--bg-1);
+  position: relative;
+}
+.vd-tl-heads-inner {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+}
+.vd-tl-corner {
+  height: 28px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+  gap: 4px;
+  position: sticky;
+  top: 0;
+  background: var(--bg-1);
+  z-index: 2;
+}
+.vd-tl-head {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 0 4px 0 8px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-1);
+  overflow: hidden;
+}
+.vd-tl-head .vd-track-name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: default;
+}
+.vd-tl-head.kind-video .vd-track-name {
+  color: color-mix(in srgb, var(--info) 70%, var(--text-0));
+}
+.vd-tl-head.kind-audio .vd-track-name {
+  color: color-mix(in srgb, var(--success) 70%, var(--text-0));
+}
+.vd-tl-head.kind-caption .vd-track-name {
+  color: color-mix(in srgb, var(--danger) 60%, var(--text-0));
+}
+.vd-tl-head .icon-btn.on {
+  color: var(--warning);
+}
+.vd-tl-scroll {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  position: relative;
+  background: var(--bg-0);
+  overscroll-behavior: contain;
+}
+.vd-tl-content {
+  position: relative;
+}
+.vd-tl-ruler {
+  position: sticky;
+  top: 0;
+  height: 28px;
+  z-index: 6;
+  background: var(--bg-1);
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+.vd-tl-ruler canvas {
+  position: sticky;
+  left: 0;
+  display: block;
+  height: 28px;
+}
+.vd-workarea {
+  position: absolute;
+  top: 0;
+  height: 7px;
+  background: color-mix(in srgb, var(--accent) 55%, transparent);
+  border-radius: 0 0 3px 3px;
+}
+.vd-workarea-shade {
+  position: absolute;
+  top: 28px;
+  bottom: 0;
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+  pointer-events: none;
+  z-index: 1;
+}
+.vd-marker {
+  position: absolute;
+  top: 9px;
+  width: 11px;
+  height: 14px;
+  margin-left: -5px;
+  background: var(--warning);
+  clip-path: polygon(0 0, 100% 0, 100% 65%, 50% 100%, 0 65%);
+  cursor: grab;
+}
+.vd-marker-line {
+  position: absolute;
+  top: 28px;
+  bottom: 0;
+  width: 0;
+  border-left: 1px dashed color-mix(in srgb, var(--warning) 55%, transparent);
+  pointer-events: none;
+  z-index: 1;
+}
+.vd-lane {
+  position: relative;
+  border-bottom: 1px solid var(--border);
+}
+.vd-lane.kind-audio {
+  background: color-mix(in srgb, var(--success) 3%, transparent);
+}
+.vd-lane.kind-caption {
+  background: color-mix(in srgb, var(--danger) 3%, transparent);
+}
+.vd-lane.locked {
+  background-image: repeating-linear-gradient(-45deg, transparent 0 6px, color-mix(in srgb, var(--text-3) 12%, transparent) 6px 7px);
+}
+.vd-lane.drop-target {
+  background: var(--accent-soft);
+}
+.vd-clip {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  border-radius: 5px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--text-0) 18%, transparent);
+  color: var(--text-0);
+  cursor: grab;
+  box-sizing: border-box;
+  touch-action: none;
+}
+.vd-clip.kind-video {
+  background: var(--vd-video);
+}
+.vd-clip.kind-image {
+  background: var(--vd-image);
+}
+.vd-clip.kind-title {
+  background: var(--vd-title);
+}
+.vd-clip.kind-audio {
+  background: var(--vd-audio);
+}
+.vd-clip.kind-caption {
+  background: var(--vd-caption);
+}
+.vd-clip.selected {
+  border-color: var(--text-0);
+  box-shadow: inset 0 0 0 1px var(--text-0);
+}
+.vd-clip.offline {
+  background: repeating-linear-gradient(-45deg, color-mix(in srgb, var(--danger) 45%, var(--bg-2)) 0 8px, color-mix(in srgb, var(--danger) 30%, var(--bg-2)) 8px 16px);
+}
+.vd-clip.locked {
+  cursor: default;
+  opacity: 0.75;
+}
+.vd-clip canvas {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  pointer-events: none;
+}
+.vd-clip-label {
+  position: absolute;
+  left: 5px;
+  top: 2px;
+  right: 5px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  pointer-events: none;
+  text-shadow: 0 1px 2px color-mix(in srgb, var(--bg-0) 80%, transparent);
+}
+.vd-clip-label .vd-badge {
+  font-size: 9.5px;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--bg-0) 55%, transparent);
+  font-weight: 600;
+}
+.vd-clip.kind-caption .vd-clip-label {
+  font-weight: 500;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.vd-clip-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 7px;
+  cursor: ew-resize;
+  z-index: 2;
+}
+.vd-clip-handle.left {
+  left: 0;
+}
+.vd-clip-handle.right {
+  right: 0;
+}
+.vd-clip:hover .vd-clip-handle {
+  background: color-mix(in srgb, var(--text-0) 22%, transparent);
+}
+.vd-clip-tr {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: linear-gradient(to right, color-mix(in srgb, var(--text-0) 40%, transparent), transparent);
+  border-right: 1px dashed color-mix(in srgb, var(--text-0) 60%, transparent);
+  pointer-events: none;
+}
+.vd-clip-fade {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+.vd-clip-fade.in {
+  left: 0;
+  background: linear-gradient(to top right, transparent 49%, color-mix(in srgb, var(--text-0) 55%, transparent) 50%, transparent 52%);
+}
+.vd-clip-fade.out {
+  right: 0;
+  background: linear-gradient(to top left, transparent 49%, color-mix(in srgb, var(--text-0) 55%, transparent) 50%, transparent 52%);
+}
+.vd-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 0;
+  border-left: 1.5px solid var(--vd-playhead);
+  pointer-events: none;
+  z-index: 8;
+}
+.vd-playhead::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -7px;
+  width: 12px;
+  height: 12px;
+  background: var(--vd-playhead);
+  clip-path: polygon(0 0, 100% 0, 100% 55%, 50% 100%, 0 55%);
+}
+.vd-snapline {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 1px solid var(--warning);
+  pointer-events: none;
+  z-index: 9;
+}
+.vd-marquee {
+  position: absolute;
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
+  pointer-events: none;
+  z-index: 7;
+}
+.vd-ghost {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  border-radius: 5px;
+  border: 1.5px dashed var(--accent);
+  background: var(--accent-soft);
+  pointer-events: none;
+}
+.vd-cutrange {
+  position: absolute;
+  top: 28px;
+  bottom: 0;
+  background: color-mix(in srgb, var(--danger) 28%, transparent);
+  border-left: 1px solid var(--danger);
+  border-right: 1px solid var(--danger);
+  pointer-events: none;
+  z-index: 3;
+}
+.vd-tl.razor .vd-clip {
+  cursor: crosshair;
+}
+
+/* --------------------------------- dialogs --------------------------------- */
+
+.vd-dialog-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 12px;
+}
+.vd-note {
+  font-size: 12px;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  color: var(--text-1);
+  white-space: pre-wrap;
+}
+.vd-note.warn {
+  border-color: color-mix(in srgb, var(--warning) 50%, transparent);
+}
+.vd-note.err {
+  border-color: color-mix(in srgb, var(--danger) 55%, transparent);
+}
+.vd-format-list {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.vd-format {
+  border: 1px solid var(--border-strong);
+  background: var(--bg-2);
+  border-radius: var(--radius);
+  padding: 8px;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text-1);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.vd-format strong {
+  color: var(--text-0);
+  font-size: 12.5px;
+}
+.vd-format span {
+  font-size: 11px;
+  color: var(--text-3);
+}
+.vd-format.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.vd-format:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.vd-format.wide {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+}
+.vd-format.wide > svg {
+  flex: 0 0 auto;
+  color: var(--accent);
+}
+.vd-tips {
+  font-size: 12px;
+  color: var(--text-1);
+  line-height: 1.45;
+}
+.vd-tips strong {
+  color: var(--text-0);
+}
+.vd-tips ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+.vd-range-list {
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+.vd-range-list > div {
+  display: flex;
+  gap: 10px;
+  padding: 3px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.vd-range-list > div.cut {
+  text-decoration: line-through;
+  color: var(--text-3);
+}
+.vd-copy-block {
+  position: relative;
+}
+.vd-copy-block .btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+}
+.vd-missing-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.vd-missing-list > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-2);
+  font-size: 12px;
+}
