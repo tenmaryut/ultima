@@ -2,6 +2,17 @@
 
 All notable changes to Ultima are listed here. Versions follow [semantic versioning](https://semver.org).
 
+## [0.2.2] — 2026-10-15
+
+### Fixed
+
+- Antigravity requests no longer end in *"did not answer within the time limit"* after Antigravity has already
+  answered: some versions of the CLI keep running for minutes after their answer, so Ultima now takes the answer
+  as soon as it is complete and closes the CLI. Antigravity also gets a time limit just under Ultima's, so it ends
+  a run itself and says why. Image generation with Antigravity finishes sooner for the same reason.
+- When an AI tool does run out of time, the message names the limit, where to raise it (*Settings → AI behaviour →
+  Time limit per request*) and the tool's last message — also in Indonesian.
+
 ## [0.2.1] — 2026-10-15
 
 ### Fixed

@@ -358,6 +358,34 @@ ${behaviour}`,
     expect(failed).toMatchObject({ ok: false, errorKind: 'not-logged-in' });
     expect(Date.now() - started).toBeLessThan(15_000);
   });
+
+  it('chat: takes the answer at once when agy keeps running after it', async () => {
+    aiConfig.update({ executablePaths: { antigravity: fakeAgy('agy-linger', `envelope({ response: 'Done.' }); setTimeout(() => {}, 60000);`) } });
+    const started = Date.now();
+    const result = await runAIRequest({ requestId: 'c3', providerId: 'antigravity', prompt: 'Cut on the beat' }, () => undefined);
+    expect(result).toMatchObject({ ok: true, text: 'Done.' });
+    expect(Date.now() - started).toBeLessThan(15_000);
+    expect(calls('agy-linger')[0].args).toEqual(expect.arrayContaining(['--print-timeout', '290s']));
+  });
+
+  it('chat: a timeout names the limit and what agy printed last', async () => {
+    aiConfig.update({
+      executablePaths: { antigravity: fakeAgy('agy-slow', `console.error('Model is busy, retrying (attempt 4)'); setTimeout(() => {}, 60000);`) },
+    });
+    const result = await runAIRequest({ requestId: 'c4', providerId: 'antigravity', prompt: 'Cut on the beat', timeoutMs: 2500 }, () => undefined);
+    expect(result).toMatchObject({ ok: false, errorKind: 'timeout' });
+    expect(result.error).toContain('within the time limit (3 s)');
+    expect(result.error).toContain('Time limit per request');
+    expect(result.error).toContain('Model is busy, retrying (attempt 4)');
+  });
+
+  it('images: picks up the image at once when agy keeps running after its answer', async () => {
+    aiConfig.update({ executablePaths: { antigravity: fakeAgy('agy-image-linger', `const file = save(); envelope({ response: file }); setTimeout(() => {}, 60000);`) } });
+    const started = Date.now();
+    const result = await generateImageWith({ ...base, provider: 'antigravity' });
+    expect(result).toMatchObject({ ok: true, mimeTypes: ['image/png'] });
+    expect(Date.now() - started).toBeLessThan(15_000);
+  });
 });
 
 describe('speech', () => {

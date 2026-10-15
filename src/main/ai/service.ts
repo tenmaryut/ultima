@@ -126,6 +126,27 @@ async function runHttp(request: AIRunRequest, send: (delta: string) => void, sta
   }
 }
 
+/** How long a tool may keep running after its complete answer before Ultima stops it. */
+const STOP_GRACE_MS = 1500;
+
+/** The last lines a tool printed on stderr (progress, retries, notices): what it was doing when time ran out. */
+function lastWords(stderr: string): string {
+  const lines = stderr
+    .replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '')
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  return lines.slice(-3).join('\n').slice(-500);
+}
+
+function timeoutMessage(name: string, timeoutMs: number, stderr: string): string {
+  const text = mt('{name} did not answer within the time limit ({seconds} s). You can raise the limit in Settings → AI behaviour → Time limit per request.')
+    .replace('{name}', name)
+    .replace('{seconds}', String(Math.round(timeoutMs / 1000)));
+  const last = lastWords(stderr);
+  return last ? `${text}\n\n${mt('Its last message:')}\n${last}` : text;
+}
+
 async function runCli(request: AIRunRequest, send: (delta: string) => void, started: number): Promise<AIRunResult> {
   const id = request.providerId as CliProviderId;
   const executable = resolveCli(id);
@@ -145,6 +166,10 @@ async function runCli(request: AIRunRequest, send: (delta: string) => void, star
       invocation.envFilter?.(env);
       const state: ParseState = { text: '' };
       let failedFast = false;
+      // Set once stdout holds the whole answer: the tool gets a moment to exit by itself, then it is stopped.
+      let complete = false;
+      let stopTimer: NodeJS.Timeout | undefined;
+      let out = '';
       const failFast = invocation.failFast;
       const watch = failFast
         ? (line: string) => {
@@ -162,7 +187,7 @@ async function runCli(request: AIRunRequest, send: (delta: string) => void, star
         env,
         timeoutMs: request.timeoutMs ?? 300_000,
         onLine:
-          invocation.onLine || watch
+          invocation.onLine || watch || invocation.isComplete
             ? (line) => {
                 watch?.(line);
                 const delta = invocation.onLine?.(line, state);
@@ -170,18 +195,26 @@ async function runCli(request: AIRunRequest, send: (delta: string) => void, star
                   state.text += delta;
                   send(delta);
                 }
+                if (invocation.isComplete && !complete) {
+                  out += `${line}\n`;
+                  if (invocation.isComplete(out)) {
+                    complete = true;
+                    stopTimer = setTimeout(() => proc.cancel(), STOP_GRACE_MS);
+                  }
+                }
               }
             : undefined,
         onStderrLine: watch,
       });
       running.set(request.requestId, proc);
       const res = await proc.result;
+      clearTimeout(stopTimer);
       running.delete(request.requestId);
 
       if (failedFast && failFast) return fail(request, started, mt(failFast.error), failFast.kind);
 
-      if (res.aborted) return fail(request, started, 'Cancelled', 'aborted');
-      if (res.timedOut) return fail(request, started, `${info?.name ?? id} did not answer within the time limit.`, 'timeout');
+      if (res.aborted && !complete) return fail(request, started, 'Cancelled', 'aborted');
+      if (res.timedOut && !complete) return fail(request, started, timeoutMessage(info?.name ?? id, request.timeoutMs ?? 300_000, res.stderr), 'timeout');
       if (res.spawnError) {
         const kind = /ENOENT/.test(res.spawnError) ? 'not-installed' : 'failed';
         return fail(request, started, `Could not start ${info?.name ?? id}: ${res.spawnError}`, kind);
@@ -196,10 +229,12 @@ async function runCli(request: AIRunRequest, send: (delta: string) => void, star
           // tool didn't write it (older version); keep stdout
         }
       }
-      const errorText = state.error || (res.code !== 0 ? (res.stderr || res.stdout).trim() : '');
-      if (!compat && res.code !== 0 && isUnknownOptionError(res.stderr)) continue; // retry with conservative flags
-      if (state.isError || (res.code !== 0 && !text)) {
-        const message = (errorText || `${info?.name ?? id} exited with code ${res.code}`).slice(0, 1500);
+      // Stopped by Ultima after a complete answer: a normal end, whatever the exit code says.
+      const code = complete ? 0 : res.code;
+      const errorText = state.error || (code !== 0 ? (res.stderr || res.stdout).trim() : '');
+      if (!compat && code !== 0 && isUnknownOptionError(res.stderr)) continue; // retry with conservative flags
+      if (state.isError || (code !== 0 && !text)) {
+        const message = (errorText || `${info?.name ?? id} exited with code ${code}`).slice(0, 1500);
         return fail(request, started, mt(message), classifyError(message));
       }
       if (!text.trim()) {

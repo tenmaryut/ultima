@@ -21,7 +21,7 @@ import type {
 } from '@shared/ai-types';
 import { IPC } from '@shared/ipc';
 import { openAICompatModels, validateLocalBaseUrl } from '@shared/local-http';
-import { AGY_SIGN_IN, AGY_TOOL_DENIED_MESSAGE, agyError, agyToolDenied, classifyError, isUnknownOptionError } from './ai/adapters';
+import { AGY_SIGN_IN, AGY_TOOL_DENIED_MESSAGE, agyAnswerComplete, agyError, agyToolDenied, classifyError, isUnknownOptionError } from './ai/adapters';
 import { findExecutable, runProcess, type ProcessResult } from './ai/exec';
 import { aiConfig, cliEnv, resolveCli } from './ai/service';
 import { mt } from './i18n';
@@ -453,12 +453,19 @@ async function antigravityGenerate(req: ImageGenRequest): Promise<ImageGenResult
         const name = `ultima_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
         const text = antigravityImagePrompt(prompt, req.width, req.height, name);
         const args = [`-p=${text}`, '--output-format', 'json', ...(compat ? [] : ['--sandbox', '--disable-slash-commands', '--print-timeout', '7m'])];
+        let out = '';
+        let stopTimer: NodeJS.Timeout | undefined;
         const proc = runProcess({
           command: exe,
           args,
           cwd,
           env: cliEnv(req.allowApiBilling),
           timeoutMs: 8 * 60_000,
+          onLine: (line) => {
+            // The answer is complete: don't wait for an Antigravity that lingers after it.
+            out += `${line}\n`;
+            if (!stopTimer && agyAnswerComplete(out)) stopTimer = setTimeout(() => proc.cancel(), 1500);
+          },
           onStderrLine: (line) => {
             // Not signed in: the CLI would wait a minute for a sign-in code.
             if (!signIn && AGY_SIGN_IN.test(line)) {
@@ -468,6 +475,7 @@ async function antigravityGenerate(req: ImageGenRequest): Promise<ImageGenResult
           },
         });
         last = await proc.result;
+        clearTimeout(stopTimer);
         if (signIn) break;
         json = lastJson(last.stdout);
         const file = await antigravityImage(json, name, since, cwd);

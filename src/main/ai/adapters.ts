@@ -27,6 +27,8 @@ export interface CliInvocation {
   outputFile?: string;
   /** Stop right away when the tool prints this (e.g. an interactive sign-in prompt) and report `error`. */
   failFast?: { pattern: RegExp; error: string; kind: AIErrorKind };
+  /** True once stdout holds the complete answer: Ultima stops waiting for a tool that lingers after it. */
+  isComplete?: (stdout: string) => boolean;
 }
 
 export interface ParseState {
@@ -300,6 +302,20 @@ export function agyToolDenied(text: string): boolean {
   return AGY_TOOL_DENIED.test(text);
 }
 
+/**
+ * True once Antigravity printed its JSON result. Some versions keep running for minutes after it (background
+ * tasks and summaries), so callers take the answer and stop the process instead of waiting for it to exit.
+ */
+export function agyAnswerComplete(stdout: string): boolean {
+  const obj = lastJsonObject(stdout.trim());
+  return typeof obj?.status === 'string' && ('response' in obj || 'error' in obj);
+}
+
+/** --print-timeout value just under Ultima's own limit, so Antigravity ends the run itself and says why. */
+export function agyPrintTimeout(timeoutMs = 300_000): string {
+  return `${Math.max(30, Math.round(timeoutMs / 1000) - 10)}s`;
+}
+
 function antigravity(ctx: AdapterContext): CliInvocation {
   const req = ctx.request;
   const model = safeModel(req.model);
@@ -312,7 +328,7 @@ function antigravity(ctx: AdapterContext): CliInvocation {
   // The prompt must be attached to the flag: "-p <prompt>" would swallow the next option.
   const args = [`-p=${arg}`, '--output-format', 'json', ...(model ? ['--model', model] : [])];
   return {
-    args: ctx.compat ? args : [...args, '--sandbox', '--disable-slash-commands'],
+    args: ctx.compat ? args : [...args, '--sandbox', '--disable-slash-commands', '--print-timeout', agyPrintTimeout(req.timeoutMs)],
     stdin: '',
     files: [...images, ...files],
     failFast: {
@@ -320,6 +336,7 @@ function antigravity(ctx: AdapterContext): CliInvocation {
       error: 'Antigravity CLI is not signed in. Open a terminal, run agy once and sign in with your Google account.',
       kind: 'not-logged-in',
     },
+    isComplete: agyAnswerComplete,
     finalize: (stdout, state, stderr) => {
       // {"conversation_id":…,"status":"SUCCESS"|"ERROR","response":…,"error":…,"usage":{…}}
       const obj = lastJsonObject(stdout.trim());

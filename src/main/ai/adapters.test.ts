@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AIRunRequest } from '@shared/ai-types';
-import { ADAPTERS, AGY_TOOL_DENIED_MESSAGE, agyError, classifyError, isUnknownOptionError, safeModel, type ParseState } from './adapters';
+import { ADAPTERS, AGY_TOOL_DENIED_MESSAGE, agyError, agyPrintTimeout, classifyError, isUnknownOptionError, safeModel, type ParseState } from './adapters';
 
 const base: AIRunRequest = { requestId: 'r1', providerId: 'claude', prompt: 'Make it brighter', system: 'You edit photos.' };
 const ctx = (request: Partial<AIRunRequest> = {}, compat = false, platform: NodeJS.Platform = 'linux', executable?: string) => ({
@@ -99,7 +99,7 @@ describe('antigravity adapter', () => {
     expect(inv.args[0]).toContain('Make it brighter');
     expect(inv.args[0]).toContain('image-1.png');
     expect(inv.args[0]).toContain('Terminal commands are blocked');
-    expect(inv.args.slice(1)).toEqual(['--output-format', 'json', '--model', 'gemini-3.1-pro-high', '--sandbox', '--disable-slash-commands']);
+    expect(inv.args.slice(1)).toEqual(['--output-format', 'json', '--model', 'gemini-3.1-pro-high', '--sandbox', '--disable-slash-commands', '--print-timeout', '290s']);
     expect(inv.stdin).toBe('');
     expect(inv.files?.map((f) => f.name)).toEqual(['image-1.png']);
   });
@@ -155,6 +155,22 @@ describe('antigravity adapter', () => {
     const inv = ADAPTERS.antigravity(ctx({ providerId: 'antigravity' }, true));
     expect(inv.args).not.toContain('--sandbox');
     expect(inv.args).not.toContain('--disable-slash-commands');
+    expect(inv.args).not.toContain('--print-timeout');
+  });
+
+  it('ends its own run just before the time limit set in Ultima', () => {
+    expect(ADAPTERS.antigravity(ctx({ providerId: 'antigravity', timeoutMs: 600_000 })).args).toEqual(expect.arrayContaining(['--print-timeout', '590s']));
+    expect(agyPrintTimeout(20_000)).toBe('30s');
+  });
+
+  it('knows when the JSON result is complete', () => {
+    const done = ADAPTERS.antigravity(ctx({ providerId: 'antigravity' })).isComplete!;
+    expect(done('{"conversation_id":"c1","status":"SUCCESS","response":"Hi","usage":{}}\n')).toBe(true);
+    expect(done('{"status":"ERROR","error":"quota"}\n')).toBe(true);
+    expect(done('{\n  "status": "SUCCESS",\n  "response": "Hi"\n}\n')).toBe(true);
+    expect(done('{\n  "status": "SUCCESS",\n  "response": "Hi"\n')).toBe(false);
+    expect(done('Thinking…\n{"step":"view_file"}\n')).toBe(false);
+    expect(done('')).toBe(false);
   });
 
   it('reads the JSON envelope and AGY_ERROR lines', () => {

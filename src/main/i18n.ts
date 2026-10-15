@@ -73,6 +73,9 @@ const ID: Record<string, string> = {
     'Paket Google AI Anda sudah mencapai batas untuk saat ini. Coba lagi setelah direset (di terminal, agy -p "/usage" menunjukkan kapan).',
   'Antigravity finished without creating an image. Image generation needs a Google AI Pro or Ultra plan and an up-to-date Antigravity CLI (run: agy update).':
     'Antigravity selesai tanpa membuat gambar. Pembuatan gambar butuh paket Google AI Pro atau Ultra dan Antigravity CLI versi terbaru (jalankan: agy update).',
+  '{name} did not answer within the time limit ({seconds} s). You can raise the limit in Settings → AI behaviour → Time limit per request.':
+    '{name} tidak menjawab dalam batas waktu ({seconds} dtk). Anda bisa menaikkan batasnya di Pengaturan → Perilaku AI → Batas waktu per permintaan.',
+  'Its last message:': 'Pesan terakhirnya:',
   'Antigravity stopped without an answer: it tried to use a tool that needs approval (such as a terminal command on your computer), which Ultima does not allow. Please send the request again.':
     'Antigravity berhenti tanpa jawaban: ia mencoba memakai alat yang perlu izin (misalnya perintah terminal di komputer Anda), dan Ultima tidak mengizinkannya. Silakan kirim permintaan lagi.',
 };
