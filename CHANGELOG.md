@@ -2,6 +2,18 @@
 
 All notable changes to Ultima are listed here. Versions follow [semantic versioning](https://semver.org).
 
+## [0.2.1] — 2026-10-15
+
+### Fixed
+
+- Antigravity on Windows no longer stops with *"a tool required the "command" permission that headless mode cannot
+  prompt for"*. Ultima used to put every Windows request in a file and ask Antigravity to read it; Antigravity
+  sometimes reached for a terminal command to do that, which its headless mode blocks. Requests now go to `agy.exe`
+  directly (a file is only used when a request is too long for the command line), Antigravity is told that terminal
+  commands are blocked, and on macOS and Linux requests up to 100 KB are passed directly as well.
+- When Antigravity still stops because it tried a tool that needs approval, Ultima explains it in plain words (also
+  in Indonesian) instead of showing advice that would let the AI run commands on your computer.
+
 ## [0.2.0] — 2026-10-15
 
 The Video Editor and its AI assistant can now do what a montage needs: see every clip, hear the beat, animate,

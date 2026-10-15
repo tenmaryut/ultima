@@ -1,14 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import type { AIRunRequest } from '@shared/ai-types';
-import { ADAPTERS, agyError, classifyError, isUnknownOptionError, safeModel, type ParseState } from './adapters';
+import { ADAPTERS, AGY_TOOL_DENIED_MESSAGE, agyError, classifyError, isUnknownOptionError, safeModel, type ParseState } from './adapters';
 
 const base: AIRunRequest = { requestId: 'r1', providerId: 'claude', prompt: 'Make it brighter', system: 'You edit photos.' };
-const ctx = (request: Partial<AIRunRequest> = {}, compat = false, platform: NodeJS.Platform = 'linux') => ({
+const ctx = (request: Partial<AIRunRequest> = {}, compat = false, platform: NodeJS.Platform = 'linux', executable?: string) => ({
   request: { ...base, ...request },
   cwd: '/tmp/x',
   compat,
   platform,
+  executable,
 });
+/** Where Antigravity's installer puts agy on Windows (this user folder name has a backtick). */
+const AGY_EXE = 'C:\\Users\\PC`\\AppData\\Local\\agy\\bin\\agy.exe';
+const PROMPT_FILE_ARG =
+  '-p=Read the file ultima-prompt.md in the current folder with your file viewing tool (terminal commands are blocked) and follow its instructions exactly. Reply with the answer only.';
+/** What Antigravity printed when its agent tried a terminal command in a headless run. */
+const AGY_DENIED =
+  'jetski: no output produced — a tool required the "command" permission that headless mode cannot prompt for, so it was auto-denied. Add an allow-rule under permissions.allow in settings.json (e.g. command(<target>)). Alternatively, re-run with --dangerously-skip-permissions to auto-approve all tools.';
 
 describe('claude adapter', () => {
   it('sends a stream-json user message on stdin with images and no tools', () => {
@@ -90,15 +98,57 @@ describe('antigravity adapter', () => {
     expect(inv.args[0]).toMatch(/^-p=<instructions>/);
     expect(inv.args[0]).toContain('Make it brighter');
     expect(inv.args[0]).toContain('image-1.png');
+    expect(inv.args[0]).toContain('Terminal commands are blocked');
     expect(inv.args.slice(1)).toEqual(['--output-format', 'json', '--model', 'gemini-3.1-pro-high', '--sandbox', '--disable-slash-commands']);
     expect(inv.stdin).toBe('');
     expect(inv.files?.map((f) => f.name)).toEqual(['image-1.png']);
   });
 
-  it('hands long prompts and Windows prompts over in a file', () => {
-    const inv = ADAPTERS.antigravity(ctx({ providerId: 'antigravity' }, false, 'win32'));
-    expect(inv.args[0]).toBe('-p=Read the file ultima-prompt.md in the current folder and follow its instructions exactly. Reply with the answer only.');
-    expect(inv.files?.find((f) => f.name === 'ultima-prompt.md')?.text).toContain('Make it brighter');
+  it('passes the prompt straight to agy.exe on Windows, so the agent has no file to open', () => {
+    const inv = ADAPTERS.antigravity(ctx({ providerId: 'antigravity' }, false, 'win32', AGY_EXE));
+    expect(inv.args[0]).toMatch(/^-p=<instructions>/);
+    expect(inv.args[0]).toContain('Make it brighter');
+    expect(inv.files ?? []).toEqual([]);
+  });
+
+  it('uses a prompt file only for cmd shims and prompts too long for the command line', () => {
+    const shim = ADAPTERS.antigravity(ctx({ providerId: 'antigravity' }, false, 'win32', 'C:\\Users\\me\\AppData\\Roaming\\npm\\agy.cmd'));
+    expect(shim.args[0]).toBe(PROMPT_FILE_ARG);
+    expect(shim.files?.find((f) => f.name === 'ultima-prompt.md')?.text).toContain('Make it brighter');
+    expect(ADAPTERS.antigravity(ctx({ providerId: 'antigravity' }, false, 'win32')).args[0]).toBe(PROMPT_FILE_ARG);
+
+    const long = ADAPTERS.antigravity(ctx({ providerId: 'antigravity', prompt: 'x'.repeat(31_000) }, false, 'win32', AGY_EXE));
+    expect(long.args[0]).toBe(PROMPT_FILE_ARG);
+    // quotes are escaped on the Windows command line, so they count twice
+    const quoted = ADAPTERS.antigravity(ctx({ providerId: 'antigravity', prompt: '"'.repeat(16_000) }, false, 'win32', AGY_EXE));
+    expect(quoted.args[0]).toBe(PROMPT_FILE_ARG);
+    const fits = ADAPTERS.antigravity(ctx({ providerId: 'antigravity', prompt: 'x'.repeat(25_000) }, false, 'win32', AGY_EXE));
+    expect(fits.args[0]).toContain('x'.repeat(25_000));
+  });
+
+  it('inlines long prompts on macOS and Linux up to 100 KB', () => {
+    const big = ADAPTERS.antigravity(ctx({ providerId: 'antigravity', prompt: 'y'.repeat(60_000) }));
+    expect(big.args[0]).toContain('y'.repeat(60_000));
+    const huge = ADAPTERS.antigravity(ctx({ providerId: 'antigravity', prompt: 'y'.repeat(120_000) }, false, 'darwin'));
+    expect(huge.args[0]).toBe(PROMPT_FILE_ARG);
+  });
+
+  it('explains a tool that headless mode denied instead of suggesting to allow commands', () => {
+    const inv = ADAPTERS.antigravity(ctx({ providerId: 'antigravity' }));
+    const viaStderr: ParseState = { text: '' };
+    expect(inv.finalize('', viaStderr, `error: ${AGY_DENIED}`)).toBe('');
+    expect(viaStderr).toMatchObject({ isError: true, error: AGY_TOOL_DENIED_MESSAGE });
+    const viaJson: ParseState = { text: '' };
+    inv.finalize(JSON.stringify({ status: 'ERROR', error: AGY_DENIED }), viaJson, '');
+    expect(viaJson.error).toBe(AGY_TOOL_DENIED_MESSAGE);
+    const plainLine: ParseState = { text: '' };
+    inv.finalize('', plainLine, AGY_DENIED);
+    expect(plainLine.error).toBe(AGY_TOOL_DENIED_MESSAGE);
+    expect(classifyError(AGY_TOOL_DENIED_MESSAGE)).toBe('failed');
+    // the agent got past the denied tool and answered: keep the answer
+    const answered: ParseState = { text: '' };
+    expect(inv.finalize('{"status":"SUCCESS","response":"Done."}', answered, `note: ${AGY_DENIED}`)).toBe('Done.');
+    expect(answered.isError).toBeUndefined();
   });
 
   it('drops newer flags in compat mode', () => {
@@ -148,10 +198,16 @@ describe('copilot adapter', () => {
 });
 
 describe('argument-prompt tools', () => {
-  it('use a prompt file on Windows', () => {
-    const inv = ADAPTERS.opencode(ctx({ providerId: 'opencode' }, false, 'win32'));
+  it('use a prompt file on Windows when started through a cmd shim', () => {
+    const inv = ADAPTERS.opencode(ctx({ providerId: 'opencode' }, false, 'win32', 'C:\\Users\\me\\AppData\\Roaming\\npm\\opencode.cmd'));
     expect(inv.files?.[0]?.name).toBe('ultima-prompt.md');
     expect(inv.args.join(' ')).not.toContain('Make it brighter');
+  });
+
+  it('inline prompts for real Windows programs', () => {
+    const inv = ADAPTERS.opencode(ctx({ providerId: 'opencode' }, false, 'win32', 'C:\\Tools\\opencode.EXE'));
+    expect(inv.files ?? []).toEqual([]);
+    expect(inv.args[inv.args.length - 1]).toContain('Make it brighter');
   });
 
   it('inline short prompts elsewhere', () => {

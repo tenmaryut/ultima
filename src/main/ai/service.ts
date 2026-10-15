@@ -137,7 +137,7 @@ async function runCli(request: AIRunRequest, send: (delta: string) => void, star
   try {
     for (const compat of [false, true]) {
       if (takeCancelled(request.requestId)) return fail(request, started, 'Cancelled', 'aborted');
-      const invocation = ADAPTERS[id]({ request, cwd, compat, custom: aiConfig.get().custom, platform: process.platform });
+      const invocation = ADAPTERS[id]({ request, cwd, compat, custom: aiConfig.get().custom, platform: process.platform, executable });
       for (const file of invocation.files ?? []) {
         await writeFile(join(cwd, file.name), file.text !== undefined ? Buffer.from(file.text, 'utf8') : Buffer.from(file.base64 ?? '', 'base64'));
       }
@@ -200,7 +200,7 @@ async function runCli(request: AIRunRequest, send: (delta: string) => void, star
       if (!compat && res.code !== 0 && isUnknownOptionError(res.stderr)) continue; // retry with conservative flags
       if (state.isError || (res.code !== 0 && !text)) {
         const message = (errorText || `${info?.name ?? id} exited with code ${res.code}`).slice(0, 1500);
-        return fail(request, started, message, classifyError(message));
+        return fail(request, started, mt(message), classifyError(message));
       }
       if (!text.trim()) {
         const message = (res.stderr || 'The tool returned an empty answer.').trim().slice(0, 1500);

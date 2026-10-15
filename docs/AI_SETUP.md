@@ -281,6 +281,7 @@ for confirmation (a system dialog) before it stores a program to run.
 | *rejected the command-line options* | Update the tool to its latest version. |
 | The answer ignores my image | The selected AI or model can't see images (for Ollama pull a vision model such as `gemma3`). |
 | *Antigravity CLI is not signed in* | Run `agy` once in a terminal and sign in with your Google account, then press **Check again**. |
+| *Antigravity stopped without an answer: it tried to use a tool that needs approval* (before 0.2.1: *a tool required the "command" permission that headless mode cannot prompt for*) | Send the request again. Since Ultima 0.2.1 the request goes to Antigravity directly, so this is rare. Don't add allow rules or `--dangerously-skip-permissions` for Ultima: they would let the AI run commands on your computer. |
 | *Your Google AI plan has reached its limit* | Wait until the quota resets — `agy -p "/usage"` shows when — or pick another generator. |
 | *Antigravity finished without creating an image* | Update it (`agy update`) and check that your Google AI plan includes image generation. |
 | *The AI did not answer with an SVG drawing* | Try again, describe a simpler picture, or choose a stronger AI under *AI that draws*. |

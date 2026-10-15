@@ -1,17 +1,17 @@
 import spawn from 'cross-spawn';
 import { execFile, type ChildProcess } from 'node:child_process';
 import { accessSync, constants, statSync } from 'node:fs';
-import { delimiter, isAbsolute, join } from 'node:path';
+import { delimiter, extname, isAbsolute, join } from 'node:path';
 
 /** Finds an executable on PATH (honours PATHEXT on Windows). Returns the absolute path or null. */
 export function findExecutable(name: string): string | null {
   if (!name) return null;
   if (isAbsolute(name)) return isExecutable(name) ? name : null;
   const dirs = (process.env.PATH ?? '').split(delimiter).filter(Boolean);
-  const exts =
-    process.platform === 'win32'
-      ? ['', ...(process.env.PATHEXT ?? '.COM;.EXE;.BAT;.CMD').split(';').map((e) => e.toLowerCase())]
-      : [''];
+  // Like Windows itself, a bare name only means PATHEXT files (.exe, .cmd…): an extensionless file next to
+  // them is a script for Unix shells (npm installs both), which Windows can't start.
+  const pathExt = (process.env.PATHEXT ?? '.COM;.EXE;.BAT;.CMD').split(';').filter(Boolean).map((e) => e.toLowerCase());
+  const exts = process.platform === 'win32' ? (extname(name) ? ['', ...pathExt] : pathExt) : [''];
   for (const dir of dirs) {
     for (const ext of exts) {
       const candidate = join(dir, name + ext);

@@ -21,7 +21,7 @@ import type {
 } from '@shared/ai-types';
 import { IPC } from '@shared/ipc';
 import { openAICompatModels, validateLocalBaseUrl } from '@shared/local-http';
-import { AGY_SIGN_IN, agyError, classifyError, isUnknownOptionError } from './ai/adapters';
+import { AGY_SIGN_IN, AGY_TOOL_DENIED_MESSAGE, agyError, agyToolDenied, classifyError, isUnknownOptionError } from './ai/adapters';
 import { findExecutable, runProcess, type ProcessResult } from './ai/exec';
 import { aiConfig, cliEnv, resolveCli } from './ai/service';
 import { mt } from './i18n';
@@ -431,6 +431,7 @@ function antigravityImageError(res: ProcessResult | null, json: Record<string, u
     return mt('Your Google AI plan has reached its limit for now. Try again after it resets (in a terminal, agy -p "/usage" shows when).');
   }
   if (classifyError(output) === 'not-logged-in') return notSignedIn;
+  if (agyToolDenied(output)) return mt(AGY_TOOL_DENIED_MESSAGE);
   const hint = mt('Antigravity finished without creating an image. Image generation needs a Google AI Pro or Ultra plan and an up-to-date Antigravity CLI (run: agy update).');
   const detail = (message || (typeof json?.response === 'string' ? json.response : '') || res.stderr).trim();
   return detail ? `${hint}\n\n${detail.slice(-800)}` : hint;

@@ -44,6 +44,8 @@ export interface AdapterContext {
   compat: boolean;
   custom?: CustomCliConfig | null;
   platform: NodeJS.Platform;
+  /** Full path of the program that will run (decides whether a prompt fits on its command line). */
+  executable?: string;
 }
 
 const MODEL_RE = /^[\w.:/@+-]{1,80}$/;
@@ -82,12 +84,27 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
 }
 
-/** For tools that need the prompt as an argument: inline it, or point to a prompt file. */
+/** Longest prompt passed as one argument: Linux allows 128 KiB per argument, macOS 1 MiB for all of them. */
+const MAX_ARG_BYTES = 100_000;
+/** Windows allows 32,767 characters for the whole command line, and quotes and backslashes get escaped. */
+const MAX_WINDOWS_ARG_CHARS = 30_000;
+
+/** True when the prompt can go on the command line as it is. */
+function fitsArgument(ctx: AdapterContext, prompt: string): boolean {
+  if (ctx.platform !== 'win32') return Buffer.byteLength(prompt, 'utf8') <= MAX_ARG_BYTES;
+  // Only real programs start without cmd.exe; npm's .cmd shims can't carry newlines or long command lines.
+  if (!ctx.executable || !/\.(exe|com)$/i.test(ctx.executable)) return false;
+  return prompt.length + (prompt.match(/["\\]/g)?.length ?? 0) <= MAX_WINDOWS_ARG_CHARS;
+}
+
+/**
+ * For tools that need the prompt as an argument: inline it, or point to a prompt file. Inline is preferred —
+ * reading the file is one more step for the agent, and headless agents stop when they try a terminal command for it.
+ */
 function promptArgument(ctx: AdapterContext, prompt: string): { arg: string; files: { name: string; text: string }[] } {
-  if (ctx.platform !== 'win32' && prompt.length <= 12_000) return { arg: prompt, files: [] };
-  // cmd.exe shims can't carry newlines or long command lines: hand over a file instead.
+  if (fitsArgument(ctx, prompt)) return { arg: prompt, files: [] };
   return {
-    arg: 'Read the file ultima-prompt.md in the current folder and follow its instructions exactly. Reply with the answer only.',
+    arg: 'Read the file ultima-prompt.md in the current folder with your file viewing tool (terminal commands are blocked) and follow its instructions exactly. Reply with the answer only.',
     files: [{ name: 'ultima-prompt.md', text: prompt }],
   };
 }
@@ -269,12 +286,29 @@ export function agyError(stderr: string): string | null {
   return marker ? marker.replace(/^error:\s*/i, '') : null;
 }
 
+/**
+ * Antigravity's notice when the agent tried a tool that needs approval (usually a terminal command): headless
+ * runs can't ask, so the tool is denied and the run may end without an answer. Its advice (allow rules,
+ * --dangerously-skip-permissions) would let the AI run commands on the user's computer, so Ultima explains instead.
+ */
+const AGY_TOOL_DENIED = /headless mode cannot prompt|auto-denied|required the "?[\w-]+"? permission|dangerously-skip-permissions/i;
+export const AGY_TOOL_DENIED_MESSAGE =
+  'Antigravity stopped without an answer: it tried to use a tool that needs approval (such as a terminal command on your computer), which Ultima does not allow. Please send the request again.';
+
+/** True when `text` holds Antigravity's "tool needs approval" notice. */
+export function agyToolDenied(text: string): boolean {
+  return AGY_TOOL_DENIED.test(text);
+}
+
 function antigravity(ctx: AdapterContext): CliInvocation {
   const req = ctx.request;
   const model = safeModel(req.model);
   const images = imageFiles(req);
-  const note = images.length ? `Attached image(s) in the current folder: ${images.map((f) => f.name).join(', ')} — open them with your file viewing tool.` : '';
-  const { arg, files } = promptArgument(ctx, [mergedPrompt(req), note].filter(Boolean).join('\n\n'));
+  const note = [
+    images.length ? `Attached image(s) in the current folder: ${images.map((f) => f.name).join(', ')} — open them with your file viewing tool.` : '',
+    'Terminal commands are blocked here: answer without running any.',
+  ];
+  const { arg, files } = promptArgument(ctx, [mergedPrompt(req), ...note].filter(Boolean).join('\n\n'));
   // The prompt must be attached to the flag: "-p <prompt>" would swallow the next option.
   const args = [`-p=${arg}`, '--output-format', 'json', ...(model ? ['--model', model] : [])];
   return {
@@ -293,11 +327,16 @@ function antigravity(ctx: AdapterContext): CliInvocation {
         agyError(stderr) ??
         (typeof obj?.error === 'string' && obj.error ? obj.error : asRecord(obj?.error)?.message) ??
         (obj?.status === 'ERROR' ? 'Antigravity CLI reported an error.' : null);
-      if (error) {
+      const text = typeof obj?.response === 'string' ? obj.response : stdout.trim();
+      // A denied tool only matters when nothing came back; its notice can be on any stderr line.
+      if (agyToolDenied(String(error ?? '')) || (!text.trim() && agyToolDenied(stderr))) {
+        state.isError = true;
+        state.error = AGY_TOOL_DENIED_MESSAGE;
+      } else if (error) {
         state.isError = true;
         state.error = String(error);
       }
-      return typeof obj?.response === 'string' ? obj.response : stdout.trim();
+      return text;
     },
   };
 }
