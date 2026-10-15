@@ -1,7 +1,7 @@
 {
   "name": "ultima",
   "productName": "Ultima",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Ultima — a free, open-source all-in-one creative suite (photo, vector, video, audio, layout, motion, PDF) with AI powered by the subscriptions you already have.",
   "main": "./out/main/index.js",
   "author": {
