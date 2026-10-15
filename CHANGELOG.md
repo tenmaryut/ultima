@@ -2,7 +2,10 @@
 
 All notable changes to Ultima are listed here. Versions follow [semantic versioning](https://semver.org).
 
-## [Unreleased]
+## [0.2.0] — 2026-10-15
+
+The Video Editor and its AI assistant can now do what a montage needs: see every clip, hear the beat, animate,
+ramp the speed, grade, add effects and sound effects, and tell you what happened to every step.
 
 ### Video Editor AI
 
