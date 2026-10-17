@@ -23,6 +23,8 @@ import { Preview } from './ui/Preview';
 import { Inspector } from './ui/Inspector';
 import { LeftPanel } from './ui/LeftPanel';
 import { MediaBin } from './ui/MediaBin';
+import { FolderPanel } from './ui/FolderPanel';
+import { FolderLibrary } from './folders';
 import { GraphicsPanel } from './ui/GraphicsPanel';
 import { LibraryPanel } from './ui/LibraryPanel';
 import { isLibraryMedia } from './library';
@@ -207,6 +209,20 @@ export default function VideoModule({ active }: ModuleProps) {
         onRemove={(id) => void ed.removeMediaItem(id)}
         onRelink={actions.relink}
         onConvert={(id) => void ed.convertMedia(id)}
+        folders={
+          FolderLibrary.supported() ? (
+            <FolderPanel
+              folders={ed.folders}
+              folderVersion={ed.folderVersion}
+              inProject={new Set(project.media.map((m) => m.id))}
+              onLink={() => void ed.linkFolder()}
+              onUnlink={(id) => void ed.unlinkFolder(id)}
+              onAllow={(id) => void ed.allowFolder(id)}
+              onRefresh={() => void ed.folders.refresh()}
+              onAdd={(id, where) => void ed.addFromFolder(id, where)}
+            />
+          ) : undefined
+        }
       />
     ) : ed.leftTab === 'graphics' ? (
       <GraphicsPanel onAdd={(id) => ed.addTitle(id)} onAddAdjustment={ed.addAdjustment} onImportFont={() => void ed.importFont()} />
@@ -297,6 +313,7 @@ export default function VideoModule({ active }: ModuleProps) {
             cutRanges={ed.cutRanges}
             onDropMedia={(id, at, trackId) => ed.addMedia(id, { time: at, trackId })}
             onDropTitle={(id, at, trackId) => ed.addTitle(id, at, trackId)}
+            onDropFolder={(id, at, trackId) => void ed.addFromFolder(id, { time: at, trackId })}
             actions={{
               split: actions.split,
               rippleDelete: () => actions.deleteSelection(true),

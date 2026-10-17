@@ -2,7 +2,11 @@
  * In-app drag & drop payload (media bin / title presets -> timeline). HTML5 drag events only
  * expose data on drop, so the timeline reads what is being dragged from here for its ghost.
  */
-export type DragPayload = { kind: 'media'; mediaId: string; duration: number } | { kind: 'title'; presetId: string; duration: number };
+export type DragPayload =
+  | { kind: 'media'; mediaId: string; duration: number }
+  | { kind: 'title'; presetId: string; duration: number }
+  /** A file in a linked folder, imported when it is dropped. */
+  | { kind: 'folder'; entryId: string; duration: number };
 
 export const DND_MIME = 'application/x-ultima-video';
 

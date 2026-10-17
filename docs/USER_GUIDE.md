@@ -342,6 +342,14 @@ SRT/VTT captions. Double-click a file in the *Media* tab to insert it at the pla
 timeline. *New project* (Ctrl+N) and *Project settings…*: 1080p, 720p, 4K, Vertical 9:16, Square 1:1 or a
 custom size, 24–60 fps, background color. If you didn't choose a size, the first video you add sets it.
 
+**Linked folders** (desktop app). *Media → Link a folder…* links the folder where your clips are saved — for example
+where your game recorder (Outplayed, Medal, ShadowPlay, OBS…) puts them. Its videos, audio and pictures, also in
+subfolders, show up under *Linked folders* by themselves, newest first, and new recordings appear when Ultima gets
+the focus. Drag one onto the timeline or double-click it; nothing is copied, Ultima reads the file where it is. The
+folder stays linked after a restart (if Ultima asks, your first click, or *Allow Ultima to read this folder again*,
+lets it read the folder again), and when you open a project whose files were moved into a linked folder, Ultima
+finds them there by itself. Ultima only reads these folders, it never changes them.
+
 **Timeline.**
 - Selection tool (V) and Razor tool (C). **S** (or Ctrl+K) splits at the playhead, **Shift+Delete** is ripple
   delete, **N** toggles snapping, **M** adds a marker, **I**/**O** set in and out points.
@@ -422,6 +430,11 @@ to *look* at exact moments before it cuts. Ultima also analyses the sound and pi
 (BPM), beats and bar starts, the strongest hits, loud moments (gunshots, impacts, cheers) and bursts of them, and
 scene changes — so it can cut on the beat or build a montage around the action (kills or headshots can't be told
 apart for sure from sound alone).
+It also sees the files in your linked folders and can look at any clip before using it: an overview of the whole
+clip with its loud moments, a strip of up to 16 frames over a short range to see the motion (a flick, a spray, a
+kill), and a zoom into part of the picture at full resolution — the kill feed in the top right, the kill banner
+low in the middle, the crosshair — so it confirms kills and headshots instead of guessing. Clips it uses from a
+linked folder are added to the project by themselves.
 
 It can add clips from the Media bin; split, trim, move, shift, delete and duplicate clips, close gaps and remove a
 time range; link and unlink sound; change one clip, a whole track or all clips at once; animate with keyframes

@@ -15,6 +15,60 @@ export interface DescribeContext {
   fonts?: string[];
   /** Content analysis of a media item ('pending' while it runs). */
   analysis?: (mediaId: string) => MediaAnalysis | 'pending' | null;
+  /** Files in linked folders that are not in the project yet (newest first). */
+  folders?: { names: string[]; files: FolderFile[]; total: number };
+}
+
+/** A file in a linked folder, as the AI sees it. */
+export interface FolderFile {
+  id: string;
+  path: string;
+  kind: 'video' | 'audio' | 'image';
+  lastModified: number;
+  duration?: number;
+  width?: number;
+  height?: number;
+}
+
+/** What the analysis found in a media item, in its own (source) seconds: for looking at clips before using them. */
+export function sourceAnalysisSummary(a: MediaAnalysis | 'pending' | null | undefined): string {
+  if (a === 'pending') return 'audio analysis still running';
+  if (!a) return 'no analysis (no sound, or it could not be read)';
+  const parts: string[] = [];
+  const au = a.audio;
+  if (au?.beats && au.beats.confidence >= 0.3) parts.push(`≈${au.beats.bpm} BPM`);
+  if (au?.loud.length) {
+    const loud = [...au.loud].sort((x, y) => x.time - y.time).slice(0, 24);
+    parts.push(`loud moments (gunshots, kills, impacts): ${loud.map((m) => `${s2(m.time)} (+${m.prominence} dB)`).join(', ')}${au.loud.length > loud.length ? ` … (+${au.loud.length - loud.length} more)` : ''}`);
+  }
+  if (au?.bursts.length) parts.push(`bursts: ${au.bursts.slice(0, 10).map((b) => `${s2(b.start)}–${s2(b.end)} (${b.count} hits)`).join(', ')}`);
+  if (au?.rises.length) parts.push(`gets louder at: ${au.rises.slice(0, 6).map(s2).join(', ')}`);
+  if (a.scenes?.cuts.length) parts.push(`scene changes: ${a.scenes.cuts.slice(0, 20).map(s2).join(', ')}`);
+  if (a.scenes?.busiest.length) parts.push(`most movement: ${a.scenes.busiest.slice(0, 5).map(s2).join(', ')}`);
+  return parts.length ? parts.join('; ') : 'nothing stood out in the analysis';
+}
+
+const shortDate = (ms: number) => {
+  const d = new Date(ms);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
+/** The linked folders' files for the AI: ids it can use like media ids. */
+function folderLines(ctx: DescribeContext): string[] {
+  const f = ctx.folders;
+  if (!f || !f.names.length) return [];
+  if (!f.total) return [`Linked folders (${f.names.map((n) => `"${n}"`).join(', ')}): no files that are not in the project yet.`];
+  const lines = [
+    `Linked folders (${f.names.map((n) => `"${n}"`).join(', ')}) — ${f.total} file(s) not in the project yet, newest first. Use their fd_ ids like media ids (addClip imports them by itself) and look at them before choosing:`,
+  ];
+  for (const x of f.files) {
+    const size = x.width && x.height ? ` ${x.width}×${x.height}` : '';
+    const len = x.duration !== undefined && x.kind !== 'image' ? `, ${x.duration.toFixed(1)} s` : '';
+    lines.push(`- ${x.id} | ${x.kind} "${x.path}"${size}${len} | saved ${shortDate(x.lastModified)}`);
+  }
+  if (f.total > f.files.length) lines.push(`… and ${f.total - f.files.length} older file(s).`);
+  return lines;
 }
 
 const s2 = (t: number) => t.toFixed(2);
@@ -243,6 +297,7 @@ export function describeProject(p: Project, ctx: DescribeContext): string {
     }
     if (p.media.length > 60) lines.push(`… and ${p.media.length - 60} more media items.`);
   }
+  lines.push(...folderLines(ctx));
   if (p.luts.length) lines.push(`Imported LUTs: ${p.luts.map((l) => `${l.id} "${l.name}"`).join(', ')}.`);
   if (ctx.fonts?.length) {
     const list = ctx.fonts.slice(0, 60);

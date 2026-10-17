@@ -52,6 +52,7 @@ export interface TimelineProps {
   cutRanges?: TimeRange[] | null;
   onDropMedia: (mediaId: string, time: number, trackId: string | null) => void;
   onDropTitle: (presetId: string, time: number, trackId: string | null) => void;
+  onDropFolder: (entryId: string, time: number, trackId: string | null) => void;
   actions: Omit<ToolbarActions, 'zoomIn' | 'zoomOut' | 'zoomFit'>;
   clipMenu: (clip: Clip) => MenuEntry[];
   trackMenu: (track: Track) => MenuEntry[];
@@ -419,6 +420,7 @@ export function Timeline(props: TimelineProps) {
     if (snapping) at = Math.max(0, snapRange(at, payload.duration, snapPoints(project, { playhead: time.get() }), snapThreshold).value);
     const trackId = rowAt(p.y)?.track.id ?? null;
     if (payload.kind === 'media') props.onDropMedia(payload.mediaId, at, trackId);
+    else if (payload.kind === 'folder') props.onDropFolder(payload.entryId, at, trackId);
     else props.onDropTitle(payload.presetId, at, trackId);
   };
 

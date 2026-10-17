@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, type ReactNode } from 'react';
 import { AlertTriangle, FileUp, FolderOpen, Image as ImageIcon, Link, ListEnd, Music, Plus, RefreshCw, Trash2, Video } from 'lucide-react';
 import type { MediaRef, Project } from '../types';
 import { useT } from '../../../core/i18n';
@@ -18,6 +18,8 @@ interface MediaBinProps {
   onRemove: (mediaId: string) => void;
   onRelink: () => void;
   onConvert: (mediaId: string) => void;
+  /** Linked folders (desktop app and Chromium browsers). */
+  folders?: ReactNode;
 }
 
 const KIND_ICON = { video: Video, audio: Music, image: ImageIcon };
@@ -107,6 +109,12 @@ export const MediaBin = memo(function MediaBin(props: MediaBinProps) {
         </div>
       )}
       <div className="vd-hint">{t('Drag clips onto the timeline · double-click to insert at the playhead · right-click for more.')}</div>
+      {props.folders && (
+        <>
+          <div className="vd-section-title">{t('Linked folders')}</div>
+          {props.folders}
+        </>
+      )}
       {ctx.element}
     </>
   );

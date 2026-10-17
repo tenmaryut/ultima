@@ -12,6 +12,7 @@ import { canvasToAIImage } from '../../core/utils/image';
 import { uid } from '../../core/utils/id';
 import type { CaptionCue, Clip, MediaRef, Project, ProjectSettings, TimeRange, Track, TrackKind, TransitionKind } from './types';
 import { MediaLibrary, MEDIA_ACCEPT, mediaKindOf } from './media';
+import { FolderLibrary, folderIdsIn } from './folders';
 import { PreviewEngine } from './engine';
 import { createTimeStore } from './timeStore';
 import {
@@ -62,7 +63,9 @@ import { encodeLut, parseCube } from './grade';
 import { isLibraryMedia, libraryFile, libraryItemOf, type LibraryItem } from './library';
 import type { ImportWhat } from './ai/executor';
 import { applyAIActions, describeProject, formatResults } from './aiActions';
-import { clipFrameSheets, lookSheet } from './ai/frames';
+import { clipFrameSheets, lookSheet, planSourceLook, sourceLookSheet, type FrameSource } from './ai/frames';
+import { sourceAnalysisSummary } from './ai/describe';
+import type { AIImage } from '@shared/ai-types';
 import { AnalysisStore } from './analysisStore';
 import { totalLength } from './silence';
 import type { TimelineApi } from './ui/Timeline';
@@ -114,6 +117,8 @@ export function useVideoEditor(active: boolean) {
   const lib = useMemo(() => new MediaLibrary(), []);
   const analysis = useMemo(() => new AnalysisStore(lib), [lib]);
   const libVersion = useSyncExternalStore(lib.subscribe, lib.getVersion);
+  const folders = useMemo(() => new FolderLibrary(), []);
+  const folderVersion = useSyncExternalStore(folders.subscribe, folders.getVersion);
   const time = useMemo(() => createTimeStore(), []);
   const [engine, setEngine] = useState<PreviewEngine | null>(null);
   const [play, setPlay] = useState({ playing: false, rate: 0 });
@@ -160,6 +165,24 @@ export function useVideoEditor(active: boolean) {
     return () => e.dispose();
   }, [lib, time, tRef]);
   useEffect(() => () => lib.dispose(), [lib]);
+  // linked folders: read once, then look for new recordings when Ultima gets the focus and every 30 s
+  const activeRef = useLatest(active);
+  useEffect(() => {
+    if (!FolderLibrary.supported()) return;
+    void folders.load();
+    let last = Date.now();
+    const refresh = () => {
+      if (!activeRef.current || document.visibilityState !== 'visible' || Date.now() - last < 5000) return;
+      last = Date.now();
+      void folders.refresh();
+    };
+    window.addEventListener('focus', refresh);
+    const timer = setInterval(refresh, 30_000);
+    return () => {
+      window.removeEventListener('focus', refresh);
+      clearInterval(timer);
+    };
+  }, [folders, activeRef]);
   useEffect(() => engine?.setProject(project), [engine, project]);
   useEffect(() => engine?.setActive(active), [engine, active]);
   useEffect(() => {
@@ -268,6 +291,54 @@ export function useVideoEditor(active: boolean) {
     setDialog({ kind: 'settings' });
   };
 
+  /** The file of a project media item in a linked folder (same id, or same name and size), if any. */
+  const folderFileFor = async (m: MediaRef): Promise<File | undefined> => {
+    const entry = folders.get(m.id) ?? folders.find(m.name, m.size);
+    return entry ? folders.file(entry.id).catch(() => undefined) : undefined;
+  };
+
+  /** Relinks missing media found in linked folders (after linking a folder or when new files appear). */
+  const relinking = useRef(false);
+  const relinkFromFolders = async (): Promise<void> => {
+    if (relinking.current) return;
+    relinking.current = true;
+    try {
+      const missing = projectRef.current.media.filter((m) => !lib.has(m.id) && !isLibraryMedia(m.id));
+      const relinked: MediaRef[] = [];
+      for (const m of missing) {
+        const f = await folderFileFor(m);
+        if (!f) continue;
+        try {
+          relinked.push({ ...m, ...(await lib.relink(m, f)), id: m.id });
+        } catch {
+          // stays missing
+        }
+      }
+      if (!relinked.length) return;
+      const clean = !dirtyRef.current;
+      const cur = projectRef.current;
+      const next = { ...cur, media: cur.media.map((m) => relinked.find((r) => r.id === m.id) ?? m) };
+      doc.set(next, { label: t('Relink media') });
+      if (clean) setSaved(next);
+      toast.success(t('Found {count} missing file(s) in your linked folders', { count: relinked.length }));
+    } finally {
+      relinking.current = false;
+    }
+  };
+  // after a restart Chromium may want a click before reading the linked folders again: the user's first click
+  // anywhere does it (the "Allow" button stays as a fallback)
+  useEffect(() => {
+    const waiting = folders.folders.filter((f) => f.access === 'prompt');
+    if (!waiting.length) return;
+    const onFirstClick = () => waiting.forEach((f) => void folders.allow(f.id));
+    window.addEventListener('pointerdown', onFirstClick, { once: true, capture: true });
+    return () => window.removeEventListener('pointerdown', onFirstClick, { capture: true });
+  }, [folderVersion, folders]);
+  const relinkRef = useLatest(relinkFromFolders);
+  useEffect(() => {
+    if (folders.entries.length && projectRef.current.media.some((m) => !lib.has(m.id) && !isLibraryMedia(m.id))) void relinkRef.current();
+  }, [folderVersion, folders, lib, projectRef, relinkRef]);
+
   const openProject = async (file: File) => {
     let p: Project;
     try {
@@ -281,10 +352,12 @@ export function useVideoEditor(active: boolean) {
     setFilePath(pathForFile(file));
     rememberRecent(file, 'video');
     settingsChosen.current = true;
+    // files used earlier in this session, or found in a linked folder, come back by themselves
+    await folders.load().catch(() => undefined);
     const relinked: MediaRef[] = [];
     for (const m of p.media) {
-      if (lib.has(m.id)) continue;
-      const f = stash.current.get(`${m.name}|${m.size}`);
+      if (lib.has(m.id) || isLibraryMedia(m.id)) continue;
+      const f = stash.current.get(`${m.name}|${m.size}`) ?? (await folderFileFor(m));
       if (!f) continue;
       try {
         relinked.push({ ...m, ...(await lib.relink(m, f)), id: m.id });
@@ -347,7 +420,12 @@ export function useVideoEditor(active: boolean) {
 
   /** Imports files. `place`: 'bin' (just the bin), 'auto' (also onto an empty timeline) or a timeline position. */
   /** `freeTrack`: put audio on a free audio track (a voice-over must not cut the sound under it). */
-  const importFiles = async (files: File[], place: { time: number; trackId: string | null; freeTrack?: boolean } | 'auto' | 'bin' = 'bin') => {
+  /** `idFor`: a fixed media id per file (files from linked folders keep their "fd_…" id). */
+  const importFiles = async (
+    files: File[],
+    place: { time: number; trackId: string | null; freeTrack?: boolean } | 'auto' | 'bin' = 'bin',
+    idFor?: (file: File) => string | undefined,
+  ) => {
     const projectFile = files.find((f) => fileExtension(f.name) === 'ultima');
     if (projectFile) return openProject(projectFile);
     const subs = files.filter((f) => ['srt', 'vtt'].includes(fileExtension(f.name)));
@@ -364,7 +442,7 @@ export function useVideoEditor(active: boolean) {
     setImporting((n) => n + mediaFiles.length);
     let refs: MediaRef[] = [];
     try {
-      refs = await lib.importFiles(mediaFiles, (name, reason) => toast.error(t('Could not import {name}', { name }), t(reason)));
+      refs = await lib.importFiles(mediaFiles, (name, reason) => toast.error(t('Could not import {name}', { name }), t(reason)), idFor);
     } finally {
       setImporting((n) => n - mediaFiles.length);
     }
@@ -514,6 +592,69 @@ export function useVideoEditor(active: boolean) {
     const r = addMediaToTimeline(p, ref, { start, trackId: typeof where === 'object' ? compatibleTrack(p, where.trackId, ref) : undefined });
     change(r.project, { label: t('Add to timeline') });
     setSelectionState(r.ids);
+  };
+
+  /* -------------------------------- linked folders -------------------------------- */
+
+  const linkFolder = async () => {
+    try {
+      const folder = await folders.link();
+      if (!folder) return;
+      if (folder.access !== 'granted') toast.warning(t('Ultima may not read this folder'), folder.name);
+      else toast.success(t('Linked {name}', { name: folder.name }), t('{count} files', { count: folders.entries.filter((e) => e.folderId === folder.id).length }));
+      setLeftTab('media');
+    } catch (error) {
+      toast.error(t('Could not link the folder'), error instanceof Error ? error.message : String(error));
+    }
+  };
+
+  const unlinkFolder = async (id: string) => {
+    const folder = folders.folders.find((f) => f.id === id);
+    if (!folder) return;
+    const ok = await confirmDialog({
+      title: t('Unlink {name}?', { name: folder.name }),
+      message: t('Its files stay where they are and clips already in the project keep working this session.'),
+      confirmLabel: t('Unlink'),
+    });
+    if (ok) await folders.unlink(id);
+  };
+
+  const allowFolder = async (id: string) => {
+    if (!(await folders.allow(id))) toast.warning(t('Ultima may not read this folder'));
+  };
+
+  /** Adds a file from a linked folder to the project (it keeps its folder id) and, unless 'bin', to the timeline. */
+  const addFromFolder = async (entryId: string, where: 'playhead' | 'end' | 'bin' | { time: number; trackId: string | null }) => {
+    const p = projectRef.current;
+    if (getMedia(p, entryId) && lib.has(entryId)) {
+      if (where !== 'bin') addMedia(entryId, where);
+      return;
+    }
+    let file: File;
+    try {
+      file = await folders.file(entryId);
+    } catch (error) {
+      toast.error(t('Could not open the file'), error instanceof Error ? error.message : String(error));
+      return;
+    }
+    const place = where === 'bin' ? 'bin' : where === 'playhead' ? { time: playhead(), trackId: null } : where === 'end' ? { time: timelineDuration(p), trackId: null } : where;
+    await importFiles([file], place, () => entryId);
+  };
+
+  /** Brings the folder files the AI refers to into the project before its edit runs; returns the ids that failed. */
+  const importForAI = async (ids: string[]): Promise<string[]> => {
+    const wanted = ids.filter((id) => !(getMedia(projectRef.current, id) && lib.has(id)) && folders.get(id));
+    if (!wanted.length) return [];
+    const files: File[] = [];
+    const idOf = new Map<File, string>();
+    for (const id of wanted) {
+      const f = await folders.file(id).catch(() => null);
+      if (!f) continue;
+      files.push(f);
+      idOf.set(f, id);
+    }
+    if (files.length) await importFiles(files, 'bin', (f) => idOf.get(f));
+    return wanted.filter((id) => !(getMedia(projectRef.current, id) && lib.has(id)));
   };
 
   const removeMediaItem = async (mediaId: string) => {
@@ -872,12 +1013,32 @@ export function useVideoEditor(active: boolean) {
 
   /* --------------------------------------- AI --------------------------------------- */
 
+  /** Files in linked folders that are not in the project yet, for the AI (newest first). */
+  const folderContext = (p: Project) => {
+    if (!folders.folders.length) return undefined;
+    const files = folders.entries.filter((e) => !getMedia(p, e.id) && !e.unreadable);
+    const listed = files.slice(0, 60);
+    // lengths and sizes are read in the background; they show up in the next request
+    listed.forEach((e) => folders.ensureInfo(e));
+    return {
+      names: folders.folders.map((f) => f.name),
+      files: listed.map((e) => ({ id: e.id, path: e.path, kind: e.kind, lastModified: e.lastModified, duration: e.duration, width: e.width, height: e.height })),
+      total: files.length,
+    };
+  };
+
   const aiContext = async ({ images }: { images: boolean }) => {
     let p = projectRef.current;
     const used = p.media.filter((m) => m.kind !== 'image' && lib.has(m.id) && p.clips.some((c) => c.mediaId === m.id));
     await analysis.waitFor(used, images ? 8000 : 5000);
     p = projectRef.current;
-    const summary = describeProject(p, { playhead: playhead(), selection: selectionRef.current, fonts: aiFonts(), analysis: (id) => analysis.get(id) });
+    const summary = describeProject(p, {
+      playhead: playhead(),
+      selection: selectionRef.current,
+      fonts: aiFonts(),
+      analysis: (id) => analysis.get(id),
+      folders: folderContext(p),
+    });
     if (!images || !p.clips.length) return { summary };
     const canvas = engine?.canvasElement;
     const image = canvas ? await canvasToAIImage(canvas, { maxSize: 1024 }).catch(() => null) : null;
@@ -888,7 +1049,7 @@ export function useVideoEditor(active: boolean) {
 
   const aiFonts = () => [...new Set(['Inter', ...doc.current().fonts.map((f) => f.family), ...fontsRef.current])];
 
-  const aiApply = (list: AIAction[]): AIActionReport => {
+  const aiApply = async (list: AIAction[]): Promise<AIActionReport> => {
     // leading undo/redo steps act on the history, the rest is one new step
     let undone = 0;
     let i = 0;
@@ -898,6 +1059,10 @@ export function useVideoEditor(active: boolean) {
       undone += steps;
     }
     const rest = list.slice(i);
+    // files from linked folders the AI uses come into the project first (keeping their fd_ ids)
+    const fromFolders = folderIdsIn(rest);
+    const notImported = fromFolders.length ? await importForAI(fromFolders) : [];
+    const imported = fromFolders.filter((id) => !notImported.includes(id) && folders.get(id));
     const r = applyAIActions(projectRef.current, rest, { playhead: playhead(), selection: selectionRef.current, fonts: aiFonts(), analysis: (id) => analysis.get(id) });
     if (r.project !== projectRef.current) doc.set(r.project, { label: t('AI edit') });
     const buttons: { label: string; run: () => void }[] = [];
@@ -909,7 +1074,14 @@ export function useVideoEditor(active: boolean) {
       else if (e.kind === 'requestImport') buttons.push({ label: t(IMPORT_LABELS[e.what]), run: () => void importRequested(e.what) });
     }
     const failed = r.results.filter((x) => !x.ok).length;
-    const details = [undone ? `undo/redo: ${undone} step(s) done` : '', formatResults(r.results.map((x) => ({ ...x, index: x.index + i })))].filter(Boolean).join('\n');
+    const details = [
+      undone ? `undo/redo: ${undone} step(s) done` : '',
+      imported.length ? `imported from linked folders (same ids): ${imported.join(', ')}` : '',
+      notImported.length ? `could not import from linked folders: ${notImported.join(', ')}` : '',
+      formatResults(r.results.map((x) => ({ ...x, index: x.index + i }))),
+    ]
+      .filter(Boolean)
+      .join('\n');
     if (!r.applied && !undone) throw new Error(`${t('Nothing could be applied.')}\n${details}`);
     const summary = t('Applied {count} change(s)', { count: r.applied + (undone ? 1 : 0) });
     return { summary: failed ? `${summary} · ${t('{count} skipped', { count: failed })}` : summary, details, partial: failed > 0, buttons };
@@ -922,10 +1094,55 @@ export function useVideoEditor(active: boolean) {
     if (files.length) await importFiles(files, 'bin');
   };
 
-  /** Pictures for the AI's "look" requests: the final frame at each asked time. */
+  /** Folder files the AI looked at without using them yet: registered in the library only (not in the project). */
+  const looked = useRef(new Map<string, MediaRef>());
+  const lookMedia = async (id: string): Promise<MediaRef | null> => {
+    const inProject = getMedia(projectRef.current, id);
+    if (inProject) return lib.has(id) ? inProject : null;
+    const known = looked.current.get(id);
+    if (known && lib.has(id)) return known;
+    if (!folders.get(id)) return null;
+    const ref = await lib.add(await folders.file(id), id);
+    looked.current.set(id, ref);
+    return ref;
+  };
+
+  /**
+   * Pictures for the AI's "look" requests: the final picture at timeline times, and frames of source clips
+   * (bin or linked folder) — chosen times, an even strip over a range, or an overview with the clip's analysis,
+   * optionally zoomed into a part of the picture.
+   */
   const aiLook = async (list: AIAction[]) => {
-    const times = list.flatMap((a) => (Array.isArray(a.times) ? a.times : [a.time])).filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
-    return lookSheet(projectRef.current, times, (media, ts, height) => lib.framesAt(media, ts, height), (id) => lib.get(id)?.image ?? null);
+    const images: AIImage[] = [];
+    const notes: string[] = [];
+    const frames: FrameSource = (media, ts, height) => lib.framesAt(media, ts, height);
+    const times = list
+      .filter((a) => typeof a.media !== 'string')
+      .flatMap((a) => (Array.isArray(a.times) ? a.times : [a.time]))
+      .filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
+    if (times.length) {
+      const r = await lookSheet(projectRef.current, times, frames, (id) => lib.get(id)?.image ?? null);
+      images.push(...r.images);
+      notes.push(r.images.length ? `picture ${images.length}: timeline — ${r.note}` : r.note);
+    }
+    for (const a of list.filter((x) => typeof x.media === 'string').slice(0, 6)) {
+      const id = String(a.media);
+      const ref = await lookMedia(id).catch(() => null);
+      if (!ref) {
+        notes.push(`${id}: no such media item or linked-folder file, or it can't be read`);
+        continue;
+      }
+      const plan = planSourceLook(a, ref.duration);
+      const sheet = await sourceLookSheet(ref, plan, frames).catch(() => null);
+      let note = sheet ? sheet.note : `${id} "${ref.name}": ${ref.kind === 'audio' ? 'audio, no picture' : 'no frames could be read'}`;
+      if (plan.overview && ref.kind !== 'image') {
+        await Promise.race([analysis.ensure(ref), new Promise((r) => setTimeout(r, 20_000))]);
+        note += `; analysis (source seconds): ${sourceAnalysisSummary(analysis.get(id))}`;
+      }
+      if (sheet) images.push(sheet.image);
+      notes.push(sheet ? `picture ${images.length}: ${note}` : note);
+    }
+    return { images, note: notes.join(' | ') };
   };
 
   const applySettings = (settings: ProjectSettings, name: string) => {
@@ -941,6 +1158,12 @@ export function useVideoEditor(active: boolean) {
     fontList,
     lib,
     libVersion,
+    folders,
+    folderVersion,
+    linkFolder,
+    unlinkFolder,
+    allowFolder,
+    addFromFolder,
     time,
     engine,
     play,

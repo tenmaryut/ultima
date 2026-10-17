@@ -75,8 +75,8 @@ export interface AILookResult {
   note: string;
 }
 
-/** Automatic follow-ups after "look" requests, per user message. */
-const MAX_LOOKS = 2;
+/** Automatic follow-ups after "look" requests, per user message (browsing clips can take a few rounds). */
+const MAX_LOOKS = 4;
 
 interface ChatMessage {
   id: string;
@@ -356,7 +356,10 @@ function MessageView({ message, onApply }: { message: ChatMessage; onApply: () =
       )}
       {message.status === 'looked' && (
         <div className="row faint" style={{ fontSize: 12, marginTop: 6 }}>
-          <Eye size={12} /> {t('The AI looked closer at {count} moment(s)', { count: message.actions?.reduce((n, a) => n + (Array.isArray(a.times) ? a.times.length : 1), 0) ?? 0 })}
+          <Eye size={12} />{' '}
+          {t('The AI looked closer at {count} moment(s)', {
+            count: message.actions?.reduce((n, a) => n + (Array.isArray(a.times) ? a.times.length : typeof a.frames === 'number' ? Math.min(16, Math.max(1, a.frames)) : 1), 0) ?? 0,
+          })}
         </div>
       )}
       {!!message.actions?.length && message.status !== 'looked' && (

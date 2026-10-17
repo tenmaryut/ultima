@@ -115,10 +115,13 @@ function configurePermissions(): void {
     'local-fonts',
     'notifications',
   ]);
-  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
-    callback(allowed.has(permission));
+  // Folders the user picked for the Video Editor (File System Access API): reading only, never writing.
+  const readsFolder = (permission: string, details: { fileAccessType?: string; isMainFrame?: boolean }) =>
+    permission === 'fileSystem' && details.fileAccessType === 'readable' && details.isMainFrame !== false;
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback, details) => {
+    callback(allowed.has(permission) || readsFolder(permission, details as Electron.FilesystemPermissionRequest));
   });
-  session.defaultSession.setPermissionCheckHandler((_wc, permission) => allowed.has(permission));
+  session.defaultSession.setPermissionCheckHandler((_wc, permission, _origin, details) => allowed.has(permission) || readsFolder(permission, details));
 }
 
 function registerAppIpc(): void {

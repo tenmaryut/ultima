@@ -2,6 +2,25 @@
 
 All notable changes to Ultima are listed here. Versions follow [semantic versioning](https://semver.org).
 
+## [0.3.0] — 2026-10-17
+
+Link the folder where your clips are saved and the Video Editor — and its AI — work with it directly.
+
+### Video Editor
+
+- **Linked folders** (*Media → Link a folder…*): the videos, audio and pictures in a folder you link (for example
+  your game recordings), subfolders included, are listed in the media bin by themselves, newest first, with posters
+  and lengths; new recordings show up when Ultima gets the focus. Drag or double-click them onto the timeline —
+  nothing is copied. Folders stay linked after a restart, and projects whose files are in a linked folder find them
+  by themselves instead of asking to relink. Ultima only reads these folders.
+- **The AI sees your folder clips**: it gets the files of your linked folders and can use them like media in the bin
+  (they are added to the project by themselves).
+- **A sharper look for the AI**: *look* now works on any clip in the bin or a linked folder, not only the timeline —
+  an overview of the whole clip with its loud moments, a strip of up to 16 frames over a short range to see the motion,
+  and a zoom into part of the picture at full resolution (kill feed, kill banner, crosshair) — with much bigger
+  pictures, and up to four look rounds per request. For game clips it confirms kills and headshots on the kill feed
+  before cutting instead of guessing from the sound.
+
 ## [0.2.3] — 2026-10-17
 
 ### Changed

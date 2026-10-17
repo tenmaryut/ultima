@@ -227,3 +227,149 @@ export async function lookSheet(
     note: `the final picture at ${list.map((t) => `${t.toFixed(2)} s`).join(', ')} (each tile is labelled with its time).`,
   };
 }
+
+/* ------------------------------ looking at source clips ------------------------------ */
+
+/** A part of the picture, as fractions of its width and height (x, y: top-left corner). */
+export interface LookRegion {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** Named parts of the picture: the corners where games put their HUD (kill feed, score, minimap) and the crosshair. */
+export const LOOK_REGIONS: Record<string, LookRegion> = {
+  center: { x: 0.3, y: 0.25, w: 0.4, h: 0.5 },
+  topLeft: { x: 0, y: 0, w: 0.4, h: 0.34 },
+  topCenter: { x: 0.3, y: 0, w: 0.4, h: 0.2 },
+  topRight: { x: 0.6, y: 0, w: 0.4, h: 0.34 },
+  bottomLeft: { x: 0, y: 0.66, w: 0.4, h: 0.34 },
+  bottomCenter: { x: 0.3, y: 0.62, w: 0.4, h: 0.38 },
+  bottomRight: { x: 0.6, y: 0.66, w: 0.4, h: 0.34 },
+};
+
+/** Most frames one look at a source clip shows (a strip over a short range shows the motion). */
+export const MAX_SOURCE_FRAMES = 16;
+
+export interface SourceLook {
+  /** Source seconds, in order. */
+  times: number[];
+  /** null: the whole picture. */
+  region: LookRegion | null;
+  regionName: string;
+  /** No times were given: frames spread over the whole clip. */
+  overview: boolean;
+  /** Frames evenly spaced from the first to the last time (a "from"/"to" strip). */
+  strip: boolean;
+}
+
+const numberOf = (v: unknown): number | undefined => {
+  const n = typeof v === 'string' && v.trim() ? Number(v) : v;
+  return typeof n === 'number' && Number.isFinite(n) ? n : undefined;
+};
+const clampTo = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+
+/** The region of a look: a name from LOOK_REGIONS or {"x","y","w","h"} (0-1); anything else is the whole picture. */
+export function lookRegion(v: unknown): { region: LookRegion | null; name: string } {
+  if (typeof v === 'string' && LOOK_REGIONS[v]) return { region: LOOK_REGIONS[v], name: v };
+  if (v && typeof v === 'object' && !Array.isArray(v)) {
+    const o = v as Record<string, unknown>;
+    const x = clampTo(numberOf(o.x) ?? 0, 0, 0.95);
+    const y = clampTo(numberOf(o.y) ?? 0, 0, 0.95);
+    const w = clampTo(numberOf(o.w) ?? 1 - x, 0.05, 1 - x);
+    const h = clampTo(numberOf(o.h) ?? 1 - y, 0.05, 1 - y);
+    if (w > 0.999 && h > 0.999) return { region: null, name: 'full' };
+    const f = (n: number) => +n.toFixed(2);
+    return { region: { x, y, w, h }, name: `x ${f(x)} y ${f(y)} w ${f(w)} h ${f(h)}` };
+  }
+  return { region: null, name: 'full' };
+}
+
+/**
+ * Which source frames a look at a clip shows: "times" (up to 16), or "from"/"to" with "frames" (2-16, default 8,
+ * evenly spaced: the motion in between), or "time" for one frame; nothing: an overview of the whole clip.
+ */
+export function planSourceLook(a: Record<string, unknown>, duration: number): SourceLook {
+  const { region, name } = lookRegion(a.region);
+  const last = Math.max(0, duration - 0.04);
+  const at = (t: number) => clampTo(t, 0, last);
+  let times: number[] = [];
+  let overview = false;
+  let strip = false;
+  const from = numberOf(a.from);
+  const to = numberOf(a.to);
+  if (Array.isArray(a.times) && a.times.length) {
+    times = a.times.map(numberOf).filter((t): t is number => t !== undefined).map(at);
+  } else if (from !== undefined || to !== undefined) {
+    const start = at(from ?? Math.max(0, (to ?? 0) - 2));
+    let end = at(to ?? start + 2);
+    if (end <= start) end = at(start + 1);
+    const n = Math.round(clampTo(numberOf(a.frames) ?? 8, 2, MAX_SOURCE_FRAMES));
+    times = end > start ? Array.from({ length: n }, (_, i) => start + ((end - start) * i) / (n - 1)) : [start];
+    strip = times.length > 1;
+  } else if (numberOf(a.time) !== undefined) {
+    times = [at(numberOf(a.time)!)];
+  } else {
+    overview = true;
+    const n = Math.round(clampTo(duration / 5, 4, 12));
+    times = duration > 0 ? Array.from({ length: n }, (_, i) => at(((i + 0.5) / n) * duration)) : [0];
+  }
+  times = [...new Set(times.map((t) => +t.toFixed(3)))].sort((x, y) => x - y).slice(0, MAX_SOURCE_FRAMES);
+  return { times, region, regionName: name, overview, strip };
+}
+
+/** Tiles for `n` frames of this aspect: as big as a 1600 × 1600 px sheet allows (a single frame fills it). */
+export function sourceSheetLayout(n: number, aspect: number): SheetLayout {
+  const a = clampTo(aspect || 16 / 9, 0.2, 5);
+  const cols = n <= 1 ? 1 : n <= 4 ? 2 : n <= 9 ? 3 : 4;
+  const rows = Math.max(1, Math.ceil(n / cols));
+  const labelHeight = 22;
+  let cellWidth = Math.floor(1600 / cols);
+  let frameHeight = Math.round(cellWidth / a);
+  const maxHeight = Math.floor(1600 / rows) - labelHeight;
+  if (frameHeight > maxHeight) {
+    frameHeight = maxHeight;
+    cellWidth = Math.min(cellWidth, Math.round(frameHeight * a));
+  }
+  return { cols, rows, cellWidth, frameHeight, labelHeight };
+}
+
+/** The region of a frame as its own canvas (the frame itself when the region is the whole picture). */
+function cropFrame(frame: CanvasImageSource, r: LookRegion | null): CanvasImageSource {
+  if (!r) return frame;
+  const fw = (frame as HTMLCanvasElement).width || 1;
+  const fh = (frame as HTMLCanvasElement).height || 1;
+  const sw = Math.max(1, Math.round(r.w * fw));
+  const sh = Math.max(1, Math.round(r.h * fh));
+  const c = createCanvas(sw, sh);
+  get2d(c).drawImage(frame, Math.round(r.x * fw), Math.round(r.y * fh), sw, sh, 0, 0, sw, sh);
+  return c;
+}
+
+/** What a source look shows, in words for the AI. */
+export function describeSourceLook(media: MediaRef, look: SourceLook): string {
+  const list = look.times;
+  const what = look.overview
+    ? `an overview: ${list.length} frames spread over the whole ${media.duration.toFixed(1)} s`
+    : look.strip
+      ? `${list.length} frames from ${list[0].toFixed(2)} to ${list[list.length - 1].toFixed(2)} s, every ${((list[list.length - 1] - list[0]) / (list.length - 1)).toFixed(2)} s in order (read them as motion)`
+      : `frames at ${list.map((t) => `${t.toFixed(2)} s`).join(', ')}`;
+  const zoom = look.region ? `, zoomed into the ${look.regionName} part of the picture at full resolution` : '';
+  return `${media.id} "${media.name}" (source seconds): ${what}${zoom}; each tile is labelled "<id> · <source s>"`;
+}
+
+/** The pictures of a look at a source clip (bin or linked folder), as one sheet. */
+export async function sourceLookSheet(media: MediaRef, look: SourceLook, frames: FrameSource): Promise<{ image: AIImage; note: string } | null> {
+  if (!look.times.length || (media.kind !== 'video' && media.kind !== 'image')) return null;
+  const r = look.region;
+  const srcW = Math.max(1, media.width || 16);
+  const srcH = Math.max(1, media.height || 9);
+  const layout = sourceSheetLayout(look.times.length, (srcW * (r?.w ?? 1)) / (srcH * (r?.h ?? 1)));
+  // enough pixels for the region to fill its tile, never more than the source has
+  const height = Math.round(clampTo(layout.frameHeight / (r?.h ?? 1), 90, Math.min(srcH, 2160)));
+  const got = await frames(media, look.times, height);
+  const tiles = got.map((f, i) => ({ frame: f ? cropFrame(f, r) : null, label: `${media.id} · ${look.times[i].toFixed(2)} s` }));
+  const sheet = drawSheet(tiles, layout);
+  return { image: await canvasToAIImage(sheet, { maxSize: 1600 }), note: describeSourceLook(media, look) };
+}

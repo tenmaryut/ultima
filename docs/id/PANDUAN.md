@@ -347,6 +347,14 @@ SRT/VTT. Klik ganda file di tab *Media* untuk menyisipkannya di playhead, atau s
 dan *Pengaturan proyek…*: 1080p, 720p, 4K, Vertikal 9:16, Persegi 1:1, atau ukuran sendiri, 24–60 fps, warna latar.
 Jika Anda belum memilih ukuran, video pertama yang ditambahkan menentukannya.
 
+**Folder terhubung** (aplikasi desktop). *Media → Hubungkan folder…* menghubungkan folder tempat klip Anda tersimpan —
+misalnya tempat perekam game Anda (Outplayed, Medal, ShadowPlay, OBS…) menyimpannya. Video, audio, dan gambarnya, juga
+di subfolder, muncul sendiri di *Folder terhubung*, yang terbaru di atas, dan rekaman baru muncul saat Ultima kembali
+aktif. Seret ke timeline atau klik ganda; tidak ada yang disalin, Ultima membaca file di tempatnya. Folder tetap
+terhubung setelah aplikasi dibuka ulang (jika Ultima meminta, klik pertama Anda, atau *Izinkan Ultima membaca folder ini
+lagi*, mengizinkannya membaca folder itu lagi), dan saat Anda membuka proyek yang file-nya dipindah ke folder terhubung,
+Ultima menemukannya sendiri. Ultima hanya membaca folder ini, tidak pernah mengubahnya.
+
 **Timeline.**
 - *Alat seleksi* (V) dan *Alat pisau* (C). **S** (atau Ctrl+K) membelah di playhead, **Shift+Delete** menghapus dan
   merapatkan, **N** menyalakan/mematikan snapping, **M** menambah penanda, **I**/**O** mengatur titik masuk dan keluar.
@@ -430,6 +438,10 @@ meminta untuk *melihat* momen tertentu sebelum memotong. Ultima juga menganalisi
 tempo (BPM), beat dan awal bar, hentakan terkuat, momen keras (tembakan, benturan, sorakan) beserta rentetannya, dan
 pergantian adegan — sehingga asisten bisa memotong pas di beat atau menyusun montage di sekitar aksi (kill atau
 headshot tidak bisa dipastikan hanya dari suara).
+Asisten juga melihat file di folder terhubung dan bisa melihat klip mana pun sebelum memakainya: gambaran seluruh klip
+beserta momen kerasnya, deretan hingga 16 frame dalam rentang pendek untuk melihat gerakannya (flick, spray, kill), dan
+zoom ke bagian gambar dengan resolusi penuh — kill feed di kanan atas, kill banner di bawah tengah, crosshair — sehingga
+kill dan headshot dipastikan, bukan ditebak. Klip dari folder terhubung yang dipakai asisten otomatis masuk ke proyek.
 
 Asisten bisa menambah klip dari bin Media; membelah, memangkas, memindahkan, menggeser, menghapus, dan menggandakan
 klip, merapatkan celah, dan membuang rentang waktu; menautkan dan melepas suara; mengubah satu klip, satu trek, atau

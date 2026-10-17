@@ -81,6 +81,21 @@
 .vd-bin-item.missing {
   border-color: color-mix(in srgb, var(--danger) 60%, transparent);
 }
+.vd-folder {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.vd-folder-head {
+  gap: 6px;
+  min-width: 0;
+  color: var(--text-1);
+  font-size: 12px;
+}
+.vd-folder-head .faint {
+  font-size: 11px;
+  white-space: nowrap;
+}
 .vd-bin-thumb {
   aspect-ratio: 16 / 9;
   border-radius: 4px;

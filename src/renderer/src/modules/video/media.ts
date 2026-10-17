@@ -37,10 +37,18 @@ const IMAGE_EXT = new Set(['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'avif', '
 export const MEDIA_ACCEPT = 'video/*,audio/*,image/*,.mkv,.mov,.flac,.m4a,.opus';
 
 export function mediaKindOf(file: File): MediaKind | null {
-  const ext = fileExtension(file.name);
-  if (file.type.startsWith('video/') || VIDEO_EXT.has(ext)) return 'video';
-  if (file.type.startsWith('audio/') || AUDIO_EXT.has(ext)) return 'audio';
-  if (file.type.startsWith('image/') || IMAGE_EXT.has(ext)) return 'image';
+  if (file.type.startsWith('video/')) return 'video';
+  if (file.type.startsWith('audio/')) return 'audio';
+  if (file.type.startsWith('image/')) return 'image';
+  return mediaKindOfName(file.name);
+}
+
+/** Media kind from a file name's extension alone (files in linked folders before they are opened). */
+export function mediaKindOfName(name: string): MediaKind | null {
+  const ext = fileExtension(name);
+  if (VIDEO_EXT.has(ext)) return 'video';
+  if (AUDIO_EXT.has(ext)) return 'audio';
+  if (IMAGE_EXT.has(ext)) return 'image';
   return null;
 }
 
@@ -171,13 +179,16 @@ export class MediaLibrary {
     return this.get(id)?.file;
   }
 
-  /** Probes files and returns their media references (unsupported/unreadable files are reported via `onSkip`). */
-  async importFiles(files: File[], onSkip?: (name: string, reason: string) => void): Promise<MediaRef[]> {
+  /**
+   * Probes files and returns their media references (unsupported/unreadable files are reported via `onSkip`).
+   * `idFor` gives a file a fixed id (files from linked folders keep theirs).
+   */
+  async importFiles(files: File[], onSkip?: (name: string, reason: string) => void, idFor?: (file: File) => string | undefined): Promise<MediaRef[]> {
     const results = await Promise.all(
       files.map((file) =>
         this.probes.run(async () => {
           try {
-            return await this.add(file);
+            return await this.add(file, idFor?.(file) ?? uid('m_'));
           } catch (error) {
             onSkip?.(file.name, error instanceof Error ? error.message : String(error));
             return null;
@@ -192,6 +203,8 @@ export class MediaLibrary {
   async add(file: File, id: string = uid('m_')): Promise<MediaRef> {
     const kind = mediaKindOf(file);
     if (!kind) throw new Error('Unsupported file type');
+    // a folder file the AI looked at is registered already: replace it cleanly
+    if (this.items.has(id)) this.remove(id);
     const url = URL.createObjectURL(file);
     try {
       let ref: MediaRef;
