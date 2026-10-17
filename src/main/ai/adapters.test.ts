@@ -160,7 +160,19 @@ describe('antigravity adapter', () => {
 
   it('ends its own run just before the time limit set in Ultima', () => {
     expect(ADAPTERS.antigravity(ctx({ providerId: 'antigravity', timeoutMs: 600_000 })).args).toEqual(expect.arrayContaining(['--print-timeout', '590s']));
+    expect(agyPrintTimeout(2 * 60 * 60_000)).toBe('7190s');
     expect(agyPrintTimeout(20_000)).toBe('30s');
+  });
+
+  it('treats its print timeout as a timeout, not as a (partial) answer', () => {
+    const inv = ADAPTERS.antigravity(ctx({ providerId: 'antigravity' }));
+    const notice = '[agy] print timeout after 4m50s with turn in progress; returning partial output';
+    const viaStderr: ParseState = { text: '' };
+    inv.finalize('{"status":"SUCCESS","response":"{\\"actions\\":["}', viaStderr, notice);
+    expect(viaStderr).toMatchObject({ isError: true, timedOut: true });
+    const viaJson: ParseState = { text: '' };
+    inv.finalize(JSON.stringify({ status: 'ERROR', error: notice }), viaJson, '');
+    expect(viaJson).toMatchObject({ isError: true, timedOut: true, error: notice });
   });
 
   it('knows when the JSON result is complete', () => {

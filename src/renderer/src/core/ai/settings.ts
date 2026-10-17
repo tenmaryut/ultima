@@ -69,11 +69,25 @@ export const DEFAULT_AI_SETTINGS: AISettings = {
   speechProvider: 'system',
   speechVoices: {},
   speechRate: 1,
-  timeoutSec: 300,
+  // Agent CLIs (Claude Code, Codex, Antigravity) can work on a big edit for an hour or more.
+  timeoutSec: 2 * 60 * 60,
   autoApply: false,
   blockApiBilling: true,
   sendSnapshots: true,
 };
+
+/** Longest time limit per request that Settings offers (24 hours). */
+export const MAX_TIMEOUT_MINUTES = 24 * 60;
+
+/**
+ * Upgrades stored settings. Version 1: the time limit's default went from 5 minutes to 2 hours — a limit
+ * still at the old default moves along, one the user chose stays.
+ */
+export function migrateAISettings(persisted: unknown, version: number): AISettings {
+  const s = { ...((persisted ?? {}) as Partial<AISettings>) };
+  if (version < 1 && s.timeoutSec === 300) s.timeoutSec = DEFAULT_AI_SETTINGS.timeoutSec;
+  return s as AISettings;
+}
 
 export const useAISettings = create<AIStore>()(
   persist(
@@ -92,6 +106,8 @@ export const useAISettings = create<AIStore>()(
     }),
     {
       name: 'ultima-ai',
+      version: 1,
+      migrate: migrateAISettings,
       storage: createJSONStorage(() => localStorage),
       partialize: (s) => {
         const out: Record<string, unknown> = {};

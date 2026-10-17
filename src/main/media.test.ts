@@ -18,7 +18,7 @@ vi.mock('electron', async () => {
   };
 });
 
-const { aiConfig, runAIRequest } = await import('./ai/service');
+const { aiConfig, formatLimit, runAIRequest } = await import('./ai/service');
 const { findExecutable } = await import('./ai/exec');
 const { comfyCheckpoints, generateImageWith, speak, speechStatus } = await import('./media');
 
@@ -385,6 +385,32 @@ ${behaviour}`,
     const result = await generateImageWith({ ...base, provider: 'antigravity' });
     expect(result).toMatchObject({ ok: true, mimeTypes: ['image/png'] });
     expect(Date.now() - started).toBeLessThan(15_000);
+  });
+
+  it("chat: reports agy reaching the time limit Ultima gave it, in hours", async () => {
+    aiConfig.update({
+      executablePaths: {
+        antigravity: fakeAgy(
+          'agy-print-timeout',
+          `console.error('[agy] print timeout after 1h59m50s with turn in progress; returning partial output'); envelope({ response: '{"actions":[' });`,
+        ),
+      },
+    });
+    const result = await runAIRequest({ requestId: 'c5', providerId: 'antigravity', prompt: 'Make a montage', timeoutMs: 2 * 60 * 60_000 }, () => undefined);
+    expect(result).toMatchObject({ ok: false, errorKind: 'timeout' });
+    expect(result.error).toContain('within the time limit (2 h)');
+    expect(result.error).toContain('print timeout after 1h59m50s');
+    expect(calls('agy-print-timeout')[0].args).toEqual(expect.arrayContaining(['--print-timeout', '7190s']));
+  });
+});
+
+describe('formatLimit', () => {
+  it('says time limits the way people do', () => {
+    expect(formatLimit(2_500)).toBe('3 s');
+    expect(formatLimit(300_000)).toBe('5 min');
+    expect(formatLimit(7_200_000)).toBe('2 h');
+    expect(formatLimit(5_400_000)).toBe('1 h 30 min');
+    expect(formatLimit(86_400_000)).toBe('24 h');
   });
 });
 

@@ -131,6 +131,9 @@ registerTranslations('id', {
   'Never bill an API key (remove ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY… before starting AI tools)':
     'Jangan pernah menagih API key (hapus ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY… sebelum menjalankan alat AI)',
   'Time limit per request': 'Batas waktu per permintaan',
+  min: 'mnt',
+  'Agent AIs such as Claude Code, Codex or Antigravity can work on a big edit for an hour or more. Up to 24 hours; Stop ends a request at any time.':
+    'AI agen seperti Claude Code, Codex, atau Antigravity bisa mengerjakan edit besar selama satu jam atau lebih. Maksimal 24 jam; tombol Berhenti menghentikan permintaan kapan saja.',
   About: 'Tentang',
   'web version': 'versi web',
   'Free and open source under the MIT license. Not affiliated with Adobe, Anthropic, OpenAI, Google, GitHub or any other company mentioned.':

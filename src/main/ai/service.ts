@@ -139,10 +139,21 @@ function lastWords(stderr: string): string {
   return lines.slice(-3).join('\n').slice(-500);
 }
 
+/** A time limit as people say it: "45 s", "5 min", "2 h", "1 h 30 min" (units translated). */
+export function formatLimit(ms: number): string {
+  const unit = (key: string, n: number) => mt(key).replace('{n}', String(n));
+  const seconds = Math.max(1, Math.round(ms / 1000));
+  if (seconds < 60) return unit('{n} s', seconds);
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return unit('{n} min', minutes);
+  const hours = unit('{n} h', Math.floor(minutes / 60));
+  return minutes % 60 ? `${hours} ${unit('{n} min', minutes % 60)}` : hours;
+}
+
 function timeoutMessage(name: string, timeoutMs: number, stderr: string): string {
-  const text = mt('{name} did not answer within the time limit ({seconds} s). You can raise the limit in Settings → AI behaviour → Time limit per request.')
+  const text = mt('{name} did not answer within the time limit ({limit}). You can raise the limit in Settings → AI behaviour → Time limit per request.')
     .replace('{name}', name)
-    .replace('{seconds}', String(Math.round(timeoutMs / 1000)));
+    .replace('{limit}', formatLimit(timeoutMs));
   const last = lastWords(stderr);
   return last ? `${text}\n\n${mt('Its last message:')}\n${last}` : text;
 }
@@ -229,6 +240,8 @@ async function runCli(request: AIRunRequest, send: (delta: string) => void, star
           // tool didn't write it (older version); keep stdout
         }
       }
+      // The tool hit its own time limit (passed from Ultima's) before finishing: report it like Ultima's.
+      if (state.timedOut) return fail(request, started, timeoutMessage(info?.name ?? id, request.timeoutMs ?? 300_000, res.stderr), 'timeout');
       // Stopped by Ultima after a complete answer: a normal end, whatever the exit code says.
       const code = complete ? 0 : res.code;
       const errorText = state.error || (code !== 0 ? (res.stderr || res.stdout).trim() : '');

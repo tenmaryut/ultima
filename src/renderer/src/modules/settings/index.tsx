@@ -6,7 +6,7 @@ import type { AppInfo, MainAIConfig } from '@shared/ipc';
 import { useAppStore, type ThemeSetting } from '../../core/store';
 import { GRADIENTS, gradientCss } from '../../core/themes';
 import { LANGUAGES, useT, type Language } from '../../core/i18n';
-import { useAISettings } from '../../core/ai/settings';
+import { MAX_TIMEOUT_MINUTES, useAISettings } from '../../core/ai/settings';
 import { detectProviders } from '../../core/ai/client';
 import { desktop, openExternal } from '../../core/platform';
 import { Badge, Button, Field, NumberField, Select, Spinner, TextInput, Toggle, promptDialog, toast } from '../../components/ui';
@@ -134,8 +134,19 @@ export default function SettingsModule({ active }: ModuleProps) {
             />
           )}
           <Field label={t('Time limit per request')} inline>
-            <NumberField value={ai.timeoutSec} min={20} max={3600} step={10} suffix="s" style={{ width: 110 }} onChange={(v) => ai.update({ timeoutSec: v })} />
+            <NumberField
+              value={Math.max(1, Math.round(ai.timeoutSec / 60))}
+              min={1}
+              max={MAX_TIMEOUT_MINUTES}
+              step={5}
+              suffix={t('min')}
+              style={{ width: 110 }}
+              onChange={(v) => ai.update({ timeoutSec: Math.round(v * 60) })}
+            />
           </Field>
+          <div className="muted" style={{ fontSize: 12 }}>
+            {t('Agent AIs such as Claude Code, Codex or Antigravity can work on a big edit for an hour or more. Up to 24 hours; Stop ends a request at any time.')}
+          </div>
         </section>
 
         <ImageGenerationSettings />

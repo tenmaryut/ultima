@@ -2,6 +2,17 @@
 
 All notable changes to Ultima are listed here. Versions follow [semantic versioning](https://semver.org).
 
+## [0.2.3] — 2026-10-17
+
+### Changed
+
+- The AI time limit (*Settings → AI behaviour → Time limit per request*) is set in minutes, goes up to 24 hours and
+  is 2 hours by default: agent AIs such as Claude Code, Codex or Antigravity can work on a big edit for an hour or
+  more. A limit still at the old 5-minute default moves to 2 hours; one you chose stays. *Stop* still ends a request
+  at any time.
+- Timeout messages give the limit in minutes or hours, and Antigravity reaching the limit Ultima passed to it is
+  reported the same way — its partial answer is not used as if it were complete.
+
 ## [0.2.2] — 2026-10-15
 
 ### Fixed

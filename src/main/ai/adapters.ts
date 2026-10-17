@@ -36,6 +36,8 @@ export interface ParseState {
   final?: string;
   error?: string;
   isError?: boolean;
+  /** The tool stopped at its own time limit (the one Ultima passed) before the answer was complete. */
+  timedOut?: boolean;
 }
 
 export interface AdapterContext {
@@ -311,6 +313,9 @@ export function agyAnswerComplete(stdout: string): boolean {
   return typeof obj?.status === 'string' && ('response' in obj || 'error' in obj);
 }
 
+/** Antigravity's notice that its --print-timeout ended a turn that was still in progress. */
+const AGY_PRINT_TIMEOUT = /print timeout after/i;
+
 /** --print-timeout value just under Ultima's own limit, so Antigravity ends the run itself and says why. */
 export function agyPrintTimeout(timeoutMs = 300_000): string {
   return `${Math.max(30, Math.round(timeoutMs / 1000) - 10)}s`;
@@ -345,8 +350,16 @@ function antigravity(ctx: AdapterContext): CliInvocation {
         (typeof obj?.error === 'string' && obj.error ? obj.error : asRecord(obj?.error)?.message) ??
         (obj?.status === 'ERROR' ? 'Antigravity CLI reported an error.' : null);
       const text = typeof obj?.response === 'string' ? obj.response : stdout.trim();
-      // A denied tool only matters when nothing came back; its notice can be on any stderr line.
-      if (agyToolDenied(String(error ?? '')) || (!text.trim() && agyToolDenied(stderr))) {
+      if (agyToolDenied(String(error ?? ''))) {
+        state.isError = true;
+        state.error = AGY_TOOL_DENIED_MESSAGE;
+      } else if (AGY_PRINT_TIMEOUT.test(`${error ?? ''}\n${stderr}`)) {
+        // "[agy] print timeout after 1h59m50s with turn in progress; returning partial output": not an answer
+        state.isError = true;
+        state.timedOut = true;
+        state.error = String(error ?? 'Antigravity reached its time limit.');
+      } else if (!text.trim() && agyToolDenied(stderr)) {
+        // a denied tool only matters when nothing came back; its notice can be on any stderr line
         state.isError = true;
         state.error = AGY_TOOL_DENIED_MESSAGE;
       } else if (error) {
