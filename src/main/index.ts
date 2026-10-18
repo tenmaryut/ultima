@@ -1,5 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, nativeTheme, session, shell } from 'electron';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { IPC, type AppInfo } from '@shared/ipc';
 import { buildAppMenu } from './menu';
 import { closeAllWriters, filterOpenablePaths, registerFileIpc } from './files';
@@ -9,6 +9,7 @@ import { registerToolsIpc } from './tools';
 import { registerMediaIpc } from './media';
 import { killAllProcesses } from './ai/exec';
 import { mt, setMainLanguage } from './i18n';
+import { allowsPermission, exampleClipFolder, restrictedFolderKind } from './permissions';
 
 app.setName('Ultima');
 
@@ -107,21 +108,51 @@ function createWindow(): void {
 }
 
 function configurePermissions(): void {
-  const allowed = new Set([
-    'media', // microphone / camera for recording in Audio and Video
-    'clipboard-sanitized-write',
-    'clipboard-read',
-    'fullscreen',
-    'local-fonts',
-    'notifications',
-  ]);
-  // Folders the user picked for the Video Editor (File System Access API): reading only, never writing.
-  const readsFolder = (permission: string, details: { fileAccessType?: string; isMainFrame?: boolean }) =>
-    permission === 'fileSystem' && details.fileAccessType === 'readable' && details.isMainFrame !== false;
   session.defaultSession.setPermissionRequestHandler((_wc, permission, callback, details) => {
-    callback(allowed.has(permission) || readsFolder(permission, details as Electron.FilesystemPermissionRequest));
+    callback(allowsPermission(permission, details as Electron.FilesystemPermissionRequest));
   });
-  session.defaultSession.setPermissionCheckHandler((_wc, permission, _origin, details) => allowed.has(permission) || readsFolder(permission, details));
+  session.defaultSession.setPermissionCheckHandler((_wc, permission, _origin, details) => allowsPermission(permission, details));
+  // a folder Chromium keeps from web pages (the home folder, Desktop, a system folder…): ask instead of failing silently
+  session.defaultSession.on('file-system-access-restricted', (_event, details, callback) => {
+    void askRestrictedFolder(details.path).then(callback, () => callback('deny'));
+  });
+}
+
+async function askRestrictedFolder(path: string): Promise<'allow' | 'deny' | 'tryAgain'> {
+  const personal = (['home', 'desktop', 'documents', 'downloads', 'videos', 'pictures', 'music'] as const).flatMap((k) => {
+    try {
+      return [app.getPath(k)];
+    } catch {
+      return [];
+    }
+  });
+  const window = BrowserWindow.getFocusedWindow() ?? mainWindow;
+  const example = exampleClipFolder();
+  const ask = (options: Electron.MessageBoxOptions) => (window ? dialog.showMessageBox(window, options) : dialog.showMessageBox(options));
+  if (restrictedFolderKind(path, personal) === 'personal') {
+    const { response } = await ask({
+      type: 'question',
+      title: 'Ultima',
+      message: mt('Link the whole folder {name}?').replace('{name}', basename(path) || path),
+      detail: mt('Ultima will look through all of it for videos, music and pictures (it only reads them). Choosing the folder where your clips are, for example {example}, is faster.').replace('{example}', example),
+      buttons: [mt('Link this folder'), mt('Choose another folder'), mt('Cancel')],
+      defaultId: 0,
+      cancelId: 2,
+      noLink: true,
+    });
+    return response === 0 ? 'allow' : response === 1 ? 'tryAgain' : 'deny';
+  }
+  const { response } = await ask({
+    type: 'warning',
+    title: 'Ultima',
+    message: mt("Ultima can't link this folder"),
+    detail: mt('{path} holds system or app files. Choose the folder where your clips are saved, for example {example}.').replace('{path}', path).replace('{example}', example),
+    buttons: [mt('Choose another folder'), mt('Cancel')],
+    defaultId: 0,
+    cancelId: 1,
+    noLink: true,
+  });
+  return response === 0 ? 'tryAgain' : 'deny';
 }
 
 function registerAppIpc(): void {

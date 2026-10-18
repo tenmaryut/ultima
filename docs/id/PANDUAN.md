@@ -353,7 +353,9 @@ di subfolder, muncul sendiri di *Folder terhubung*, yang terbaru di atas, dan re
 aktif. Seret ke timeline atau klik ganda; tidak ada yang disalin, Ultima membaca file di tempatnya. Folder tetap
 terhubung setelah aplikasi dibuka ulang (jika Ultima meminta, klik pertama Anda, atau *Izinkan Ultima membaca folder ini
 lagi*, mengizinkannya membaca folder itu lagi), dan saat Anda membuka proyek yang file-nya dipindah ke folder terhubung,
-Ultima menemukannya sendiri. Ultima hanya membaca folder ini, tidak pernah mengubahnya.
+Ultima menemukannya sendiri. Ultima hanya membaca folder ini, tidak pernah mengubahnya. Jika Anda memilih seluruh drive
+atau folder home, Desktop, Documents, atau Downloads Anda, Ultima bertanya dulu — ia akan menelusuri seluruh isinya, jadi
+memilih folder tempat klip Anda tersimpan lebih cepat; folder sistem dan aplikasi tidak bisa dihubungkan.
 
 **Timeline.**
 - *Alat seleksi* (V) dan *Alat pisau* (C). **S** (atau Ctrl+K) membelah di playhead, **Shift+Delete** menghapus dan

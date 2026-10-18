@@ -14,6 +14,15 @@ const ID: Record<string, string> = {
   'Close without saving': 'Tutup tanpa menyimpan',
   Cancel: 'Batal',
   'Choose the export folder': 'Pilih folder ekspor',
+  // Linking a folder in the Video Editor
+  'Link the whole folder {name}?': 'Hubungkan seluruh folder {name}?',
+  'Ultima will look through all of it for videos, music and pictures (it only reads them). Choosing the folder where your clips are, for example {example}, is faster.':
+    'Ultima akan menelusuri seluruh isinya untuk mencari video, musik, dan gambar (hanya membacanya). Memilih folder tempat klip Anda tersimpan, misalnya {example}, lebih cepat.',
+  'Link this folder': 'Hubungkan folder ini',
+  'Choose another folder': 'Pilih folder lain',
+  "Ultima can't link this folder": 'Ultima tidak bisa menghubungkan folder ini',
+  '{path} holds system or app files. Choose the folder where your clips are saved, for example {example}.':
+    '{path} berisi file sistem atau aplikasi. Pilih folder tempat klip Anda tersimpan, misalnya {example}.',
   Allow: 'Izinkan',
   'Allow Ultima to run this program?': 'Izinkan Ultima menjalankan program ini?',
   'Allow Ultima to run this command?': 'Izinkan Ultima menjalankan perintah ini?',

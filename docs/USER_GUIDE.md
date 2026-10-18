@@ -348,7 +348,9 @@ subfolders, show up under *Linked folders* by themselves, newest first, and new 
 the focus. Drag one onto the timeline or double-click it; nothing is copied, Ultima reads the file where it is. The
 folder stays linked after a restart (if Ultima asks, your first click, or *Allow Ultima to read this folder again*,
 lets it read the folder again), and when you open a project whose files were moved into a linked folder, Ultima
-finds them there by itself. Ultima only reads these folders, it never changes them.
+finds them there by itself. Ultima only reads these folders, it never changes them. If you pick a whole drive or your
+home, Desktop, Documents or Downloads folder, Ultima asks first — it would look through all of it, so the folder where
+your clips are is faster; system and app folders can't be linked.
 
 **Timeline.**
 - Selection tool (V) and Razor tool (C). **S** (or Ctrl+K) splits at the playhead, **Shift+Delete** is ripple

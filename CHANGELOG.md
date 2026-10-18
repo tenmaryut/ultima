@@ -2,6 +2,17 @@
 
 All notable changes to Ultima are listed here. Versions follow [semantic versioning](https://semver.org).
 
+## [0.4.1] — 2026-10-18
+
+### Fixed
+
+- **Link a folder** in the Video Editor did nothing after you picked a folder in the desktop app. Electron checks the
+  read access of a picked folder in a way Ultima refused, so the request was cancelled without a word. Linking works
+  again, and linked folders stay readable after a restart.
+- Picking your whole home, Desktop, Documents or Downloads folder or a whole drive now asks first: link it anyway
+  (Ultima looks through all of it) or choose another folder. System and app folders say why they can't be linked
+  instead of failing silently.
+
 ## [0.4.0] — 2026-10-18
 
 Everything a pro game montage needs, in the Video Editor and for its AI: optical-flow slow motion, motion tracking,
