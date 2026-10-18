@@ -385,10 +385,19 @@ function patchClip(p: Project, cl: Clip, pr: Obj, fonts: string[] | undefined, c
     next.reverse = pr.reverse || undefined;
     mark('reverse');
   }
-  const blend = typeof pr.frameBlend === 'boolean' ? pr.frameBlend : typeof pr.smoothSlowMotion === 'boolean' ? pr.smoothSlowMotion : undefined;
-  if (blend !== undefined && cl.kind === 'video' && blend !== Boolean(cl.frameBlend)) {
-    next.frameBlend = blend || undefined;
-    mark('frameBlend');
+  // smooth slow motion: "smoothSlowMo":"off"|"blend"|"flow", or the booleans opticalFlow / frameBlend
+  let smooth: 'off' | 'blend' | 'flow' | undefined;
+  if (pr.smoothSlowMo !== undefined) {
+    if (pr.smoothSlowMo === 'off' || pr.smoothSlowMo === 'blend' || pr.smoothSlowMo === 'flow') smooth = pr.smoothSlowMo;
+    else warn.push('"smoothSlowMo" is "off", "blend" or "flow"');
+  } else if (pr.opticalFlow === true) smooth = 'flow';
+  else if (typeof pr.frameBlend === 'boolean' || typeof pr.smoothSlowMotion === 'boolean') smooth = (pr.frameBlend ?? pr.smoothSlowMotion) ? 'blend' : 'off';
+  else if (pr.opticalFlow === false) smooth = 'off';
+  const now = cl.opticalFlow ? 'flow' : cl.frameBlend ? 'blend' : 'off';
+  if (smooth !== undefined && cl.kind === 'video' && smooth !== now) {
+    next.frameBlend = smooth === 'blend' || undefined;
+    next.opticalFlow = smooth === 'flow' || undefined;
+    mark(smooth === 'flow' ? 'opticalFlow' : smooth === 'blend' ? 'frameBlend' : 'smooth slow motion off');
   }
   if (finite(pr.fadeIn)) {
     next.fadeIn = clampNum(pr.fadeIn, 0, cl.duration);

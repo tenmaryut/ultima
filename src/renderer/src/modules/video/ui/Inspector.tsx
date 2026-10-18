@@ -283,7 +283,17 @@ export function Inspector(props: InspectorProps) {
           </div>
           <Toggle checked={Boolean(clip.reverse)} onChange={(on) => setOnSource({ reverse: on || undefined }, t('Reverse'))} label={t('Play backwards')} />
           {clip.kind === 'video' && (
-            <Toggle checked={Boolean(clip.frameBlend)} onChange={(on) => set(editClip(clip.id, (c) => ({ ...c, frameBlend: on || undefined })), t('Smooth slow motion'))} label={t('Smooth slow motion (blend frames on export)')} />
+            <Field label={t('Smooth slow motion (on export)')}>
+              <Select<string>
+                value={clip.opticalFlow ? 'flow' : clip.frameBlend ? 'blend' : 'off'}
+                onChange={(v) => set(editClip(clip.id, (c) => ({ ...c, frameBlend: v === 'blend' || undefined, opticalFlow: v === 'flow' || undefined })), t('Smooth slow motion'))}
+                options={[
+                  { value: 'off', label: t('Off (repeat frames)') },
+                  { value: 'blend', label: t('Blend frames (fast)') },
+                  { value: 'flow', label: t('Optical flow: new in-between frames (sharpest)') },
+                ]}
+              />
+            </Field>
           )}
           <Toggle checked={clip.keepPitch} onChange={(keepPitch) => setOnSource({ keepPitch }, t('Keep pitch'))} label={t('Keep audio pitch')} />
           {clip.kind === 'video' && (

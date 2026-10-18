@@ -18,7 +18,7 @@ export function toGray(rgba: ArrayLike<number>, w: number, h: number): Gray {
 }
 
 /** Half the size, each pixel the mean of 2×2. */
-function half(g: Gray): Gray {
+export function half(g: Gray): Gray {
   const w = Math.max(1, g.w >> 1);
   const h = Math.max(1, g.h >> 1);
   const data = new Float32Array(w * h);

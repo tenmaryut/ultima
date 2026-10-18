@@ -350,6 +350,8 @@ export interface Clip {
   freeze?: boolean;
   /** Blends neighbouring source frames in slow motion (export). */
   frameBlend?: boolean;
+  /** Slow motion with new in-between frames made from the motion (optical flow, export); wins over frameBlend. */
+  opticalFlow?: boolean;
   /** Video clips: points followed through the picture (motion tracking). */
   tracks?: MotionTrack[];
 }

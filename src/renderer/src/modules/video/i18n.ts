@@ -561,7 +561,6 @@ registerTranslations('id', {
   'Slow to fast': 'Lambat ke cepat',
   'Slow-mo in the middle': 'Slow-mo di tengah',
   'Smooth slow motion': 'Slow motion halus',
-  'Smooth slow motion (blend frames on export)': 'Slow motion halus (frame dibaurkan saat ekspor)',
   'Speed curve': 'Kurva kecepatan',
   'Speed up in the middle': 'Dipercepat di tengah',
   'The clip keeps its place and length, so cuts stay on the beat.': 'Klip tetap di tempat dan panjangnya, sehingga potongan tetap pas dengan beat.',
@@ -833,4 +832,10 @@ registerTranslations('id', {
   'Tracking failed': 'Pelacakan gagal',
   'Nothing could follow': 'Tidak ada yang bisa mengikuti',
   '{count} clip(s) follow the track': '{count} klip mengikuti pelacakan',
+
+  // Optical-flow slow motion
+  'Smooth slow motion (on export)': 'Slow motion halus (saat ekspor)',
+  'Off (repeat frames)': 'Mati (frame diulang)',
+  'Blend frames (fast)': 'Campur frame (cepat)',
+  'Optical flow: new in-between frames (sharpest)': 'Optical flow: frame sisipan baru (paling tajam)',
 }, 'video');

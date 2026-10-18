@@ -4,6 +4,7 @@ import { describeProject } from './describe';
 import { findTrack, resolveClips } from './targets';
 import { addMarker, addMediaToTimeline, clipEnd, createProject, getClip, tracksOfKind, updateClip } from '../model';
 import { sourceSpan } from '../keyframes';
+import { parseProject, serializeProject } from '../project';
 import type { MediaRef, Project } from '../types';
 
 const beach: MediaRef = { id: 'm_beach', name: 'beach.mp4', kind: 'video', duration: 20, width: 1920, height: 1080, size: 1, mime: 'video/mp4', hasAudio: true };
@@ -261,6 +262,14 @@ describe('motion and time', () => {
     const r = run(p, [{ type: 'setClip', clipId: a, props: { reverse: true, frameBlend: true } }]);
     expect([getClip(r.project, a)!.reverse, getClip(r.project, a)!.frameBlend, linkedAudio(r.project, a).reverse]).toEqual([true, true, true]);
     expect(r.results[0].detail).toContain('reverse, frameBlend');
+    // optical flow instead of blending, and off again
+    const flow = run(r.project, [{ type: 'setClip', clipId: a, props: { smoothSlowMo: 'flow' } }]);
+    expect([getClip(flow.project, a)!.opticalFlow, getClip(flow.project, a)!.frameBlend]).toEqual([true, undefined]);
+    expect(describeProject(flow.project, { playhead: 0, selection: [] })).toContain('smooth slow motion (optical flow: new in-between frames)');
+    expect(getClip(parseProject(serializeProject(flow.project)), a)!.opticalFlow).toBe(true);
+    const off = run(flow.project, [{ type: 'setClip', clipId: a, props: { smoothSlowMo: 'off' } }]);
+    expect([getClip(off.project, a)!.opticalFlow, getClip(off.project, a)!.frameBlend]).toEqual([undefined, undefined]);
+    expect(run(p, [{ type: 'setClip', clipId: a, props: { smoothSlowMo: 'twixtor' } }]).results[0].detail).toContain('"smoothSlowMo" is "off", "blend" or "flow"');
   });
 
   it('describes keyframes, ramps, reversed and frozen clips', () => {

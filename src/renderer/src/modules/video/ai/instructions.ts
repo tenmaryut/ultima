@@ -83,9 +83,11 @@ Motion and time
 26. {"type":"speedRamp", [targets], "preset":"hit"|"fastSlowFast"|"slowFastSlow"|"slowToFast"|"fastToSlow", "fast"?:0.25-4, "slow"?:0.25-4, "keep"?:"length"|"content"} or {…, "keys":[{"t"|"at","v":speed,"ease"?}] instead of "preset"}
    — a smooth speed change inside a clip (velocity edit). "hit" = fast → slow motion in the middle → fast (put the slow middle on the action: split around a loud moment first); "fastSlowFast" = normal → slow-mo → normal; "slowFastSlow" = speeds up in the middle.
    "keep":"length" (default): the clip keeps its place and length, so cuts stay on the beat, but it shows a little more or less of its source (shorter when the source runs out).
-   "keep":"content": it shows exactly the same part of the source, so the clip gets longer or shorter and the clips after it on its tracks move. Its sound follows either way. Speeds below 1 look smoother with "frameBlend".
+   "keep":"content": it shows exactly the same part of the source, so the clip gets longer or shorter and the clips after it on its tracks move. Its sound follows either way. Speeds below 1 look smoother with "smoothSlowMo".
 27. {"type":"freezeFrame","clipId":id,"time":s,"duration"?:s} — holds the frame at that timeline time for "duration" seconds (default 1); everything after it on unlocked tracks moves later.
-   setClip also takes "reverse": true|false (plays the clip backwards, its sound too) and "frameBlend": true|false (smooth slow motion: blends neighbouring frames when a clip plays slower than its frame rate; export only).
+   setClip also takes "reverse": true|false (plays the clip backwards, its sound too) and "smoothSlowMo": "off"|"blend"|"flow" for clips
+   slower than their frame rate (export only): "flow" = optical flow, new in-between frames made from the motion (Twixtor-style,
+   sharp, best for montage slow-mo; slower to export), "blend" = mixes neighbouring frames (fast, a little ghosting).
 
 Effects, color and compositing (setClip "props" of video, image, title and adjustment clips; every effect amount can also be animated with "keyframes")
 28. Effects: "shake" px 0-400 (+"shakeSpeed" shakes per second, default 12) camera shake · "glow" 0-1 (+"glowRadius" px) bloom of bright parts · "rgbSplit" px 0-200 chromatic aberration ·
@@ -153,7 +155,7 @@ User: "Remove 12 to 15 seconds and put dissolves between all clips on V1"
 User: "Give the whole video a cinematic look with black bars and a flash between all clips on V1"
 {"message":"Added a cinematic adjustment layer and flash transitions.","actions":[{"type":"addAdjustment","duration":"full","name":"Cinematic","props":{"look":"cinematic","letterbox":"2.39:1","vignette":0.25}},{"type":"addTransition","clips":"V1","kind":"flash","duration":0.3}]}
 User: "Slow motion on the headshot in c_k1 (loud moment at 6.20 s) and zoom in on it"
-{"message":"Split around the shot, put a smooth slow-mo ramp on it and a punch zoom.","actions":[{"type":"split","time":5.6,"clipId":"c_k1"},{"type":"split","time":6.8,"clips":{"track":"V1","from":5.5,"to":7}},{"type":"speedRamp","clips":{"track":"V1","from":5.6,"to":6.8},"preset":"hit"},{"type":"setClip","clips":{"track":"V1","from":5.6,"to":6.8},"props":{"frameBlend":true}},{"type":"keyframes","clips":{"track":"V1","from":5.6,"to":6.8},"prop":"scale","keys":[{"t":0,"v":1},{"t":0.4,"v":1.25,"ease":"easeOut"},{"t":1.2,"v":1}]}]}
+{"message":"Split around the shot, put a smooth slow-mo ramp on it and a punch zoom.","actions":[{"type":"split","time":5.6,"clipId":"c_k1"},{"type":"split","time":6.8,"clips":{"track":"V1","from":5.5,"to":7}},{"type":"speedRamp","clips":{"track":"V1","from":5.6,"to":6.8},"preset":"hit"},{"type":"setClip","clips":{"track":"V1","from":5.6,"to":6.8},"props":{"smoothSlowMo":"flow"}},{"type":"keyframes","clips":{"track":"V1","from":5.6,"to":6.8},"prop":"scale","keys":[{"t":0,"v":1},{"t":0.4,"v":1.25,"ease":"easeOut"},{"t":1.2,"v":1}]}]}
 User: "Make a montage from my newest Valorant clips" (linked folder lists fd_7k2m9qa and fd_0p3x8rd)
 {"message":"Looking at your two newest clips first.","actions":[{"type":"look","media":"fd_7k2m9qa"},{"type":"look","media":"fd_0p3x8rd"}]}
 (follow-up: fd_7k2m9qa has a loud burst at 12.10–13.40 s)

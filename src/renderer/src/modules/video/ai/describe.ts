@@ -110,7 +110,8 @@ function effectsSummary(c: Clip): string {
   else if (c.speedKeys?.length) parts.push(`speed ramp (clip seconds=speed) ${keyList(c.speedKeys, 2)}`);
   else if (c.speed !== 1) parts.push(`speed ${c.speed}x`);
   if (c.reverse) parts.push('reversed');
-  if (c.frameBlend) parts.push('smooth slow motion (frame blending)');
+  if (c.opticalFlow) parts.push('smooth slow motion (optical flow: new in-between frames)');
+  else if (c.frameBlend) parts.push('smooth slow motion (frame blending)');
   if (c.tracks?.length) {
     const list = c.tracks.map((tr) => {
       const span = trackSpan(c, tr);

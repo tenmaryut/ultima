@@ -368,6 +368,7 @@ export function parseProject(input: string | unknown): Project {
       reverse: (kind === 'video' || kind === 'audio') && c.reverse === true ? true : undefined,
       freeze: (kind === 'video' || kind === 'audio') && c.freeze === true ? true : undefined,
       frameBlend: kind === 'video' && c.frameBlend === true ? true : undefined,
+      opticalFlow: kind === 'video' && c.opticalFlow === true ? true : undefined,
       tracks: kind === 'video' ? parseMotionTracks(c.tracks) : undefined,
     });
   }
