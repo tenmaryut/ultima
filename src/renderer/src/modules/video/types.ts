@@ -350,6 +350,19 @@ export interface Clip {
   freeze?: boolean;
   /** Blends neighbouring source frames in slow motion (export). */
   frameBlend?: boolean;
+  /** Video clips: points followed through the picture (motion tracking). */
+  tracks?: MotionTrack[];
+}
+
+/** A point followed through a video, in source time and as fractions of the source picture. */
+export interface MotionTrack {
+  id: string;
+  name: string;
+  /** In source-time order; `s` is how sure the tracker was (0-1, 0 = lost there, a guess). */
+  points: { t: number; x: number; y: number; s: number }[];
+  /** Size of the followed patch, as fractions of the source picture. */
+  w: number;
+  h: number;
 }
 
 export interface Marker {

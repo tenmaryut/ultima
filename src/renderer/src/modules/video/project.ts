@@ -1,4 +1,4 @@
-import type { AudioFx, BlendMode, CaptionStyle, Clip, ClipKind, ClipMask, ColorGrade, CurveChannel, Easing, FontAsset, HueRange, Keyframe, KeyProp, LookId, LutAsset, MediaRef, Project, TitleStyle, Track, Transition, VisualProps } from './types';
+import type { AudioFx, BlendMode, CaptionStyle, Clip, ClipKind, ClipMask, ColorGrade, CurveChannel, Easing, FontAsset, HueRange, Keyframe, KeyProp, LookId, LutAsset, MediaRef, MotionTrack, Project, TitleStyle, Track, Transition, VisualProps } from './types';
 import { AUDIO_KEY_PROPS, EASINGS, KEY_PROPS, KEY_RANGES } from './keyframes';
 import { BLEND_IDS, DEFAULT_AUDIO_FX, DEFAULT_SETTINGS, DEFAULT_VISUAL, MAX_SPEED, MAX_VOLUME_DB, MIN_SPEED, MIN_VOLUME_DB, TRANSITION_KINDS, defaultCaptionStyle, defaultTitle } from './presets';
 import { CURVE_CHANNELS, HUE_RANGE_IDS, LOOK_IDS, cleanCurve, isIdentityCurve } from './grade';
@@ -57,6 +57,28 @@ function parseKeyList(v: unknown, range: [number, number], maxT: number): Keyfra
     .map((k) => ({ t: clampNum(k.t as number, 0, maxT), v: clampNum(k.v as number, range[0], range[1]), ease: (EASINGS.includes(k.ease as Easing) ? k.ease : 'linear') as Easing }))
     .sort((a, b) => a.t - b.t);
   return list.length ? list : undefined;
+}
+
+/** Motion tracks of a video clip (at most 20, each at most 20 000 points). */
+export function parseMotionTracks(v: unknown): MotionTrack[] | undefined {
+  if (!Array.isArray(v)) return undefined;
+  const out: MotionTrack[] = [];
+  for (const t of v.slice(0, 20)) {
+    if (!isObj(t) || typeof t.id !== 'string' || !Array.isArray(t.points) || out.some((x) => x.id === t.id)) continue;
+    const points: MotionTrack['points'] = [];
+    for (const q of t.points.slice(0, 20000)) {
+      if (!isObj(q)) continue;
+      const time = n(q.t, NaN, 0, 1e7);
+      const x = n(q.x, NaN, -1, 2);
+      const y = n(q.y, NaN, -1, 2);
+      if (!Number.isFinite(time) || !Number.isFinite(x) || !Number.isFinite(y)) continue;
+      if (points.length && time <= points[points.length - 1].t) continue;
+      points.push({ t: time, x, y, s: n(q.s, 1, 0, 1) });
+    }
+    if (points.length < 2) continue;
+    out.push({ id: t.id.slice(0, 40), name: str(t.name, 'Track', 80), points, w: n(t.w, 0.05, 0.001, 1), h: n(t.h, 0.05, 0.001, 1) });
+  }
+  return out.length ? out : undefined;
 }
 
 function parseKeys(v: unknown, maxT: number, visual: boolean, audio: boolean): Clip['keys'] {
@@ -346,6 +368,7 @@ export function parseProject(input: string | unknown): Project {
       reverse: (kind === 'video' || kind === 'audio') && c.reverse === true ? true : undefined,
       freeze: (kind === 'video' || kind === 'audio') && c.freeze === true ? true : undefined,
       frameBlend: kind === 'video' && c.frameBlend === true ? true : undefined,
+      tracks: kind === 'video' ? parseMotionTracks(c.tracks) : undefined,
     });
   }
 

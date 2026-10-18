@@ -10,7 +10,9 @@ import { visualLayers } from '../compositor';
 import { clipLayout, hitLayout, layoutCorners } from '../fx';
 import { titleBox } from '../text';
 import { formatTimecode, parseTimecode } from '../time';
-import { animatedVisual, setValueAt } from '../keyframes';
+import { animatedVisual, setValueAt, timeOfSource } from '../keyframes';
+import { sourceToFrame, trackPointAt } from '../tracking';
+import type { TrackBox } from '../useTracking';
 
 export type PreviewZoom = 'fit' | 0.25 | 0.5 | 1;
 
@@ -35,6 +37,8 @@ interface PreviewProps {
   onTogglePlay: () => void;
   onSeek: (t: number) => void;
   onStep: (frames: number) => void;
+  /** Drawing the box to track: the box (project px), or cancel. */
+  pick?: { onBox: (box: TrackBox) => void; onCancel: () => void } | null;
 }
 
 /** Seconds into a clip at timeline time `t`. */
@@ -90,6 +94,92 @@ function CurrentTime({ time, fps, onSeek }: { time: TimeStore; fps: number; onSe
     >
       {formatTimecode(now, fps)}
     </span>
+  );
+}
+
+/** The paths of a video clip's motion tracks in the frame, and where each point is now. */
+function TrackPaths({ project, clip, now }: { project: Project; clip: Clip; now: number }) {
+  const { width: W } = project.settings;
+  return (
+    <>
+      {(clip.tracks ?? []).map((tr) => {
+        const pts: string[] = [];
+        const every = Math.max(1, Math.ceil(tr.points.length / 300));
+        tr.points.forEach((q, i) => {
+          if (i % every || q.s < 0.4) return;
+          const tl = timeOfSource(clip, q.t);
+          const f = tl === null ? null : sourceToFrame(project, clip, tl - clip.start, q.x, q.y);
+          if (f) pts.push(`${f.x.toFixed(1)},${f.y.toFixed(1)}`);
+        });
+        const here = trackPointAt(project, clip, tr, now);
+        return (
+          <g key={tr.id} className="vd-track">
+            {pts.length > 1 && <polyline points={pts.join(' ')} />}
+            {here && (
+              <>
+                <circle cx={here.x} cy={here.y} r={W * 0.012} className={here.sure < 0.4 ? 'lost' : ''} />
+                <text x={here.x + W * 0.016} y={here.y - W * 0.012} fontSize={W * 0.018}>
+                  {tr.name}
+                </text>
+              </>
+            )}
+          </g>
+        );
+      })}
+    </>
+  );
+}
+
+/** Drawing the box around what to track. */
+function PickBox({ project, onBox, onCancel }: { project: Project; onBox: (box: TrackBox) => void; onCancel: () => void }) {
+  const t = useT();
+  const { width: W, height: H } = project.settings;
+  const [box, setBox] = useState<TrackBox | null>(null);
+  const start = useRef<{ x: number; y: number } | null>(null);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onCancel();
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [onCancel]);
+  const at = (e: React.PointerEvent) => {
+    const r = (e.currentTarget as SVGSVGElement).getBoundingClientRect();
+    return { x: ((e.clientX - r.left) / r.width) * W, y: ((e.clientY - r.top) / r.height) * H };
+  };
+  return (
+    <>
+      <svg
+        className="vd-overlay picking"
+        viewBox={`0 0 ${W} ${H}`}
+        preserveAspectRatio="none"
+        aria-label={t('Drag a box around what to follow')}
+        onPointerDown={(e) => {
+          if (e.button !== 0) return;
+          (e.currentTarget as Element).setPointerCapture(e.pointerId);
+          start.current = at(e);
+          setBox({ x0: start.current.x, y0: start.current.y, x1: start.current.x, y1: start.current.y });
+        }}
+        onPointerMove={(e) => start.current && setBox({ x0: start.current.x, y0: start.current.y, ...((p) => ({ x1: p.x, y1: p.y }))(at(e)) })}
+        onPointerUp={(e) => {
+          const s0 = start.current;
+          start.current = null;
+          if (!s0) return;
+          const p = at(e);
+          // a click: a box of 8% of the picture height around it
+          const half = H * 0.04;
+          const b = Math.abs(p.x - s0.x) < W * 0.01 && Math.abs(p.y - s0.y) < H * 0.01 ? { x0: p.x - half, y0: p.y - half, x1: p.x + half, y1: p.y + half } : { x0: s0.x, y0: s0.y, x1: p.x, y1: p.y };
+          setBox(null);
+          onBox(b);
+        }}
+      >
+        {box && <rect className="vd-pick" x={Math.min(box.x0, box.x1)} y={Math.min(box.y0, box.y1)} width={Math.abs(box.x1 - box.x0)} height={Math.abs(box.y1 - box.y0)} />}
+      </svg>
+      <div className="vd-pick-hint">{t('Drag a box around what to follow (or click on it) · Esc cancels')}</div>
+    </>
   );
 }
 
@@ -167,6 +257,7 @@ function Overlay({ project, time, selection, safe, change, commit, setSelection,
         </>
       )}
       {corners && <polygon className="vd-sel" points={corners.map((c) => `${c.x},${c.y}`).join(' ')} />}
+      {sel?.kind === 'video' && sel.tracks?.length ? <TrackPaths project={project} clip={sel} now={now} /> : null}
     </svg>
   );
 }
@@ -217,16 +308,20 @@ export function Preview(props: PreviewProps) {
       <div ref={stageRef} className={`vd-stage ${props.zoom !== 'fit' ? 'zoomed' : ''}`}>
         <div className="vd-frame checker" style={{ width: dispW, height: dispH }}>
           <canvas ref={canvasRef} aria-label={t('Program monitor')} />
-          <Overlay
-            project={project}
-            time={props.time}
-            selection={props.selection}
-            safe={props.safe}
-            change={props.change}
-            commit={props.commit}
-            setSelection={props.setSelection}
-            dispW={dispW}
-          />
+          {props.pick ? (
+            <PickBox project={project} onBox={props.pick.onBox} onCancel={props.pick.onCancel} />
+          ) : (
+            <Overlay
+              project={project}
+              time={props.time}
+              selection={props.selection}
+              safe={props.safe}
+              change={props.change}
+              commit={props.commit}
+              setSelection={props.setSelection}
+              dispW={dispW}
+            />
+          )}
         </div>
         {empty && (
           <div className="vd-empty-hint">

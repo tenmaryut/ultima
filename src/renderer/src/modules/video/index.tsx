@@ -6,7 +6,7 @@ import type { ModuleProps } from '../../core/modules';
 import { ModuleLayout } from '../../components/layout/ModuleLayout';
 import { AIAssistantPanel } from '../../components/ai/AIAssistantPanel';
 import { SpeechDialog } from '../../components/ai/SpeechDialog';
-import { Button, DropdownButton, DropOverlay, IconButton, Spinner } from '../../components/ui';
+import { Button, DropdownButton, DropOverlay, IconButton, Modal, ProgressBar, Spinner } from '../../components/ui';
 import { useModuleCommands, useModuleKeydown } from '../../core/commands';
 import { useHandoffs } from '../../core/hooks';
 import { isMac } from '../../core/platform';
@@ -291,6 +291,7 @@ export default function VideoModule({ active }: ModuleProps) {
             onUnlink={actions.unlink}
             onSeek={ed.seek}
             onRenameMarker={(id) => void ed.renameMarker(id)}
+            tracking={ed.tracking}
           />
         }
         bottom={
@@ -391,9 +392,29 @@ export default function VideoModule({ active }: ModuleProps) {
           onTogglePlay={() => engine?.toggle()}
           onSeek={ed.seek}
           onStep={(n) => engine?.step(n)}
+          pick={ed.tracking.pick ? { onBox: (box) => void ed.tracking.onPickBox(box), onCancel: ed.tracking.cancelPick } : null}
         />
       </ModuleLayout>
       <DropOverlay show={dragging} label={t('Drop to import — drop on the timeline to place it there')} />
+      {ed.tracking.job && (
+        <Modal
+          title={t('Tracking…')}
+          onClose={ed.tracking.cancel}
+          footer={
+            <Button variant="danger" onClick={ed.tracking.cancel}>
+              {t('Cancel')}
+            </Button>
+          }
+        >
+          <div className="col" style={{ gap: 8 }}>
+            <div className="row">
+              <span className="grow">{t('Following the target frame by frame…')}</span>
+              <span className="mono">{Math.round(ed.tracking.job.progress * 100)}%</span>
+            </div>
+            <ProgressBar value={ed.tracking.job.progress} />
+          </div>
+        </Modal>
+      )}
       {dialog?.kind === 'export' && (
         <ExportDialog
           project={project}

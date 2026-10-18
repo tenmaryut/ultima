@@ -12,6 +12,8 @@ import { KeyBar, KeyNumber, KeySlider, type KeyEdit } from './KeyControls';
 import { ColorGradePanel, EffectsPanel, MaskPanel } from './LookPanels';
 import { SoundPanel } from './SoundPanel';
 import { ProjectPanel } from './ProjectPanel';
+import { TrackingPanel } from './TrackingPanel';
+import type { TrackingApi } from '../useTracking';
 
 interface InspectorProps {
   project: Project;
@@ -27,6 +29,7 @@ interface InspectorProps {
   onUnlink: () => void;
   onSeek: (t: number) => void;
   onRenameMarker: (id: string) => void;
+  tracking: TrackingApi;
 }
 
 const KIND_ICON = { video: Video, image: ImageIcon, audio: Music, title: Type, caption: Captions, adjustment: SlidersHorizontal };
@@ -413,6 +416,8 @@ export function Inspector(props: InspectorProps) {
       {visual && <EffectsPanel key={`fx-${clip.id}`} clip={clip} project={project} time={props.time} keyProps={keyProps([clip])} set={clipSet} live={clipLive} done={done} />}
 
       {visual && <MaskPanel key={`mask-${clip.id}`} clip={clip} set={clipSet} live={clipLive} done={done} />}
+
+      {clip.kind === 'video' && <TrackingPanel key={`track-${clip.id}`} clip={clip} tracking={props.tracking} selected={selection.filter((id) => id !== clip.id && getClip(project, id)?.visual).length} />}
 
       {(clip.kind === 'video' || clip.kind === 'image') && (
         <Panel title={t('Chroma key (green screen)')} defaultOpen={v.chromaKey}>

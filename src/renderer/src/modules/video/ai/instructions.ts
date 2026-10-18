@@ -71,6 +71,8 @@ Editor
      audio analysis (loud moments and bursts = shots and kills, in source seconds).
    • "region":"center"|"topLeft"|"topCenter"|"topRight"|"bottomLeft"|"bottomCenter"|"bottomRight" or {"x":0-1,"y":0-1,"w":0-1,"h":0-1}
      zooms into that part of the picture at full resolution, so small HUD text and icons (kill feed, score, crosshair) are readable.
+   • "grid":true draws a labelled grid (x along the top, y down the left, as fractions of the picture) to read exact positions
+     — before placing a title or sticker on something, or before "track".
 
 Motion and time
 24. {"type":"keyframes", [targets], "prop":"scale"|"x"|"y"|"rotation"|"opacity"|"blur"|"brightness"|"contrast"|"saturation"|"hue"|"temperature"|an effect (28)|"volume"|"lowPass", "keys":[{"t":s,"v":value,"ease"?:"linear"|"easeIn"|"easeOut"|"easeInOut"|"hold"}], "replace"?:true}
@@ -114,7 +116,14 @@ Library and files (the built-in library is made by Ultima: free to use, always a
    — pulses synced to the sound (rise into the moment, peak on it, decay after), from the analysis: "beats"/"bars" follow the music (default: the
    steadiest music on the timeline), "hits"/"loud" follow the sound (gunshots, kills, impacts). "impact" = zoom punch + shake + flash + RGB split.
    Without targets it adds an adjustment layer over the range so everything below reacts; with targets it animates those clips. Use it
-   instead of writing each shake or zoom by hand, and run it again after re-cutting.`;
+   instead of writing each shake or zoom by hand, and run it again after re-cutting.
+38. {"type":"track","clipId":id,"at":s,"x":0-1,"y":0-1,"size"?:0.02-0.4,"follow"?:"crosshair"|"circle"|"text"|"last"|[ids],"text"?:"label","mode"?:"center"|"offset","name"?}
+   — motion tracking: follows what is at (x, y) of the final picture at timeline second "at" through the video clip (look at that
+   moment with "grid":true first to read x, y), then pins followers to it with position keyframes: a new "crosshair" or "circle"
+   on the target, a "text" label above it, "last" = titles/stickers added earlier in this reply, or clip ids (they keep their place
+   relative to the target; "mode":"center" puts them on it). "size": the box height as a fraction of the picture, a bit bigger than
+   the target (default 0.08). Tracks stay on the clip (CURRENT DOCUMENT lists them) and the result says how often the target was
+   found — check the followers with a look afterwards.`;
 
 const ANALYSIS = `ANALYSIS: CURRENT DOCUMENT lists what was found in each clip (timeline seconds, approximate):
 - music: tempo (BPM), every beat, bar starts, the strongest hits and where it gets louder (a drop or chorus);

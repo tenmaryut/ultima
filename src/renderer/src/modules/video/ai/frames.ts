@@ -92,6 +92,43 @@ export const frameLabel = (s: FrameSample) => `${s.clipId} · ${s.time.toFixed(1
 interface Tile {
   frame: CanvasImageSource | null;
   label: string;
+  /** Draw a coordinate grid; the tile shows this part of the whole picture (fractions). */
+  grid?: LookRegion;
+}
+
+/** Lines every tenth of the tile, labelled with the position in the whole picture (0-1), so places can be read exactly. */
+function drawGrid(ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D, x0: number, y0: number, w: number, h: number, r: LookRegion) {
+  ctx.save();
+  ctx.lineWidth = 1;
+  ctx.font = '600 11px system-ui, sans-serif';
+  ctx.textBaseline = 'top';
+  ctx.textAlign = 'left';
+  const label = (text: string, x: number, y: number) => {
+    const tw = ctx.measureText(text).width + 6;
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(x, y, tw, 14);
+    ctx.fillStyle = '#ffe14d';
+    ctx.fillText(text, x + 3, y + 1);
+  };
+  for (let i = 1; i < 10; i++) {
+    const gx = Math.round(x0 + (w * i) / 10) + 0.5;
+    const gy = Math.round(y0 + (h * i) / 10) + 0.5;
+    ctx.strokeStyle = i === 5 ? 'rgba(255, 225, 77, 0.55)' : 'rgba(255, 255, 255, 0.3)';
+    ctx.beginPath();
+    ctx.moveTo(gx, y0);
+    ctx.lineTo(gx, y0 + h);
+    ctx.moveTo(x0, gy);
+    ctx.lineTo(x0 + w, gy);
+    ctx.stroke();
+  }
+  for (let i = 1; i < 10; i++) {
+    const fx = r.x + (r.w * i) / 10;
+    const fy = r.y + (r.h * i) / 10;
+    const digits = r.w < 1 || r.h < 1 ? 2 : 1;
+    label(fx.toFixed(digits), x0 + (w * i) / 10 + 2, y0 + 2);
+    label(fy.toFixed(digits), x0 + 2, y0 + (h * i) / 10 + 2);
+  }
+  ctx.restore();
 }
 
 function drawSheet(tiles: Tile[], layout: SheetLayout): HTMLCanvasElement {
@@ -104,7 +141,7 @@ function drawSheet(tiles: Tile[], layout: SheetLayout): HTMLCanvasElement {
   ctx.fillStyle = '#16171b';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.textBaseline = 'middle';
-  tiles.forEach(({ frame, label }, i) => {
+  tiles.forEach(({ frame, label, grid }, i) => {
     const x = (i % cols) * cellWidth;
     const y = Math.floor(i / cols) * cellHeight;
     ctx.fillStyle = '#000000';
@@ -116,6 +153,7 @@ function drawSheet(tiles: Tile[], layout: SheetLayout): HTMLCanvasElement {
       const w = fw * scale;
       const h = fh * scale;
       ctx.drawImage(frame, x + (cellWidth - w) / 2, y + 1 + (frameHeight - 1 - h) / 2, w, h);
+      if (grid) drawGrid(ctx, x + (cellWidth - w) / 2, y + 1 + (frameHeight - 1 - h) / 2, w, h, grid);
     } else {
       ctx.fillStyle = '#8a8f98';
       ctx.font = '12px system-ui, sans-serif';
@@ -213,18 +251,19 @@ export async function lookSheet(
   times: number[],
   frames: FrameSource,
   still: (mediaId: string) => CanvasImageSource | null,
+  grid = false,
 ): Promise<{ images: AIImage[]; note: string }> {
   const list = [...new Set(times.filter((t) => Number.isFinite(t)).map((t) => Math.max(0, +t.toFixed(3))))].slice(0, MAX_LOOK_TIMES).sort((a, b) => a - b);
   if (!list.length) return { images: [], note: 'no valid times to look at' };
   const pictures = await programFrames(p, list, frames, still, 300);
   const layout = sheetLayout(p.settings.width / p.settings.height, 300, 1600, Math.ceil(list.length / 3));
   const sheet = drawSheet(
-    pictures.map((frame, i) => ({ frame, label: `t = ${list[i].toFixed(2)} s` })),
+    pictures.map((frame, i) => ({ frame, label: `t = ${list[i].toFixed(2)} s`, grid: grid ? WHOLE : undefined })),
     { ...layout, cols: Math.min(layout.cols, 3) },
   );
   return {
     images: [await canvasToAIImage(sheet, { maxSize: 1600 })],
-    note: `the final picture at ${list.map((t) => `${t.toFixed(2)} s`).join(', ')} (each tile is labelled with its time).`,
+    note: `the final picture at ${list.map((t) => `${t.toFixed(2)} s`).join(', ')} (each tile is labelled with its time${grid ? '; the yellow numbers on the grid are x (top) and y (left) as fractions of the picture' : ''}).`,
   };
 }
 
@@ -237,6 +276,8 @@ export interface LookRegion {
   w: number;
   h: number;
 }
+
+const WHOLE: LookRegion = { x: 0, y: 0, w: 1, h: 1 };
 
 /** Named parts of the picture: the corners where games put their HUD (kill feed, score, minimap) and the crosshair. */
 export const LOOK_REGIONS: Record<string, LookRegion> = {
@@ -262,6 +303,8 @@ export interface SourceLook {
   overview: boolean;
   /** Frames evenly spaced from the first to the last time (a "from"/"to" strip). */
   strip: boolean;
+  /** A coordinate grid over the pictures. */
+  grid: boolean;
 }
 
 const numberOf = (v: unknown): number | undefined => {
@@ -316,7 +359,7 @@ export function planSourceLook(a: Record<string, unknown>, duration: number): So
     times = duration > 0 ? Array.from({ length: n }, (_, i) => at(((i + 0.5) / n) * duration)) : [0];
   }
   times = [...new Set(times.map((t) => +t.toFixed(3)))].sort((x, y) => x - y).slice(0, MAX_SOURCE_FRAMES);
-  return { times, region, regionName: name, overview, strip };
+  return { times, region, regionName: name, overview, strip, grid: a.grid === true };
 }
 
 /** Tiles for `n` frames of this aspect: as big as a 1600 × 1600 px sheet allows (a single frame fills it). */
@@ -356,7 +399,8 @@ export function describeSourceLook(media: MediaRef, look: SourceLook): string {
       ? `${list.length} frames from ${list[0].toFixed(2)} to ${list[list.length - 1].toFixed(2)} s, every ${((list[list.length - 1] - list[0]) / (list.length - 1)).toFixed(2)} s in order (read them as motion)`
       : `frames at ${list.map((t) => `${t.toFixed(2)} s`).join(', ')}`;
   const zoom = look.region ? `, zoomed into the ${look.regionName} part of the picture at full resolution` : '';
-  return `${media.id} "${media.name}" (source seconds): ${what}${zoom}; each tile is labelled "<id> · <source s>"`;
+  const grid = look.grid ? '; the yellow numbers on the grid are x (top) and y (left) as fractions of the whole picture' : '';
+  return `${media.id} "${media.name}" (source seconds): ${what}${zoom}; each tile is labelled "<id> · <source s>"${grid}`;
 }
 
 /** The pictures of a look at a source clip (bin or linked folder), as one sheet. */
@@ -369,7 +413,7 @@ export async function sourceLookSheet(media: MediaRef, look: SourceLook, frames:
   // enough pixels for the region to fill its tile, never more than the source has
   const height = Math.round(clampTo(layout.frameHeight / (r?.h ?? 1), 90, Math.min(srcH, 2160)));
   const got = await frames(media, look.times, height);
-  const tiles = got.map((f, i) => ({ frame: f ? cropFrame(f, r) : null, label: `${media.id} · ${look.times[i].toFixed(2)} s` }));
+  const tiles = got.map((f, i) => ({ frame: f ? cropFrame(f, r) : null, label: `${media.id} · ${look.times[i].toFixed(2)} s`, grid: look.grid ? (r ?? WHOLE) : undefined }));
   const sheet = drawSheet(tiles, layout);
   return { image: await canvasToAIImage(sheet, { maxSize: 1600 }), note: describeSourceLook(media, look) };
 }

@@ -282,6 +282,68 @@
   fill: transparent;
   cursor: move;
 }
+/* motion tracking: the path of a track, the point now, and the box being drawn */
+.vd-overlay .vd-track polyline {
+  fill: none;
+  stroke: #36e0ff;
+  stroke-width: 1.5;
+  stroke-opacity: 0.85;
+  vector-effect: non-scaling-stroke;
+}
+.vd-overlay .vd-track circle {
+  fill: rgba(54, 224, 255, 0.18);
+  stroke: #36e0ff;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+.vd-overlay .vd-track circle.lost {
+  stroke: var(--warning);
+  stroke-dasharray: 4 3;
+}
+.vd-overlay .vd-track text {
+  fill: #36e0ff;
+  font-weight: 600;
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.7);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+.vd-overlay.picking {
+  cursor: crosshair;
+  background: rgba(0, 0, 0, 0.18);
+}
+.vd-overlay .vd-pick {
+  fill: rgba(54, 224, 255, 0.12);
+  stroke: #36e0ff;
+  stroke-width: 2;
+  stroke-dasharray: 6 4;
+  vector-effect: non-scaling-stroke;
+}
+.vd-pick-hint {
+  position: absolute;
+  left: 50%;
+  top: 8px;
+  transform: translateX(-50%);
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.72);
+  color: #fff;
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.vd-track-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 6px 0;
+  border-top: 1px solid var(--border);
+}
+.vd-track-row .name {
+  font-weight: 600;
+  color: var(--text-0);
+}
 .vd-empty-hint {
   position: absolute;
   inset: 0;

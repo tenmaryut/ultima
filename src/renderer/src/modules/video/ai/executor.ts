@@ -74,7 +74,26 @@ export type EditorEffect =
   | { kind: 'seek'; time: number }
   | { kind: 'select'; ids: string[] }
   | { kind: 'export'; exportKind: 'social' | 'mp4' | 'webm' | 'gif' | 'wav' | 'png'; range?: 'all' | 'work' }
-  | { kind: 'requestImport'; what: ImportWhat; message: string };
+  | { kind: 'requestImport'; what: ImportWhat; message: string }
+  | TrackEffect;
+
+/** Track a point of a video clip after the edit (tracking reads the video, so the editor runs it), and pin clips to it. */
+export interface TrackEffect {
+  kind: 'track';
+  clipId: string;
+  /** Timeline seconds, and where the target is then (fractions of the final picture). */
+  at: number;
+  x: number;
+  y: number;
+  /** Box size, fraction of the picture height. */
+  size: number;
+  /** Clips that follow, or a new crosshair, circle or text. */
+  follow: string[];
+  sticker?: 'crosshair' | 'circle' | 'text';
+  text?: string;
+  mode?: 'center' | 'offset';
+  name?: string;
+}
 
 export interface ActionResult {
   index: number;
@@ -110,6 +129,8 @@ interface State {
   p: Project;
   ctx: ExecContext;
   effects: EditorEffect[];
+  /** The project before this reply (to know which clips it added). */
+  initial: Project;
 }
 
 type Handler = (s: State, a: Obj) => string;
@@ -1006,6 +1027,36 @@ const handlers: Record<string, Handler> = {
     return `${effect} pulses on ${r.count} ${on} (following ${r.sourceClipIds.join(', ')}) on ${r.clipIds.join(', ')}${hasTargets ? '' : ' — a new adjustment layer, so everything below reacts'}`;
   },
 
+  track(s, a) {
+    const ids = resolveClips(s.p, a, { selection: s.ctx.selection }).ids.filter((id) => getClip(s.p, id)?.kind === 'video');
+    if (ids.length !== 1) throw new Skip('track needs exactly one video clip ("clipId")');
+    const c = getClip(s.p, ids[0])!;
+    if (c.freeze) throw new Skip('a freeze frame does not move');
+    if (!finite(a.x) || !finite(a.y)) throw new Skip('"x" and "y" are needed: where the target is in the picture at "at" (0-1)');
+    const at = finite(a.at) ? a.at : s.ctx.playhead;
+    if (at < c.start - EPS || at >= clipEnd(c)) throw new Skip(`"at" ${sec(at)} is outside ${c.id} (${sec(c.start)}–${sec(clipEnd(c))})`);
+    const size = finite(a.size) ? clampNum(a.size, 0.02, 0.4) : 0.08;
+    const f = a.follow ?? a.attach;
+    let follow: string[] = [];
+    let sticker: TrackEffect['sticker'];
+    if (f === 'crosshair' || f === 'circle' || f === 'text') sticker = f;
+    else if (f === 'last') follow = s.p.clips.filter((x) => x.visual && x.id !== c.id && !s.initial.clips.some((o) => o.id === x.id)).map((x) => x.id);
+    else if (typeof f === 'string' || Array.isArray(f)) {
+      const list = (Array.isArray(f) ? f : [f]).filter((x): x is string => typeof x === 'string');
+      const unknown = list.filter((id) => !getClip(s.p, id));
+      if (unknown.length) throw new Skip(`unknown clip(s) to follow: ${unknown.join(', ')}`);
+      follow = list.filter((id) => id !== c.id);
+    } else if (f !== undefined) throw new Skip('"follow" is a list of clip ids, "last", "crosshair", "circle" or "text"');
+    if (f === 'last' && !follow.length) throw new Skip('"last": no title or picture was added earlier in this reply');
+    const mode = a.mode === 'center' || a.mode === 'offset' ? a.mode : undefined;
+    const text = sticker === 'text' ? plainText(a.text, 80) || undefined : undefined;
+    const x = clampNum(a.x, 0, 1);
+    const y = clampNum(a.y, 0, 1);
+    s.effects.push({ kind: 'track', clipId: c.id, at, x, y, size, follow, sticker, text, mode, name: plainText(a.name, 60) || undefined });
+    const who = sticker ? `a new ${sticker}` : follow.length ? follow.join(', ') : 'nothing yet';
+    return `tracking ${c.id} from ${sec(at)} at (${x.toFixed(2)}, ${y.toFixed(2)}) runs after the other actions; then ${who} follows it (the outcome is listed below)`;
+  },
+
   addSfx(s, a) {
     const item = findLibraryItem(a.sound ?? a.name ?? a.sfx, ['sfx']);
     if (!item) throw new Skip(`unknown sound ${String(a.sound ?? a.name ?? '')} (use ${SFX.map((x) => x.id).join(', ')})`);
@@ -1114,7 +1165,7 @@ export const VIDEO_ACTION_TYPES = Object.keys(handlers);
 
 /** Validates and applies AI actions. Never throws for bad input — bad actions are skipped with a reason. */
 export function applyAIActions(project: Project, actions: unknown[], ctx: ExecContext): AIApplyResult {
-  const s: State = { p: project, ctx, effects: [] };
+  const s: State = { p: project, ctx, effects: [], initial: project };
   const results: ActionResult[] = [];
   const notes: string[] = [];
   let applied = 0;

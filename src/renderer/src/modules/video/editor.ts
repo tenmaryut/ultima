@@ -69,6 +69,8 @@ import type { AIImage } from '@shared/ai-types';
 import { AnalysisStore } from './analysisStore';
 import { totalLength } from './silence';
 import { applyBeatSync, type BeatSyncOptions } from './beatsync';
+import { useTracking } from './useTracking';
+import type { TrackEffect } from './ai/executor';
 import type { TimelineApi } from './ui/Timeline';
 import type { ExportKind } from './ui/ExportDialog';
 import type { PreviewZoom } from './ui/Preview';
@@ -845,6 +847,26 @@ export function useVideoEditor(active: boolean) {
   }, [analysis, lib, projectRef]);
   const analysisOf = useCallback((id: string) => analysis.get(id), [analysis]);
 
+  /** The AI edit being applied has recorded its undo step. */
+  const aiStep = useRef(false);
+  const tracking = useTracking({
+    t,
+    current: () => doc.current(),
+    lib,
+    playhead,
+    seek,
+    change,
+    amend: (p) => {
+      if (aiStep.current) doc.set(p, { record: false });
+      else {
+        doc.set(p, { label: t('AI edit') });
+        aiStep.current = true;
+      }
+    },
+    selection: () => selectionRef.current,
+    setSelection: setSelectionState,
+  });
+
   const addChapterMarkers = (chapters: { time: number; title: string }[]) => {
     let p = projectRef.current;
     for (const c of chapters) p = addMarker(p, c.time, c.title).project;
@@ -1094,7 +1116,10 @@ export function useVideoEditor(active: boolean) {
       await analysis.waitFor(sound, 30_000);
     }
     const r = applyAIActions(projectRef.current, rest, { playhead: playhead(), selection: selectionRef.current, fonts: aiFonts(), analysis: (id) => analysis.get(id) });
-    if (r.project !== projectRef.current) doc.set(r.project, { label: t('AI edit') });
+    aiStep.current = r.project !== projectRef.current;
+    if (aiStep.current) doc.set(r.project, { label: t('AI edit') });
+    // tracking reads the video: it runs now, and what follows the track joins this same undo step
+    const trackNotes = await tracking.runForAI(r.effects.filter((e): e is TrackEffect => e.kind === 'track'));
     const buttons: { label: string; run: () => void }[] = [];
     for (const e of r.effects) {
       if (e.kind === 'seek') seek(e.time);
@@ -1111,6 +1136,7 @@ export function useVideoEditor(active: boolean) {
       imported.length ? `imported from linked folders (same ids): ${imported.join(', ')}` : '',
       notImported.length ? `could not import from linked folders: ${notImported.join(', ')}` : '',
       formatResults(r.results.map((x) => ({ ...x, index: x.index + i }))),
+      ...trackNotes,
       exporting
         ? folder && !folder.ask
           ? `export: rendering now; the file is saved in the export folder ${folder.path} (no dialog)`
@@ -1160,7 +1186,8 @@ export function useVideoEditor(active: boolean) {
       .flatMap((a) => (Array.isArray(a.times) ? a.times : [a.time]))
       .filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
     if (times.length) {
-      const r = await lookSheet(projectRef.current, times, frames, (id) => lib.get(id)?.image ?? null);
+      const grid = list.some((a) => typeof a.media !== 'string' && a.grid === true);
+      const r = await lookSheet(projectRef.current, times, frames, (id) => lib.get(id)?.image ?? null, grid);
       images.push(...r.images);
       notes.push(r.images.length ? `picture ${images.length}: timeline — ${r.note}` : r.note);
     }
@@ -1255,6 +1282,7 @@ export function useVideoEditor(active: boolean) {
     applyBeat,
     waitForAnalysis,
     analysisOf,
+    tracking,
     addChapterMarkers,
     renameMarker,
     patchTrack,

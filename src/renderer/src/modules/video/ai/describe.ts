@@ -1,6 +1,7 @@
 import type { Clip, Keyframe, KeyProp, Project } from '../types';
 import { clipEnd, getMedia, getTrack, sourceOut, timelineDuration } from '../model';
 import { KEY_PROPS, speedAt, timeOfSource } from '../keyframes';
+import { trackSpan, trackSureness } from '../tracking';
 import { EFFECT_PROPS } from '../presets';
 import { isLibraryMedia } from '../library';
 import { formatTimecode } from '../time';
@@ -110,6 +111,13 @@ function effectsSummary(c: Clip): string {
   else if (c.speed !== 1) parts.push(`speed ${c.speed}x`);
   if (c.reverse) parts.push('reversed');
   if (c.frameBlend) parts.push('smooth slow motion (frame blending)');
+  if (c.tracks?.length) {
+    const list = c.tracks.map((tr) => {
+      const span = trackSpan(c, tr);
+      return `${tr.id} "${tr.name}" ${span ? `${s2(span.start)}–${s2(span.end)} s` : 'not shown (trimmed away)'}, found ${Math.round(trackSureness(tr) * 100)}%`;
+    });
+    parts.push(`motion tracks: ${list.join('; ')}`);
+  }
   if ((c.kind === 'audio' || c.kind === 'video') && !c.keepPitch && c.speed !== 1 && !c.speedKeys?.length) parts.push('pitch follows speed');
   if (c.kind === 'audio' && c.volume) parts.push(`volume ${c.volume.toFixed(1)} dB`);
   const fx = c.audioFx;
