@@ -1,6 +1,7 @@
 import {
   ArrowLeftToLine,
   AudioLines,
+  AudioWaveform,
   Captions,
   ClipboardPaste,
   Copy,
@@ -86,6 +87,7 @@ export interface VideoActions {
   setPreviewZoom: (z: PreviewZoom) => void;
   autoCaptions: () => void;
   removeSilences: () => void;
+  beatEffects: () => void;
   writeMeta: () => void;
   roughCut: () => void;
   voiceOver: () => void;
@@ -231,6 +233,7 @@ export function buildMenus(t: TFunction, a: VideoActions, s: MenuState): { label
       entries: () => [
         { label: t('Auto captions…'), icon: Captions, onClick: a.autoCaptions },
         { label: t('Remove silences…'), icon: Wand2, onClick: a.removeSilences },
+        { label: t('Beat effects…'), icon: AudioWaveform, onClick: a.beatEffects },
         { label: t('Write titles & description…'), icon: Sparkles, onClick: a.writeMeta },
         { label: t('Rough cut from transcript…'), icon: Scissors, onClick: a.roughCut },
         { label: t('Voice-over from text…'), icon: AudioLines, onClick: a.voiceOver },

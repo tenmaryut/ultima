@@ -769,4 +769,38 @@ registerTranslations('id', {
   'Could not open the file': 'Tidak dapat membuka file',
   'Found {count} missing file(s) in your linked folders': 'Menemukan {count} file yang hilang di folder terhubung Anda',
   'Relink media': 'Tautkan ulang media',
+
+  // Beat effects
+  'Beat effects': 'Efek ketukan',
+  'Beat effects…': 'Efek ketukan…',
+  'Adds a shake, zoom punch, flash… on the beat of your music or on every loud moment of the game sound. It is made of keyframes, so you can still change it.':
+    'Menambahkan guncangan, zoom hentak, kilatan… pada ketukan musik Anda atau pada setiap momen keras dari suara game. Efek ini dibuat dari keyframe, jadi masih bisa Anda ubah.',
+  Effect: 'Efek',
+  On: 'Pada',
+  'How often': 'Seberapa sering',
+  'Every time': 'Setiap kali',
+  'Every 2nd': 'Setiap ke-2',
+  'Every 4th': 'Setiap ke-4',
+  'Follow the sound of': 'Ikuti suara dari',
+  'Apply to': 'Terapkan ke',
+  'A new adjustment layer (everything below reacts)': 'Lapisan penyesuaian baru (semua di bawahnya ikut bereaksi)',
+  'The selected clips ({count})': 'Klip yang dipilih ({count})',
+  'Add on {count} beat(s)': 'Tambahkan pada {count} ketukan',
+  '{count} beat(s) found': '{count} ketukan ditemukan',
+  'Nothing to follow yet.': 'Belum ada yang bisa diikuti.',
+  'The sound of this clip is not analysed yet.': 'Suara klip ini belum dianalisis.',
+  'No music on the timeline has a steady beat. Try “Strongest hits” or “Loud moments”.':
+    'Tidak ada musik di timeline dengan ketukan yang stabil. Coba “Hentakan terkuat” atau “Momen keras”.',
+  'No clip with sound on the timeline is analysed yet. Add music or a clip with sound.':
+    'Belum ada klip bersuara di timeline yang dianalisis. Tambahkan musik atau klip yang bersuara.',
+  'Nothing found in this range.': 'Tidak ada yang ditemukan di rentang ini.',
+  'Added on {count} beat(s)': 'Ditambahkan pada {count} ketukan',
+  'Impact (zoom, shake, flash)': 'Hentakan (zoom, guncangan, kilatan)',
+  Shake: 'Guncangan',
+  'Zoom punch': 'Zoom hentak',
+  'Glow pulse': 'Denyut cahaya',
+  'Every beat': 'Setiap ketukan',
+  'Every bar (first beat)': 'Setiap birama (ketukan pertama)',
+  'Strongest hits': 'Hentakan terkuat',
+  'Loud moments (shots, kills)': 'Momen keras (tembakan, kill)',
 }, 'video');

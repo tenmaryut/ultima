@@ -107,7 +107,12 @@ Library and files (the built-in library is made by Ultima: free to use, always a
 35. {"type":"addGraphic","graphic":STICKER|OVERLAY,"start"?:s,"duration"?:s|"full","position"?:POSITION|{"x":0-1,"y":0-1},"scale"?,"rotation"?,"opacity"?,"blendMode"?,"props"?:{…setClip props…}} — an image clip; animate it with keyframes (pop in with scale, fade with opacity).
    STICKER (30% of the frame high by default, on a free track above the footage): ${STICKERS.map((x) => `${x.id} (${x.description})`).join(' · ')}
    OVERLAY (fills the frame, above everything, already in its blend mode): ${OVERLAYS.map((x) => `${x.id} (${x.description})`).join(' · ')}
-36. {"type":"requestImport","what":"music"|"sfx"|"video"|"image"|"font"|"lut"|"any","message":"what you need and why"} — when the edit needs files only the user has (a song, a logo, a font, a .cube LUT, more footage): the user gets a button to pick them. Say so in your message. New files appear in CURRENT DOCUMENT next turn (media bin, "Fonts for titles", "Imported LUTs").`;
+36. {"type":"requestImport","what":"music"|"sfx"|"video"|"image"|"font"|"lut"|"any","message":"what you need and why"} — when the edit needs files only the user has (a song, a logo, a font, a .cube LUT, more footage): the user gets a button to pick them. Say so in your message. New files appear in CURRENT DOCUMENT next turn (media bin, "Fonts for titles", "Imported LUTs").
+37. {"type":"beatSync","effect":"impact"|"shake"|"zoom"|"flash"|"rgbSplit"|"glow"|"zoomBlur","on":"beats"|"bars"|"hits"|"loud","every"?:1-16,"amount"?:0.05-2,"from"?:s,"to"?:s,"source"?:clipId, [targets]?}
+   — pulses synced to the sound (rise into the moment, peak on it, decay after), from the analysis: "beats"/"bars" follow the music (default: the
+   steadiest music on the timeline), "hits"/"loud" follow the sound (gunshots, kills, impacts). "impact" = zoom punch + shake + flash + RGB split.
+   Without targets it adds an adjustment layer over the range so everything below reacts; with targets it animates those clips. Use it
+   instead of writing each shake or zoom by hand, and run it again after re-cutting.`;
 
 const ANALYSIS = `ANALYSIS: CURRENT DOCUMENT lists what was found in each clip (timeline seconds, approximate):
 - music: tempo (BPM), every beat, bar starts, the strongest hits and where it gets louder (a drop or chorus);

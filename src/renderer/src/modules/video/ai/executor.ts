@@ -63,6 +63,7 @@ import { parseAudioFx, parseGrade, parseMask } from '../project';
 import { EPS, clampNum, frameDur } from '../time';
 import { Skip, findTrack, resolveClips, trackOrCreate } from './targets';
 import { finite, isObj, plainText, safeColor, sec, type Obj } from './util';
+import { BEAT_EFFECTS, BEAT_SOURCES, applyBeatSync, isBeatEffect, isBeatSource } from '../beatsync';
 
 /* Validates and applies the Video Editor AI's actions, reporting what happened to each one. */
 
@@ -979,6 +980,30 @@ const handlers: Record<string, Handler> = {
     if (!ducked) throw new Skip('the trigger sound is never loud while those clips play');
     const total = ranges.reduce((n, r) => n + r.end - r.start, 0);
     return `lowered ${ducked} clip(s) by ${Math.abs(opts.amount)} dB while the other sound is loud (${dips} dip(s), ${total.toFixed(1)} s in all; volume keyframes)${pending.length ? `; ${pending.length} trigger clip(s) were still being analysed` : ''}`;
+  },
+
+  beatSync(s, a) {
+    if (!s.ctx.analysis) throw new Skip('the sound analysis is not available here');
+    const effect = a.effect ?? 'impact';
+    if (!isBeatEffect(effect)) throw new Skip(`"effect" must be one of ${BEAT_EFFECTS.map((e) => e.id).join(', ')}`);
+    const on = a.on ?? 'beats';
+    if (!isBeatSource(on)) throw new Skip(`"on" must be one of ${BEAT_SOURCES.map((x) => x.id).join(', ')}`);
+    const hasTargets = a.clipId !== undefined || a.clipIds !== undefined || a.clips !== undefined;
+    const targetClipIds = hasTargets ? resolveClips(s.p, a, { selection: s.ctx.selection }).ids : undefined;
+    if (hasTargets && !targetClipIds?.length) throw new Skip('no target clips found');
+    const r = applyBeatSync(s.p, s.ctx.analysis, {
+      effect,
+      on,
+      every: finite(a.every) ? clampNum(a.every, 1, 16) : 1,
+      amount: finite(a.amount) ? clampNum(a.amount, 0.05, 2) : 1,
+      from: finite(a.from) ? Math.max(0, a.from) : undefined,
+      to: finite(a.to) ? Math.max(0, a.to) : undefined,
+      sourceClipId: typeof a.source === 'string' ? a.source : undefined,
+      targetClipIds,
+    });
+    if (!r.count) throw new Skip(r.problem ?? 'nothing to follow');
+    s.p = r.project;
+    return `${effect} pulses on ${r.count} ${on} (following ${r.sourceClipIds.join(', ')}) on ${r.clipIds.join(', ')}${hasTargets ? '' : ' — a new adjustment layer, so everything below reacts'}`;
   },
 
   addSfx(s, a) {

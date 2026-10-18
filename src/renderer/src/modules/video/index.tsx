@@ -32,6 +32,7 @@ import { CaptionsPanel } from './ui/CaptionsPanel';
 import { ExportDialog } from './ui/ExportDialog';
 import { ProjectSettingsDialog, RelinkDialog } from './ui/Dialogs';
 import { AutoCaptionsDialog, MetaDialog, RoughCutDialog, SilenceDialog } from './ui/AIDialogs';
+import { BeatDialog } from './ui/BeatDialog';
 
 /** Native file drag & drop on the whole module (passes the drop position for timeline placement). */
 function useFileDropAt(ref: React.RefObject<HTMLDivElement | null>, enabled: boolean, onDrop: (files: File[], x: number, y: number) => void): boolean {
@@ -399,6 +400,9 @@ export default function VideoModule({ active }: ModuleProps) {
       {dialog?.kind === 'settings' && <ProjectSettingsDialog project={project} onApply={ed.applySettings} onClose={() => ed.setDialog(null)} />}
       {dialog?.kind === 'relink' && <RelinkDialog project={project} lib={ed.lib} onRelinked={ed.onRelinked} onClose={() => ed.setDialog(null)} />}
       {dialog?.kind === 'autocaptions' && <AutoCaptionsDialog project={project} lib={ed.lib} onDone={ed.onAutoCaptions} onClose={() => ed.setDialog(null)} />}
+      {dialog?.kind === 'beats' && (
+        <BeatDialog project={project} selection={ed.selection} analysis={ed.analysisOf} waitForAnalysis={ed.waitForAnalysis} onApply={ed.applyBeat} onClose={() => ed.setDialog(null)} />
+      )}
       {dialog?.kind === 'silence' && (
         <SilenceDialog project={project} lib={ed.lib} onPreview={ed.setCutRanges} onApply={(r) => ed.applyCuts(r, t('Remove silences'))} onClose={() => ed.setDialog(null)} />
       )}

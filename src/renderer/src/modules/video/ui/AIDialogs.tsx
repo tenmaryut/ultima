@@ -13,11 +13,11 @@ import { formatChapters, type VideoMeta } from '../aiActions';
 import { captionCues, timelineDuration } from '../model';
 import { formatTimecode, mergeRanges } from '../time';
 
-function rangeOf(p: Project, kind: 'all' | 'work'): TimeRange {
+export function rangeOf(p: Project, kind: 'all' | 'work'): TimeRange {
   return kind === 'work' && p.workArea ? p.workArea : { start: 0, end: timelineDuration(p) };
 }
 
-function RangeField({ project, value, onChange }: { project: Project; value: 'all' | 'work'; onChange: (v: 'all' | 'work') => void }) {
+export function RangeField({ project, value, onChange }: { project: Project; value: 'all' | 'work'; onChange: (v: 'all' | 'work') => void }) {
   const t = useT();
   return (
     <Field label={t('Range')}>

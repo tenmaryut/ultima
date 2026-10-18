@@ -68,6 +68,7 @@ import { sourceAnalysisSummary } from './ai/describe';
 import type { AIImage } from '@shared/ai-types';
 import { AnalysisStore } from './analysisStore';
 import { totalLength } from './silence';
+import { applyBeatSync, type BeatSyncOptions } from './beatsync';
 import type { TimelineApi } from './ui/Timeline';
 import type { ExportKind } from './ui/ExportDialog';
 import type { PreviewZoom } from './ui/Preview';
@@ -80,6 +81,7 @@ export type Dialog =
   | { kind: 'relink' }
   | { kind: 'autocaptions' }
   | { kind: 'silence' }
+  | { kind: 'beats' }
   | { kind: 'meta' }
   | { kind: 'roughcut' }
   | { kind: 'speech' };
@@ -822,6 +824,27 @@ export function useVideoEditor(active: boolean) {
     toast.success(t('Removed {seconds} s in {count} cut(s)', { seconds: totalLength(ranges).toFixed(1), count: ranges.length }));
   };
 
+  /** Beat effects: pulses on the beats, bars, hits or loud moments of the sound on the timeline. */
+  const applyBeat = (o: BeatSyncOptions) => {
+    const r = applyBeatSync(projectRef.current, (id) => analysis.get(id), o);
+    if (!r.count) {
+      toast.warning(t('Nothing to follow yet.'));
+      return;
+    }
+    change(r.project, { label: t('Beat effects') });
+    setSelectionState(r.clipIds);
+    toast.success(t('Added on {count} beat(s)', { count: r.count }));
+  };
+
+  /** Starts the analysis of the sound on the timeline and waits for it (at most 30 s). */
+  const waitForAnalysis = useCallback(async () => {
+    const p = projectRef.current;
+    const media = p.media.filter((m) => m.kind !== 'image' && m.hasAudio && lib.has(m.id) && p.clips.some((c) => c.mediaId === m.id));
+    media.forEach((m) => void analysis.ensure(m));
+    await analysis.waitFor(media, 30_000);
+  }, [analysis, lib, projectRef]);
+  const analysisOf = useCallback((id: string) => analysis.get(id), [analysis]);
+
   const addChapterMarkers = (chapters: { time: number; title: string }[]) => {
     let p = projectRef.current;
     for (const c of chapters) p = addMarker(p, c.time, c.title).project;
@@ -1005,6 +1028,7 @@ export function useVideoEditor(active: boolean) {
     setPreviewZoom,
     autoCaptions: () => setDialog({ kind: 'autocaptions' }),
     removeSilences: () => setDialog({ kind: 'silence' }),
+    beatEffects: () => setDialog({ kind: 'beats' }),
     writeMeta: () => setDialog({ kind: 'meta' }),
     roughCut: () => setDialog({ kind: 'roughcut' }),
     voiceOver: () => setDialog({ kind: 'speech' }),
@@ -1063,6 +1087,12 @@ export function useVideoEditor(active: boolean) {
     const fromFolders = folderIdsIn(rest);
     const notImported = fromFolders.length ? await importForAI(fromFolders) : [];
     const imported = fromFolders.filter((id) => !notImported.includes(id) && folders.get(id));
+    // beat effects follow the analysis of the sound, also of music added in this same step: wait for it
+    if (rest.some((a) => a.type === 'beatSync')) {
+      const sound = projectRef.current.media.filter((m) => m.kind !== 'image' && m.hasAudio && lib.has(m.id));
+      sound.forEach((m) => void analysis.ensure(m));
+      await analysis.waitFor(sound, 30_000);
+    }
     const r = applyAIActions(projectRef.current, rest, { playhead: playhead(), selection: selectionRef.current, fonts: aiFonts(), analysis: (id) => analysis.get(id) });
     if (r.project !== projectRef.current) doc.set(r.project, { label: t('AI edit') });
     const buttons: { label: string; run: () => void }[] = [];
@@ -1213,6 +1243,9 @@ export function useVideoEditor(active: boolean) {
     addCaptionAtPlayhead,
     onAutoCaptions,
     applyCuts,
+    applyBeat,
+    waitForAnalysis,
+    analysisOf,
     addChapterMarkers,
     renameMarker,
     patchTrack,
