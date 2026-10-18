@@ -101,6 +101,7 @@ function effectsSummary(c: Clip): string {
     if (v.scale !== 1) parts.push(`scale ${+v.scale.toFixed(2)}`);
     if (v.x || v.y) parts.push(`pos ${Math.round(v.x)},${Math.round(v.y)}`);
     if (v.rotation) parts.push(`rotation ${Math.round(v.rotation)}`);
+    if (v.rotateX || v.rotateY || v.z) parts.push(`3D tilt ${Math.round(v.rotateX)}° turn ${Math.round(v.rotateY)}° depth ${Math.round(v.z)} px perspective ${+v.perspective.toFixed(2)}`);
     for (const k of ['brightness', 'contrast', 'saturation', 'hue', 'temperature', 'blur'] as const) if (v[k]) parts.push(`${k} ${Math.round(v[k])}`);
     const crop = [v.cropLeft, v.cropRight, v.cropTop, v.cropBottom];
     if (crop.some(Boolean)) parts.push(`crop L${s2(v.cropLeft)} R${s2(v.cropRight)} T${s2(v.cropTop)} B${s2(v.cropBottom)}`);
@@ -156,7 +157,7 @@ function effectsSummary(c: Clip): string {
 function titleSummary(c: Clip): string {
   const t = c.title;
   if (!t) return '';
-  const extras = [t.subtitle && `subtitle "${t.subtitle.slice(0, 40)}"`, t.box && `box ${t.boxColor}`, t.outlineWidth && `outline ${t.outlineWidth}px ${t.outlineColor}`]
+  const extras = [t.subtitle && `subtitle "${t.subtitle.slice(0, 40)}"`, t.box && `box ${t.boxColor}`, t.outlineWidth && `outline ${t.outlineWidth}px ${t.outlineColor}`, t.extrude && `3D letters ${t.extrude}px${t.extrudeColor ? ` ${t.extrudeColor}` : ''}`]
     .filter(Boolean)
     .join(', ');
   return ` | style ${t.font} ${Math.round(t.size)}px w${t.weight} ${t.color}, at (${s2(t.x)}, ${s2(t.y)}) ${t.align}, anim ${t.animation}${extras ? `, ${extras}` : ''}`;

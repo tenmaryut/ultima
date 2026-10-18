@@ -128,6 +128,12 @@ export interface VisualProps {
   grain: number;
   /** Black bars at the top and bottom of the frame: fraction of the frame height each (0-0.3). */
   letterbox: number;
+  /** 3D: tilt (top away for positive degrees), turn (right side away), and distance from the frame (project px, + = away). */
+  rotateX: number;
+  rotateY: number;
+  z: number;
+  /** 3D: camera distance as a multiple of the frame height (smaller = stronger perspective). */
+  perspective: number;
 }
 
 /** How a clip's picture mixes with what is below it. */
@@ -265,6 +271,9 @@ export interface TitleStyle {
   animation: TitleAnimation;
   /** Seconds for the in/out animation (typewriter: typing time). */
   animDuration: number;
+  /** 3D letters: depth of the extrusion in project px (0 or missing = flat), and its color (default: the text color, darker). */
+  extrude?: number;
+  extrudeColor?: string;
 }
 
 /** How a keyframe moves towards the next one. */
@@ -299,6 +308,9 @@ export type KeyProp =
   | 'sharpen'
   | 'grain'
   | 'letterbox'
+  | 'rotateX'
+  | 'rotateY'
+  | 'z'
   | 'volume'
   | 'lowPass';
 

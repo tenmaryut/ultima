@@ -127,6 +127,10 @@ function parseVisual(v: unknown): VisualProps {
     sharpen: n(o.sharpen, 0, ...KEY_RANGES.sharpen),
     grain: n(o.grain, 0, ...KEY_RANGES.grain),
     letterbox: n(o.letterbox, 0, ...KEY_RANGES.letterbox),
+    rotateX: n(o.rotateX, 0, ...KEY_RANGES.rotateX),
+    rotateY: n(o.rotateY, 0, ...KEY_RANGES.rotateY),
+    z: n(o.z, 0, ...KEY_RANGES.z),
+    perspective: n(o.perspective, d.perspective, 0.2, 20),
   };
 }
 
@@ -234,6 +238,8 @@ export function parseTitle(v: unknown, frameHeight: number): TitleStyle {
     y: n(o.y, d.y, -1, 2),
     animation: anim,
     animDuration: n(o.animDuration, d.animDuration, 0.05, 10),
+    extrude: n(o.extrude, 0, 0, 400) || undefined,
+    extrudeColor: typeof o.extrudeColor === 'string' ? color(o.extrudeColor, '#000000') : undefined,
   };
 }
 

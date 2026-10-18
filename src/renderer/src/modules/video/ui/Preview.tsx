@@ -12,6 +12,7 @@ import { titleBox } from '../text';
 import { formatTimecode, parseTimecode } from '../time';
 import { animatedVisual, setValueAt, timeOfSource } from '../keyframes';
 import { sourceToFrame, trackPointAt } from '../tracking';
+import { applyHomography, clipHomography } from '../warp3d';
 import type { TrackBox } from '../useTracking';
 
 export type PreviewZoom = 'fit' | 0.25 | 0.5 | 1;
@@ -44,8 +45,16 @@ interface PreviewProps {
 /** Seconds into a clip at timeline time `t`. */
 const localOf = (c: Clip, t: number) => Math.min(Math.max(0, t - c.start), c.duration);
 
-/** Frame corners (project px) of a visual clip as drawn at time `now`, or null. */
+/** Frame corners (project px) of a visual clip as drawn at time `now` — in 3D, as the camera sees them — or null. */
 function clipCorners(p: Project, clip: Clip, now: number): { x: number; y: number }[] | null {
+  const flat = flatCorners(p, clip, now);
+  const m = flat && clip.visual ? clipHomography(p, clip, animatedVisual(clip, localOf(clip, now))) : null;
+  if (!flat || !m) return flat;
+  const seen = flat.map((q) => applyHomography(m, q.x, q.y));
+  return seen.every(Boolean) ? (seen as { x: number; y: number }[]) : flat;
+}
+
+function flatCorners(p: Project, clip: Clip, now: number): { x: number; y: number }[] | null {
   const { width: W, height: H } = p.settings;
   const v = animatedVisual(clip, localOf(clip, now));
   if (clip.kind === 'title' && clip.title) {

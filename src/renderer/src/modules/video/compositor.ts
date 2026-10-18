@@ -6,6 +6,7 @@ import { clipEnd, getMedia, tracksOfKind } from './model';
 import { animatedVisual, sourceAt } from './keyframes';
 import { bakeGrade, gradeActive } from './grade';
 import { PixelStage, pixelWork, type PixelParams } from './pixelfx';
+import { WarpStage, clipHomography, has3D } from './warp3d';
 import { EPS } from './time';
 import { parseColor } from '../../core/utils/color';
 
@@ -193,6 +194,7 @@ function titleNeedsLayer(clip: Clip, v: VisualProps, m: Mods): boolean {
 export class Compositor {
   private pool = new Map<string, HTMLCanvasElement>();
   private stage = new PixelStage();
+  private warp = new WarpStage();
 
   /** A reusable canvas of the given size, cleared, with an identity transform. */
   private layer(name: string, w: number, h: number): Ctx2D {
@@ -298,7 +300,27 @@ export class Compositor {
     return { v, m, alpha, dip, local };
   }
 
+  /** A clip, flat or in 3D: a 3D clip is drawn flat into a frame-sized layer, then seen in perspective. */
   private drawClip(ctx: Ctx2D, p: Project, clip: Clip, t: number, provider: FrameProvider, opts: RenderOptions, mods: Mods, frame: number) {
+    const v = clip.visual ? animatedVisual(clip, Math.min(Math.max(0, t - clip.start), clip.duration)) : null;
+    const m = v ? clipHomography(p, clip, v) : null;
+    if (!v || !has3D(v)) return this.drawClipFlat(ctx, p, clip, t, provider, opts, mods, frame);
+    // edge-on or behind the camera: nothing to see
+    if (!m) return;
+    const flat = this.layer('3d', ctx.canvas.width, ctx.canvas.height);
+    flat.setTransform(opts.scale, 0, 0, opts.scale, 0, 0);
+    this.drawClipFlat(flat, p, clip.blend ? { ...clip, blend: undefined } : clip, t, provider, opts, mods, frame);
+    const seen = this.warp.run(flat.canvas as HTMLCanvasElement, m, opts.scale);
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = 1;
+    ctx.filter = 'none';
+    ctx.globalCompositeOperation = clip.blend && clip.blend !== 'normal' ? COMPOSITE[clip.blend] : 'source-over';
+    ctx.drawImage(seen, 0, 0);
+    ctx.restore();
+  }
+
+  private drawClipFlat(ctx: Ctx2D, p: Project, clip: Clip, t: number, provider: FrameProvider, opts: RenderOptions, mods: Mods, frame: number) {
     const { width: W, height: H } = p.settings;
     const st = this.state(clip, t, mods);
     if (!st) return;
@@ -374,6 +396,23 @@ export class Compositor {
     pic.sy = pic.L.sy * ch;
     pic.sw = pic.L.sw * cw;
     pic.sh = pic.L.sh * ch;
+    if (has3D(st.v)) {
+      // the whole frame below swings in 3D: it replaces what was there, the background shows around it
+      const m = clipHomography(p, clip, st.v);
+      const flat = this.layer('3d', cw, ch);
+      flat.setTransform(opts.scale, 0, 0, opts.scale, 0, 0);
+      this.drawPicture(flat, p, clip, pic, st, opts, frame, false);
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.filter = 'none';
+      ctx.fillStyle = p.settings.background;
+      ctx.fillRect(0, 0, cw, ch);
+      if (m) ctx.drawImage(this.warp.run(flat.canvas as HTMLCanvasElement, m, opts.scale), 0, 0);
+      ctx.restore();
+      return;
+    }
     this.drawPicture(ctx, p, clip, pic, st, opts, frame, false);
   }
 

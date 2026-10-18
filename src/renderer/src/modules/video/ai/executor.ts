@@ -64,6 +64,7 @@ import { EPS, clampNum, frameDur } from '../time';
 import { Skip, findTrack, resolveClips, trackOrCreate } from './targets';
 import { finite, isObj, plainText, safeColor, sec, type Obj } from './util';
 import { BEAT_EFFECTS, BEAT_SOURCES, applyBeatSync, isBeatEffect, isBeatSource } from '../beatsync';
+import { applyParallax, depthFactor, type ParallaxLayer } from '../parallax';
 
 /* Validates and applies the Video Editor AI's actions, reporting what happened to each one. */
 
@@ -185,6 +186,9 @@ function buildTitle(p: Project, styleArg: unknown, position: unknown, text: stri
   t.color = safeColor(o.color) ?? t.color;
   if (typeof o.box === 'boolean') t.box = o.box;
   t.boxColor = safeColor(o.boxColor) ?? t.boxColor;
+  // 3D letters
+  if (finite(o.extrude)) t.extrude = clampNum(o.extrude, 0, 400) || undefined;
+  t.extrudeColor = safeColor(o.extrudeColor) ?? t.extrudeColor;
   t.outlineColor = safeColor(o.outlineColor) ?? t.outlineColor;
   if (finite(o.outlineWidth)) t.outlineWidth = clampNum(o.outlineWidth, 0, 40);
   if (typeof o.italic === 'boolean') t.italic = o.italic;
@@ -284,6 +288,9 @@ function patchClip(p: Project, cl: Clip, pr: Obj, fonts: string[] | undefined, c
     if (finite(pr.shakeSpeed)) set('shakeSpeed', clampNum(pr.shakeSpeed, 0.5, 60));
     if (finite(pr.glowRadius)) set('glowRadius', clampNum(pr.glowRadius, 1, 200));
     if (finite(pr.motionBlurAngle)) set('motionBlurAngle', clampNum(pr.motionBlurAngle, -360, 360));
+    // 3D: tilt / turn in degrees, depth in px, perspective as a multiple of the frame height
+    for (const k of ['rotateX', 'rotateY', 'z'] as const) if (finite(pr[k])) set(k, clampNum(pr[k] as number, ...KEY_RANGES[k]));
+    if (finite(pr.perspective)) set('perspective', clampNum(pr.perspective, 0.2, 20));
     next.visual = v;
   }
   if (cl.visual) {
@@ -419,7 +426,7 @@ function patchClip(p: Project, cl: Clip, pr: Obj, fonts: string[] | undefined, c
     }
   }
   if (cl.kind === 'title' && cl.title) {
-    const styleKeys = ['font', 'size', 'weight', 'color', 'box', 'boxColor', 'outlineColor', 'outlineWidth', 'italic', 'shadow', 'animation', 'animDuration', 'align', 'subtitle'];
+    const styleKeys = ['font', 'size', 'weight', 'color', 'box', 'boxColor', 'outlineColor', 'outlineWidth', 'italic', 'shadow', 'animation', 'animDuration', 'align', 'subtitle', 'extrude', 'extrudeColor'];
     const flat: Obj = {};
     for (const k of styleKeys) if (pr[k] !== undefined) flat[k] = pr[k];
     const style = isObj(pr.style) ? { ...pr.style, ...flat } : typeof pr.style === 'string' ? pr.style : Object.keys(flat).length ? flat : undefined;
@@ -1064,6 +1071,27 @@ const handlers: Record<string, Handler> = {
     s.effects.push({ kind: 'track', clipId: c.id, at, x, y, size, follow, sticker, text, mode, name: plainText(a.name, 60) || undefined });
     const who = sticker ? `a new ${sticker}` : follow.length ? follow.join(', ') : 'nothing yet';
     return `tracking ${c.id} from ${sec(at)} at (${x.toFixed(2)}, ${y.toFixed(2)}) runs after the other actions; then ${who} follows it (the outcome is listed below)`;
+  },
+
+  parallax(s, a) {
+    if (!Array.isArray(a.layers) || !a.layers.length) throw new Skip('"layers" is a list of {"clipId": id, "depth": 0 (far) – 1 (near)}');
+    const layers: ParallaxLayer[] = [];
+    for (const l of a.layers) {
+      if (!isObj(l) || typeof l.clipId !== 'string') throw new Skip('each layer needs a "clipId" (and a "depth" 0-1)');
+      const c = getClip(s.p, l.clipId);
+      if (!c) throw new Skip(`unknown clip ${l.clipId}`);
+      if (!c.visual) throw new Skip(`${l.clipId} has no picture`);
+      layers.push({ clipId: c.id, depth: finite(l.depth) ? clampNum(l.depth, 0, 1) : 0.5 });
+    }
+    const { width: W, height: H } = s.p.settings;
+    const mv = isObj(a.move) ? a.move : {};
+    const move = { x: finite(mv.x) ? clampNum(mv.x, -W * 2, W * 2) : 0, y: finite(mv.y) ? clampNum(mv.y, -H * 2, H * 2) : 0, zoom: finite(mv.zoom) ? clampNum(mv.zoom, -0.9, 3) : 0 };
+    if (!move.x && !move.y && !move.zoom) throw new Skip('"move" needs "x", "y" or "zoom"');
+    const range = finite(a.from) && finite(a.to) && a.to > a.from ? { from: a.from, to: a.to } : undefined;
+    const r = applyParallax(s.p, layers, move, range);
+    if (r.problem) throw new Skip(r.problem);
+    s.p = r.project;
+    return `parallax: ${layers.map((l) => `${l.clipId} (depth ${l.depth}) moves ${Math.round(depthFactor(l.depth) * 100)}%`).join(', ')} of x ${move.x}, y ${move.y}, zoom ${move.zoom} (position and scale keyframes)`;
   },
 
   addSfx(s, a) {

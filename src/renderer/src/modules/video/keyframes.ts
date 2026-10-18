@@ -28,6 +28,9 @@ export const KEY_PROPS: readonly KeyProp[] = [
   'sharpen',
   'grain',
   'letterbox',
+  'rotateX',
+  'rotateY',
+  'z',
   'volume',
   'lowPass',
 ];
@@ -58,6 +61,9 @@ export const KEY_RANGES: Record<KeyProp, [number, number]> = {
   sharpen: [0, 1],
   grain: [0, 1],
   letterbox: [0, 0.3],
+  rotateX: [-180, 180],
+  rotateY: [-180, 180],
+  z: [-5000, 50000],
   volume: [-60, 12],
   lowPass: [20, 22000],
 };

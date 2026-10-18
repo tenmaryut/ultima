@@ -12,6 +12,7 @@ import { KeyBar, KeyNumber, KeySlider, type KeyEdit } from './KeyControls';
 import { ColorGradePanel, EffectsPanel, MaskPanel } from './LookPanels';
 import { SoundPanel } from './SoundPanel';
 import { ProjectPanel } from './ProjectPanel';
+import { has3D } from '../warp3d';
 import { TrackingPanel } from './TrackingPanel';
 import type { TrackingApi } from '../useTracking';
 
@@ -220,6 +221,31 @@ export function Inspector(props: InspectorProps) {
               </div>
             </>
           )}
+        </Panel>
+      )}
+
+      {(clip.kind === 'video' || clip.kind === 'image' || clip.kind === 'title') && (
+        <Panel
+          key={`3d-${clip.id}`}
+          title={t('3D')}
+          defaultOpen={has3D(v)}
+          actions={<IconButton size="sm" icon={RotateCcw} label={t('Reset 3D')} onClick={() => resetVisual({ rotateX: 0, rotateY: 0, z: 0, perspective: DEFAULT_VISUAL.perspective }, t('Reset 3D'))} />}
+        >
+          <KeySlider {...keyProps([clip])} clip={clip} prop="rotateX" label={t('Tilt (X)')} min={-180} max={180} format={(x) => `${Math.round(x)}°`} defaultValue={0} commitLabel={t('3D')} />
+          <KeySlider {...keyProps([clip])} clip={clip} prop="rotateY" label={t('Turn (Y)')} min={-180} max={180} format={(x) => `${Math.round(x)}°`} defaultValue={0} commitLabel={t('3D')} />
+          <KeySlider {...keyProps([clip])} clip={clip} prop="z" label={t('Depth (Z)')} min={-800} max={5000} step={10} format={(x) => `${Math.round(x)} px`} defaultValue={0} commitLabel={t('3D')} />
+          <Slider
+            label={t('Perspective')}
+            value={v.perspective}
+            min={0.4}
+            max={6}
+            step={0.1}
+            onChange={(x) => liveVisual({ perspective: x })}
+            onCommit={() => done(t('3D'))}
+            format={(x) => (x < 1 ? t('Strong') : x > 3 ? t('Flat') : t('Normal'))}
+            defaultValue={DEFAULT_VISUAL.perspective}
+          />
+          <div className="vd-hint">{t('Tilt and turn the picture in space, push it away or pull it closer. Animate them with ◆ for 3D camera moves.')}</div>
         </Panel>
       )}
 
@@ -510,6 +536,11 @@ function TitleEditor({
         <span className="vd-row-label">{t('Outline')}</span>
         <ColorPicker value={title.outlineColor} onChange={(outlineColor) => liveTitle({ outlineColor })} onCommit={() => done(t('Edit title'))} label={t('Outline color')} />
         <NumberField small value={Math.round(title.outlineWidth)} min={0} max={60} suffix="px" onChange={(outlineWidth) => setTitle({ outlineWidth })} style={{ width: 80 }} />
+      </div>
+      <div className="vd-swatches">
+        <span className="vd-row-label">{t('3D depth')}</span>
+        <NumberField small value={Math.round(title.extrude ?? 0)} min={0} max={200} suffix="px" onChange={(extrude) => setTitle({ extrude: extrude || undefined })} style={{ width: 80 }} />
+        {(title.extrude ?? 0) > 0 && <ColorPicker value={title.extrudeColor ?? '#000000'} onChange={(extrudeColor) => liveTitle({ extrudeColor })} onCommit={() => done(t('Edit title'))} label={t('3D side color')} />}
       </div>
       <div className="vd-swatches">
         <span className="vd-row-label">{t('Background')}</span>

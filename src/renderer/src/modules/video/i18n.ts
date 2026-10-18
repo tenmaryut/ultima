@@ -838,4 +838,18 @@ registerTranslations('id', {
   'Off (repeat frames)': 'Mati (frame diulang)',
   'Blend frames (fast)': 'Campur frame (cepat)',
   'Optical flow: new in-between frames (sharpest)': 'Optical flow: frame sisipan baru (paling tajam)',
+
+  // 3D
+  '3D': '3D',
+  'Reset 3D': 'Atur ulang 3D',
+  'Tilt (X)': 'Miring (X)',
+  'Turn (Y)': 'Putar (Y)',
+  'Depth (Z)': 'Kedalaman (Z)',
+  Perspective: 'Perspektif',
+  Strong: 'Kuat',
+  Flat: 'Datar',
+  'Tilt and turn the picture in space, push it away or pull it closer. Animate them with ◆ for 3D camera moves.':
+    'Miringkan dan putar gambar di ruang 3D, dorong menjauh atau tarik mendekat. Animasikan dengan ◆ untuk gerakan kamera 3D.',
+  '3D depth': 'Kedalaman 3D',
+  '3D side color': 'Warna sisi 3D',
 }, 'video');

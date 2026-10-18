@@ -50,6 +50,10 @@ export const DEFAULT_VISUAL: VisualProps = {
   sharpen: 0,
   grain: 0,
   letterbox: 0,
+  rotateX: 0,
+  rotateY: 0,
+  z: 0,
+  perspective: 1.5,
 };
 
 /** Effect sliders: property, label, range and step (all animatable with keyframes). */

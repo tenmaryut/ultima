@@ -35,6 +35,9 @@ Clips and media
 Look and sound
 11. {"type":"setClip", [targets], "props":{…}} — props (all optional):
    opacity 0-1, scale (1 = fitted to the frame, 0.05-10), x / y (px offset of the clip center from the frame center), rotation (degrees),
+   3D: rotateX (tilt, degrees: the top goes away), rotateY (turn: the right side goes away), z (px away from the camera, negative = closer),
+   perspective (camera distance × frame height, default 1.5; 0.6 = dramatic) — keyframe them for 3D camera moves; on an adjustment layer
+   the whole frame below swings in 3D,
    brightness / contrast / saturation (-100..100, 0 = neutral, saturation -100 = black and white), hue (-180..180), temperature (-100 cool .. 100 warm), blur (0-50 px),
    crop {"left","right","top","bottom"} (fractions 0-0.45), chromaKey true | false | {"color":"#00ff00","similarity":0-1,"smoothness":0-1},
    volume (dB -60..12, 0 = unchanged; on a video clip it sets its linked audio), muted true,
@@ -46,7 +49,7 @@ Look and sound
 
 Text
 13. {"type":"addTitle","text":string,"start"?:s,"duration"?:s|"full","style"?:STYLE,"position"?:POSITION,"track"?:"V3","opacity"?:0-1} — "full" lasts to the end of the timeline (watermarks, logos, running labels). Without "track" it goes on a free track above V1.
-   STYLE: "basic" | "lowerThird" | "big" | "subtitle" | "typewriter" | "pop" | "endCard", or {"preset"?, "font"?, "size"?:px, "weight"?:100-900, "color"?:"#rrggbb", "box"?:boolean, "boxColor"?, "outlineColor"?, "outlineWidth"?:px, "italic"?, "shadow"?, "animation"?:"none"|"fade"|"slideUp"|"pop"|"typewriter", "animDuration"?:s, "align"?:"left"|"center"|"right", "subtitle"?:second line}. Use only fonts from "Fonts for titles".
+   STYLE: "basic" | "lowerThird" | "big" | "subtitle" | "typewriter" | "pop" | "endCard", or {"preset"?, "font"?, "size"?:px, "weight"?:100-900, "color"?:"#rrggbb", "box"?:boolean, "boxColor"?, "outlineColor"?, "outlineWidth"?:px, "italic"?, "shadow"?, "animation"?:"none"|"fade"|"slideUp"|"pop"|"typewriter", "animDuration"?:s, "align"?:"left"|"center"|"right", "subtitle"?:second line, "extrude"?:px (3D letters with that much depth), "extrudeColor"?}. Use only fonts from "Fonts for titles". 3D text = extrude plus a rotateX / rotateY tilt.
    POSITION: "center" | "top" | "bottom" | "lower-left" | "upper-left" | "upper-right" | "lower-right" or {"x":0-1,"y":0-1} (fractions of the frame).
 14. {"type":"addCaption","text":string,"start":s,"end":s}
 15. {"type":"setCaptionStyle","font"?,"size"?:px,"weight"?,"color"?,"outlineColor"?,"outlineWidth"?,"box"?,"boxColor"?,"position"?:"bottom"|"top","margin"?:0-0.45,"maxWidth"?:0.2-1}
@@ -125,7 +128,10 @@ Library and files (the built-in library is made by Ultima: free to use, always a
    on the target, a "text" label above it, "last" = titles/stickers added earlier in this reply, or clip ids (they keep their place
    relative to the target; "mode":"center" puts them on it). "size": the box height as a fraction of the picture, a bit bigger than
    the target (default 0.08). Tracks stay on the clip (CURRENT DOCUMENT lists them) and the result says how often the target was
-   found — check the followers with a look afterwards.`;
+   found — check the followers with a look afterwards.
+39. {"type":"parallax","layers":[{"clipId":id,"depth":0-1},…],"move":{"x"?:px,"y"?:px,"zoom"?:0.1},"from"?:s,"to"?:s}
+   — a camera move with depth: far layers (depth 0) move a little, near ones (depth 1) the full "move" (position and zoom keyframes).
+   For a 2.5D photo: the background clip at depth 0 and a cut-out copy of the subject at depth 1, or titles in front of footage.`;
 
 const ANALYSIS = `ANALYSIS: CURRENT DOCUMENT lists what was found in each clip (timeline seconds, approximate):
 - music: tempo (BPM), every beat, bar starts, the strongest hits and where it gets louder (a drop or chorus);

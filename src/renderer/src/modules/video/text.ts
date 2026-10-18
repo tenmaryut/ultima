@@ -1,3 +1,4 @@
+import { parseColor } from '../../core/utils/color';
 import type { CaptionStyle, TitleStyle } from './types';
 import { titleAnimState } from './fx';
 
@@ -124,6 +125,18 @@ export function drawTitle(ctx: Ctx, style: TitleStyle, local: number, duration: 
     const x = style.align === 'left' ? left : style.align === 'right' ? left + blockW - l.width : left + (blockW - l.width) / 2;
     ctx.font = l.font;
     const outline = style.outlineWidth * (l.size / style.size);
+    const depth = (style.extrude ?? 0) * (l.size / style.size);
+    if (depth > 0.5) {
+      // 3D letters: copies stacked down and to the right behind the face, darker the deeper
+      const steps = Math.min(80, Math.ceil(depth));
+      const front = shadeColor(style.extrudeColor ?? style.color, style.extrudeColor ? 0 : 0.45);
+      const back = shadeColor(style.extrudeColor ?? style.color, style.extrudeColor ? 0.35 : 0.75);
+      for (let k = steps; k >= 1; k--) {
+        const d = (depth * k) / steps;
+        ctx.fillStyle = mixColor(front, back, k / steps);
+        ctx.fillText(l.text, x + d * 0.45, cy + d * 0.9);
+      }
+    }
     if (outline > 0) {
       ctx.lineWidth = outline * 2;
       ctx.strokeStyle = style.outlineColor;
@@ -142,6 +155,16 @@ export function drawTitle(ctx: Ctx, style: TitleStyle, local: number, duration: 
     y += l.height;
   }
   ctx.restore();
+}
+
+/** A color made darker by `k` (0-1), as an rgb triple. */
+function shadeColor(c: string, k: number): [number, number, number] {
+  const p = parseColor(c) ?? { r: 255, g: 255, b: 255, a: 1 };
+  return [p.r * (1 - k), p.g * (1 - k), p.b * (1 - k)];
+}
+
+function mixColor(a: [number, number, number], b: [number, number, number], k: number): string {
+  return `rgb(${Math.round(a[0] + (b[0] - a[0]) * k)}, ${Math.round(a[1] + (b[1] - a[1]) * k)}, ${Math.round(a[2] + (b[2] - a[2]) * k)})`;
 }
 
 /** Draws a caption with the project caption style (per-line background boxes, like TV subtitles). */
