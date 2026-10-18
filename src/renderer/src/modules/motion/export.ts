@@ -39,6 +39,8 @@ export interface ExportCallbacks {
 export interface ExportResult {
   saved: boolean;
   warnings: string[];
+  /** Where the file went (desktop app). */
+  path?: string;
 }
 
 export class ExportCancelled extends Error {
@@ -152,7 +154,7 @@ async function exportVideo(doc: MotionDoc, s: ExportSettings, cb: ExportCallback
   }
   const times = frameTimes(doc, s);
   const ext = isMp4 ? 'mp4' : 'webm';
-  const writer = await createFileWriter({ suggestedName: `${s.fileName}.${ext}`, filters: [{ name: isMp4 ? 'MP4 video' : 'WebM video', extensions: [ext] }] });
+  const writer = await createFileWriter({ suggestedName: `${s.fileName}.${ext}`, filters: [{ name: isMp4 ? 'MP4 video' : 'WebM video', extensions: [ext] }], toExportFolder: true });
   if (!writer) return { saved: false, warnings };
   const source = await createFrameSource(doc, { ...s, keepAlpha: alpha === 'keep' }, times, size, cb, false);
   warnings.push(...source.warnings);
@@ -184,7 +186,7 @@ async function exportVideo(doc: MotionDoc, s: ExportSettings, cb: ExportCallback
     cb.onProgress(1, 'Finishing…');
     await output.finalize();
     await writer.close();
-    return { saved: true, warnings };
+    return { saved: true, warnings, path: writer.path };
   } catch (error) {
     await output?.cancel().catch(() => undefined);
     await writer.abort().catch(() => undefined);
@@ -246,8 +248,9 @@ async function exportGif(doc: MotionDoc, s: ExportSettings, cb: ExportCallbacks)
     const res = await saveFile(new Blob([bytes as BlobPart], { type: 'image/gif' }), {
       suggestedName: `${s.fileName}.gif`,
       filters: [{ name: 'GIF image', extensions: ['gif'] }],
+      toExportFolder: true,
     });
-    return { saved: Boolean(res), warnings: source.warnings };
+    return { saved: Boolean(res), warnings: source.warnings, path: res?.path };
   } finally {
     source.dispose();
   }
@@ -259,7 +262,7 @@ async function exportPngSequence(doc: MotionDoc, s: ExportSettings, cb: ExportCa
   const { default: JSZip } = await import('jszip');
   const size = outputSize(doc, s.width, false);
   const times = frameTimes(doc, s);
-  const writer = await createFileWriter({ suggestedName: `${s.fileName}.zip`, filters: [{ name: 'ZIP archive', extensions: ['zip'] }] });
+  const writer = await createFileWriter({ suggestedName: `${s.fileName}.zip`, filters: [{ name: 'ZIP archive', extensions: ['zip'] }], toExportFolder: true });
   if (!writer) return { saved: false, warnings: [] };
   const source = await createFrameSource(doc, s, times, size, cb, false);
   try {
@@ -274,7 +277,7 @@ async function exportPngSequence(doc: MotionDoc, s: ExportSettings, cb: ExportCa
     }
     cb.onProgress(0.9, 'Writing ZIP…');
     await streamZip(zip, writer, cb.signal);
-    return { saved: true, warnings: source.warnings };
+    return { saved: true, warnings: source.warnings, path: writer.path };
   } catch (error) {
     await writer.abort().catch(() => undefined);
     throw error;
@@ -327,8 +330,8 @@ async function exportPngFrame(doc: MotionDoc, s: ExportSettings, cb: ExportCallb
     await source.render(0);
     cb.onProgress(1, '');
     const blob = await canvasToBlob(source.canvas, 'image/png');
-    const res = await saveFile(blob, { suggestedName: `${s.fileName}.png`, filters: [{ name: 'PNG image', extensions: ['png'] }] });
-    return { saved: Boolean(res), warnings: source.warnings };
+    const res = await saveFile(blob, { suggestedName: `${s.fileName}.png`, filters: [{ name: 'PNG image', extensions: ['png'] }], toExportFolder: true });
+    return { saved: Boolean(res), warnings: source.warnings, path: res?.path };
   } finally {
     source.dispose();
   }

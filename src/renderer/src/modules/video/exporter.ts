@@ -398,6 +398,7 @@ export async function exportVideoFile(
   const writer = await createFileWriter({
     suggestedName: `${baseName}.${s.format}`,
     filters: [{ name: s.format === 'mp4' ? 'MP4 video' : 'WebM video', extensions: [s.format] }],
+    toExportFolder: true,
   });
   if (!writer) return null;
   const writable = new WritableStream<StreamTargetChunk>({ write: (chunk) => writer.write(chunk.data, chunk.position) });
@@ -456,6 +457,7 @@ export async function exportWithFfmpeg(
   return saveFile(res.data, {
     suggestedName: `${baseName}.${container}`,
     filters: [{ name: container === 'mp4' ? 'MP4 video' : 'QuickTime movie', extensions: [container] }],
+    toExportFolder: true,
   });
 }
 
@@ -556,7 +558,7 @@ export async function exportWavFile(
   onProgress: ProgressFn,
   signal: AbortSignal,
 ): Promise<{ path?: string } | null> {
-  const writer = await createFileWriter({ suggestedName: `${baseName}.wav`, filters: [{ name: 'WAV audio', extensions: ['wav'] }] });
+  const writer = await createFileWriter({ suggestedName: `${baseName}.wav`, filters: [{ name: 'WAV audio', extensions: ['wav'] }], toExportFolder: true });
   if (!writer) return null;
   const mixer = new TimelineMixer(project, lib, range, { sampleRate: 48000, channels: 2, chunk: 5 });
   try {

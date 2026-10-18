@@ -73,7 +73,7 @@ export type ImportWhat = 'music' | 'sfx' | 'video' | 'image' | 'font' | 'lut' | 
 export type EditorEffect =
   | { kind: 'seek'; time: number }
   | { kind: 'select'; ids: string[] }
-  | { kind: 'export'; exportKind: 'social' | 'mp4' | 'webm' | 'gif' | 'wav' | 'png' }
+  | { kind: 'export'; exportKind: 'social' | 'mp4' | 'webm' | 'gif' | 'wav' | 'png'; range?: 'all' | 'work' }
   | { kind: 'requestImport'; what: ImportWhat; message: string };
 
 export interface ActionResult {
@@ -1100,8 +1100,12 @@ const handlers: Record<string, Handler> = {
   export(s, a) {
     const kinds = ['social', 'mp4', 'webm', 'gif', 'wav', 'png'] as const;
     const exportKind = kinds.includes(a.format as (typeof kinds)[number]) ? (a.format as (typeof kinds)[number]) : 'mp4';
-    s.effects.push({ kind: 'export', exportKind });
-    return `opened the ${exportKind} export dialog — the user picks where to save and starts it`;
+    if (a.range !== undefined && a.range !== 'all' && a.range !== 'work') throw new Skip('"range" must be "all" or "work"');
+    if (a.range === 'work' && !s.p.workArea) throw new Skip('there is no work area: set one first (setWorkArea) or export "all"');
+    const range = a.range as 'all' | 'work' | undefined;
+    s.effects.push({ kind: 'export', exportKind, range });
+    const what = exportKind === 'png' ? 'the frame at the playhead' : range === 'all' || !s.p.workArea ? 'the whole timeline' : `the work area ${s.p.workArea.start.toFixed(2)}–${s.p.workArea.end.toFixed(2)} s`;
+    return `${exportKind} export of ${what} starts after this reply (the export dialog shows its progress)`;
   },
 };
 

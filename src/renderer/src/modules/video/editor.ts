@@ -76,7 +76,7 @@ import type { LeftTab } from './ui/LeftPanel';
 import type { VideoActions } from './menus';
 
 export type Dialog =
-  | { kind: 'export'; exportKind: ExportKind }
+  | { kind: 'export'; exportKind: ExportKind; range?: 'all' | 'work'; autoStart?: boolean }
   | { kind: 'settings' }
   | { kind: 'relink' }
   | { kind: 'autocaptions' }
@@ -1099,16 +1099,25 @@ export function useVideoEditor(active: boolean) {
     for (const e of r.effects) {
       if (e.kind === 'seek') seek(e.time);
       else if (e.kind === 'select') setSelectionState(e.ids);
-      else if (e.kind === 'export') setDialog({ kind: 'export', exportKind: e.exportKind });
+      else if (e.kind === 'export') setDialog({ kind: 'export', exportKind: e.exportKind, range: e.range, autoStart: true });
       // the AI can't open files itself: it asks, and the user picks them
       else if (e.kind === 'requestImport') buttons.push({ label: t(IMPORT_LABELS[e.what]), run: () => void importRequested(e.what) });
     }
     const failed = r.results.filter((x) => !x.ok).length;
+    const exporting = r.effects.some((e) => e.kind === 'export');
+    const folder = exporting ? await desktop?.files.exportFolder().catch(() => null) : null;
     const details = [
       undone ? `undo/redo: ${undone} step(s) done` : '',
       imported.length ? `imported from linked folders (same ids): ${imported.join(', ')}` : '',
       notImported.length ? `could not import from linked folders: ${notImported.join(', ')}` : '',
       formatResults(r.results.map((x) => ({ ...x, index: x.index + i }))),
+      exporting
+        ? folder && !folder.ask
+          ? `export: rendering now; the file is saved in the export folder ${folder.path} (no dialog)`
+          : desktop
+            ? 'export: rendering now; the user picks where to save it (they asked to be asked)'
+            : 'export: rendering now; the browser downloads the file'
+        : '',
     ]
       .filter(Boolean)
       .join('\n');

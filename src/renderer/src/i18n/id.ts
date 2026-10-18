@@ -370,4 +370,15 @@ registerTranslations('id', {
   Rose: 'Mawar',
   Graphite: 'Grafit',
   "Use the gradient’s color in every tool too (otherwise each tool keeps its own color)": "Pakai warna gradasi juga di semua tool (jika mati, tiap tool memakai warnanya sendiri)",
+  // Exports
+  Exports: 'Ekspor',
+  'Export folder': 'Folder ekspor',
+  'Save to': 'Simpan ke',
+  'Change…': 'Ubah…',
+  Reset: 'Atur ulang',
+  'Open the export folder': 'Buka folder ekspor',
+  'Ask where to save every time': 'Tanyakan lokasi simpan setiap kali',
+  'Ask where to save every export (otherwise exports go straight into this folder, and the AI can export by itself)':
+    'Tanyakan lokasi simpan setiap ekspor (jika mati, hasil ekspor langsung masuk ke folder ini, dan AI bisa mengekspor sendiri)',
+  'Show in folder': 'Tampilkan di folder',
 });

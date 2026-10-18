@@ -4,7 +4,8 @@ import type { Project, TimeRange } from '../types';
 import { useT } from '../../../core/i18n';
 import { Button, Field, Modal, NumberField, ProgressBar, Select, Toggle, toast } from '../../../components/ui';
 import { canvasToBlob } from '../../../core/utils/image';
-import { saveFile } from '../../../core/platform';
+import { desktop, saveFile } from '../../../core/platform';
+import { ExportFolderSettings, showExport, useExportFolder } from '../../../components/ExportFolder';
 import { useAISettings } from '../../../core/ai/settings';
 import type { MediaLibrary } from '../media';
 import type { TimeStore } from '../timeStore';
@@ -32,6 +33,9 @@ interface ExportDialogProps {
   lib: MediaLibrary;
   time: TimeStore;
   initialKind?: ExportKind;
+  initialRange?: 'all' | 'work';
+  /** Start right away (the AI asked for the export): it goes into the export folder unless the user wants to be asked. */
+  autoStart?: boolean;
   onClose: () => void;
   onBusy: (busy: boolean) => void;
 }
@@ -50,7 +54,7 @@ function frameRates(projectFps: number): number[] {
   return [...new Set([projectFps, 24, 25, 30, 50, 60])].sort((a, b) => a - b);
 }
 
-export function ExportDialog({ project, lib, time, initialKind = 'mp4', onClose, onBusy }: ExportDialogProps) {
+export function ExportDialog({ project, lib, time, initialKind = 'mp4', initialRange, autoStart, onClose, onBusy }: ExportDialogProps) {
   const t = useT();
   const tools = useAISettings((s) => s.tools);
   const { width: W, height: H, fps } = project.settings;
@@ -62,7 +66,7 @@ export function ExportDialog({ project, lib, time, initialKind = 'mp4', onClose,
   const [mbps, setMbps] = useState(12);
   const [audio, setAudio] = useState(true);
   const [audioKbps, setAudioKbps] = useState(192);
-  const [rangeKind, setRangeKind] = useState<'all' | 'work'>(project.workArea ? 'work' : 'all');
+  const [rangeKind, setRangeKind] = useState<'all' | 'work'>(initialRange === 'all' || !project.workArea ? 'all' : 'work');
   const [burn, setBurn] = useState(captionClips(project).length > 0);
   const [container, setContainer] = useState<'mp4' | 'mov'>('mp4');
   const [exportFps, setExportFps] = useState(fps);
@@ -73,6 +77,8 @@ export function ExportDialog({ project, lib, time, initialKind = 'mp4', onClose,
   const [progress, setProgress] = useState<number | null>(null);
   const [stage, setStage] = useState('');
   const abortRef = useRef<AbortController | null>(null);
+  const started = useRef(false);
+  const [folder, setFolder] = useExportFolder();
   const out = outputSize(W, H, size);
   const range: TimeRange = rangeKind === 'work' && project.workArea ? project.workArea : { start: 0, end: total };
   const length = Math.max(0, range.end - range.start);
@@ -171,7 +177,7 @@ export function ExportDialog({ project, lib, time, initialKind = 'mp4', onClose,
       } else if (kind === 'gif') {
         setStage(t('Rendering GIF…'));
         const bytes = await renderGif(project, lib, { range, width: gifWidth, fps: gifFps, burnCaptions: burn }, setProgress, ctrl.signal);
-        result = await saveFile(bytes, { suggestedName: `${base}.gif`, filters: [{ name: 'GIF', extensions: ['gif'] }] });
+        result = await saveFile(bytes, { suggestedName: `${base}.gif`, filters: [{ name: 'GIF', extensions: ['gif'] }], toExportFolder: true });
       } else if (kind === 'wav') {
         setStage(t('Mixing audio…'));
         result = await exportWavFile(project, lib, range, base, setProgress, ctrl.signal);
@@ -179,10 +185,11 @@ export function ExportDialog({ project, lib, time, initialKind = 'mp4', onClose,
         setStage(t('Rendering frame…'));
         const canvas = await renderStill(project, lib, time.get(), out.width / W);
         const blob = await canvasToBlob(canvas, 'image/png');
-        result = await saveFile(blob, { suggestedName: `${base}-${formatTimecode(time.get(), fps).replace(/:/g, '-')}.png`, filters: [{ name: 'PNG image', extensions: ['png'] }] });
+        result = await saveFile(blob, { suggestedName: `${base}-${formatTimecode(time.get(), fps).replace(/:/g, '-')}.png`, filters: [{ name: 'PNG image', extensions: ['png'] }], toExportFolder: true });
       }
       if (result) {
-        toast.success(t('Export finished'), result.path);
+        const path = result.path;
+        toast.success(t('Export finished'), path, path && desktop ? { label: t('Show in folder'), run: () => showExport(path) } : undefined);
         onClose();
       }
     } catch (error) {
@@ -209,6 +216,14 @@ export function ExportDialog({ project, lib, time, initialKind = 'mp4', onClose,
   const gifTooLong = kind === 'gif' && length > 60;
   const nothing = kind !== 'png' && length <= 0;
   const silent = kind === 'wav' && !hasAudioIn(project, range);
+  // waits for the encoder check (and the export folder) before an automatic start
+  const ready = !blocked && !nothing && !gifTooLong && !silent && (!desktop || folder !== null) && (kind === 'mp4' || kind === 'webm' || social ? codecs !== null : true);
+
+  useEffect(() => {
+    if (!autoStart || started.current || busy || !ready) return;
+    started.current = true;
+    void run();
+  });
 
   return (
     <Modal
@@ -359,6 +374,7 @@ export function ExportDialog({ project, lib, time, initialKind = 'mp4', onClose,
               </Field>
             )}
           </div>
+          <ExportFolderSettings compact info={folder} onChange={setFolder} />
           {social && <SocialNotes plan={plan} projectFps={fps} route={socialRoute} />}
           {(kind === 'mp4' || kind === 'webm' || social) && !codecs && <div className="vd-hint">{t('Checking which encoders this system supports…')}</div>}
           {(kind === 'mp4' || kind === 'webm' || (social && socialRoute === 'fallback')) && codecs?.notes.map((n) => (

@@ -2,7 +2,9 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from
 import { createPortal } from 'react-dom';
 import { Download } from 'lucide-react';
 import { useT } from '../../core/i18n';
+import { desktop } from '../../core/platform';
 import { formatTime } from '../../core/utils/format';
+import { ExportFolderSettings, showExport, useExportFolder } from '../../components/ExportFolder';
 import { Button, Field, Modal, NumberField, ProgressBar, Segmented, Select, TextInput, Toggle, toast } from '../../components/ui';
 import { detectVideoSupport, ExportCancelled, exportComposition, outputSize, type ExportFormat, type ExportQuality, type ExportSettings } from './export';
 import { GraphEditor } from './GraphEditor';
@@ -63,6 +65,7 @@ export function ExportDialog({ doc, time, images, initialFormat, onClose }: { do
   const [support, setSupport] = useState<{ mp4: boolean; webm: boolean; webmAlpha: boolean } | null>(null);
   const [progress, setProgress] = useState<{ value: number; label: string } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const [folder, setFolder] = useExportFolder();
 
   useEffect(() => {
     let alive = true;
@@ -118,7 +121,9 @@ export function ExportDialog({ doc, time, images, initialFormat, onClose }: { do
       });
       for (const w of res.warnings) toast.warning(t(w));
       if (res.saved) {
-        toast.success(t('Export finished'), t('{n} frame(s) in {s}s', { n: frames, s: Math.round((performance.now() - started) / 100) / 10 }));
+        const took = t('{n} frame(s) in {s}s', { n: frames, s: Math.round((performance.now() - started) / 100) / 10 });
+        const path = res.path;
+        toast.success(t('Export finished'), path ? `${took}\n${path}` : took, path && desktop ? { label: t('Show in folder'), run: () => showExport(path) } : undefined);
         onClose();
       }
     } catch (error) {
@@ -171,6 +176,7 @@ export function ExportDialog({ doc, time, images, initialFormat, onClose }: { do
       <Field label={t('File name')}>
         <TextInput small value={fileName} disabled={running} onChange={(e) => setFileName(e.target.value)} />
       </Field>
+      {!running && <ExportFolderSettings compact info={folder} onChange={setFolder} />}
       {format !== 'png-frame' ? (
         <Field label={t('Range')}>
           <Segmented

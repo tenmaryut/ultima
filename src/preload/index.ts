@@ -33,6 +33,10 @@ const api: UltimaDesktopAPI = {
     openWriter: (options) => ipcRenderer.invoke(IPC.fileWriterOpen, options),
     write: (id, chunk, position) => ipcRenderer.invoke(IPC.fileWriterWrite, id, chunk, position),
     closeWriter: (id, abort) => ipcRenderer.invoke(IPC.fileWriterClose, id, abort),
+    exportFolder: () => ipcRenderer.invoke(IPC.exportFolderGet),
+    chooseExportFolder: () => ipcRenderer.invoke(IPC.exportFolderChoose),
+    setExportFolder: (options) => ipcRenderer.invoke(IPC.exportFolderSet, options),
+    openExportFolder: () => ipcRenderer.invoke(IPC.exportFolderOpen),
     getPathForFile: (file) => {
       try {
         // Only real files from a picker or drag and drop have a path; tell the main process

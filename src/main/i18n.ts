@@ -13,6 +13,7 @@ const ID: Record<string, string> = {
   'If you close Ultima now, those changes will be lost.': 'Jika Ultima ditutup sekarang, perubahan itu akan hilang.',
   'Close without saving': 'Tutup tanpa menyimpan',
   Cancel: 'Batal',
+  'Choose the export folder': 'Pilih folder ekspor',
   Allow: 'Izinkan',
   'Allow Ultima to run this program?': 'Izinkan Ultima menjalankan program ini?',
   'Allow Ultima to run this command?': 'Izinkan Ultima menjalankan perintah ini?',

@@ -1,11 +1,12 @@
-import { BrowserWindow, dialog, ipcMain, session } from 'electron';
-import { mkdtemp, open, readFile, rm, stat, writeFile, type FileHandle } from 'node:fs/promises';
+import { BrowserWindow, app, dialog, ipcMain, session, shell } from 'electron';
+import { mkdir, mkdtemp, open, readFile, rm, stat, writeFile, type FileHandle } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, extname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
-import { IPC, type FileFilter, type RecentFile, type SaveFileOptions } from '@shared/ipc';
+import { IPC, type ExportFolderInfo, type FileFilter, type RecentFile, type SaveFileOptions } from '@shared/ipc';
 import { JsonStore } from './config-store';
+import { mt } from './i18n';
 
 const MAX_RECENT = 20;
 const MAX_RECENT_READ_BYTES = 1024 * 1024 * 1024; // 1 GB
@@ -20,6 +21,65 @@ const OPENABLE_EXTENSIONS = new Set([
 ]);
 
 const recentStore = new JsonStore<{ files: RecentFile[] }>('recent', { files: [] });
+
+/* ------------------------------ Export folder ------------------------------ */
+
+/** Where exports go without a dialog: a folder the user chose, else Videos/Ultima; `ask` brings the dialog back. */
+const exportStore = new JsonStore<{ folder: string | null; ask: boolean }>('export-folder', { folder: null, ask: false });
+
+/** Kinds of files an export may write into the export folder. */
+const EXPORT_EXTENSIONS = new Set(['.mp4', '.webm', '.mov', '.mkv', '.gif', '.wav', '.mp3', '.m4a', '.ogg', '.flac', '.png', '.jpg', '.jpeg', '.webp', '.srt', '.vtt', '.zip']);
+
+function defaultExportFolder(): string {
+  try {
+    return join(app.getPath('videos'), 'Ultima');
+  } catch {
+    return join(app.getPath('home'), 'Videos', 'Ultima');
+  }
+}
+
+export function exportFolderInfo(): ExportFolderInfo {
+  const { folder, ask } = exportStore.get();
+  return { path: folder || defaultExportFolder(), isDefault: !folder, ask: Boolean(ask) };
+}
+
+/** A safe name for a file in the export folder (no folders, nothing Windows refuses, an export extension), or null. */
+export function exportFileName(suggested: string): string | null {
+  const raw = basename(String(suggested ?? '').replace(/\\/g, '/'))
+    .replace(/[\u0000-\u001f<>:"/\\|?*]+/g, '_')
+    .replace(/[. ]+$/, '')
+    .trim();
+  const ext = extname(raw).toLowerCase();
+  if (!EXPORT_EXTENSIONS.has(ext)) return null;
+  let stem = raw.slice(0, raw.length - ext.length).trim().slice(0, 120) || 'export';
+  if (/^(con|prn|aux|nul|com\d|lpt\d)$/i.test(stem)) stem += '_';
+  return stem + ext;
+}
+
+/** Creates a new file in the export folder — `name.ext`, else `name (2).ext`… — never overwriting one. */
+async function createInExportFolder(suggested: string): Promise<{ path: string; handle: FileHandle } | null> {
+  const name = exportFileName(suggested);
+  if (!name) return null;
+  const dir = exportFolderInfo().path;
+  await mkdir(dir, { recursive: true });
+  const ext = extname(name);
+  const stem = name.slice(0, name.length - ext.length);
+  for (let i = 1; i < 10000; i++) {
+    const path = resolve(join(dir, i === 1 ? name : `${stem} (${i})${ext}`));
+    try {
+      const handle = await open(path, 'wx');
+      writablePaths.add(path);
+      grantedPaths.add(path);
+      return { path, handle };
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+    }
+  }
+  throw new Error('The export folder has too many files with this name');
+}
+
+/** The save dialog of an export starts in the export folder. */
+const exportDialogPath = (suggested: string) => join(exportFolderInfo().path, exportFileName(suggested) ?? basename(String(suggested ?? '')));
 
 /** Paths the user explicitly chose in a save dialog during this session. */
 const writablePaths = new Set<string>();
@@ -131,20 +191,63 @@ export function registerFileIpc(): void {
     const win = BrowserWindow.fromWebContents(event.sender);
     let path = options.path ? resolve(options.path) : null;
     if (path && !writablePaths.has(path)) path = null; // never write to a path the user did not pick
-    if (!path) path = await askSavePath(win, options.suggestedName, options.filters);
+    if (!path && options.toExportFolder && !exportFolderInfo().ask) {
+      const made = await createInExportFolder(options.suggestedName);
+      if (made) {
+        try {
+          await made.handle.writeFile(toBuffer(options.data));
+        } finally {
+          await made.handle.close();
+        }
+        return { path: made.path };
+      }
+    }
+    if (!path) path = await askSavePath(win, options.toExportFolder ? exportDialogPath(options.suggestedName) : options.suggestedName, options.filters);
     if (!path) return null;
     await writeFile(path, toBuffer(options.data));
     return { path };
   });
 
-  ipcMain.handle(IPC.fileWriterOpen, async (event, options: { suggestedName: string; filters?: FileFilter[] }) => {
+  ipcMain.handle(IPC.fileWriterOpen, async (event, options: { suggestedName: string; filters?: FileFilter[]; toExportFolder?: boolean }) => {
     const win = BrowserWindow.fromWebContents(event.sender);
-    const path = await askSavePath(win, options.suggestedName, options.filters);
+    const made = options.toExportFolder && !exportFolderInfo().ask ? await createInExportFolder(options.suggestedName) : null;
+    let path = made?.path ?? null;
+    let handle = made?.handle;
+    if (!path) path = await askSavePath(win, options.toExportFolder ? exportDialogPath(options.suggestedName) : options.suggestedName, options.filters);
     if (!path) return null;
-    const handle = await open(path, 'w');
+    handle ??= await open(path, 'w');
     const id = randomUUID();
     writers.set(id, { handle, path });
     return { id, path };
+  });
+
+  ipcMain.handle(IPC.exportFolderGet, () => exportFolderInfo());
+
+  ipcMain.handle(IPC.exportFolderChoose, async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const options: Electron.OpenDialogOptions = {
+      title: mt('Choose the export folder'),
+      defaultPath: exportFolderInfo().path,
+      properties: ['openDirectory', 'createDirectory'],
+    };
+    const result = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options);
+    const folder = result.canceled ? undefined : result.filePaths[0];
+    if (!folder) return null;
+    exportStore.update({ folder: resolve(folder) });
+    return exportFolderInfo();
+  });
+
+  ipcMain.handle(IPC.exportFolderSet, (_event, options: { ask?: unknown; reset?: unknown }) => {
+    if (typeof options?.ask === 'boolean') exportStore.update({ ask: options.ask });
+    if (options?.reset === true) exportStore.update({ folder: null });
+    return exportFolderInfo();
+  });
+
+  ipcMain.handle(IPC.exportFolderOpen, async () => {
+    const folder = exportFolderInfo().path;
+    await mkdir(folder, { recursive: true }).catch(() => undefined);
+    const error = await shell.openPath(folder);
+    if (error) throw new Error(error);
   });
 
   ipcMain.handle(IPC.fileWriterWrite, async (_event, id: string, chunk: Uint8Array, position?: number) => {

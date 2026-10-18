@@ -44,6 +44,8 @@ export interface SaveOptions {
   filters?: FileFilter[];
   /** Save to this path without asking (desktop; only for paths picked earlier in this session). */
   path?: string;
+  /** An export: desktop saves it in the export folder without asking (unless the user wants a dialog); the browser downloads it. */
+  toExportFolder?: boolean;
 }
 
 async function toArrayBuffer(data: SaveData): Promise<ArrayBuffer | Uint8Array | string> {
@@ -63,7 +65,7 @@ export async function saveFile(data: SaveData, options: SaveOptions): Promise<{ 
   const blob = data instanceof Blob ? data : new Blob([data as BlobPart]);
   const picker = (window as unknown as { showSaveFilePicker?: (o: unknown) => Promise<FileSystemFileHandle> })
     .showSaveFilePicker;
-  if (picker) {
+  if (picker && !options.toExportFolder) {
     try {
       const handle = await picker({
         suggestedName: options.suggestedName,
@@ -104,7 +106,7 @@ export interface FileWriter {
   abort(): Promise<void>;
 }
 
-export async function createFileWriter(options: { suggestedName: string; filters?: FileFilter[] }): Promise<FileWriter | null> {
+export async function createFileWriter(options: { suggestedName: string; filters?: FileFilter[]; toExportFolder?: boolean }): Promise<FileWriter | null> {
   if (desktop) {
     const opened = await desktop.files.openWriter(options);
     if (!opened) return null;

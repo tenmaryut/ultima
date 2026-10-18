@@ -8,11 +8,16 @@ import { t } from '../../core/i18n';
 /* --------------------------------- Toasts -------------------------------- */
 
 type ToastKind = 'info' | 'success' | 'error' | 'warning';
+interface ToastAction {
+  label: string;
+  run: () => void;
+}
 interface ToastItem {
   id: number;
   kind: ToastKind;
   message: string;
   detail?: string;
+  action?: ToastAction;
 }
 
 const useToasts = create<{ items: ToastItem[]; push: (t: Omit<ToastItem, 'id'>, ms?: number) => void; dismiss: (id: number) => void }>(
@@ -29,7 +34,8 @@ const useToasts = create<{ items: ToastItem[]; push: (t: Omit<ToastItem, 'id'>, 
 
 export const toast = {
   info: (message: string, detail?: string) => useToasts.getState().push({ kind: 'info', message, detail }),
-  success: (message: string, detail?: string) => useToasts.getState().push({ kind: 'success', message, detail }),
+  /** With an `action`, the toast has a button (and stays a little longer). */
+  success: (message: string, detail?: string, action?: ToastAction) => useToasts.getState().push({ kind: 'success', message, detail, action }, action ? 9000 : 4500),
   warning: (message: string, detail?: string) => useToasts.getState().push({ kind: 'warning', message, detail }, 7000),
   error: (message: string, detail?: string) => useToasts.getState().push({ kind: 'error', message, detail }, 9000),
 };
@@ -49,6 +55,18 @@ export function Toasts() {
             <div className="grow selectable">
               <div>{item.message}</div>
               {item.detail && <div className="muted" style={{ fontSize: 12, marginTop: 2, whiteSpace: 'pre-wrap' }}>{item.detail}</div>}
+              {item.action && (
+                <Button
+                  size="sm"
+                  style={{ marginTop: 6 }}
+                  onClick={() => {
+                    item.action?.run();
+                    dismiss(item.id);
+                  }}
+                >
+                  {item.action.label}
+                </Button>
+              )}
             </div>
             <button type="button" className="icon-btn sm" aria-label="Dismiss" onClick={() => dismiss(item.id)}>
               <X size={13} />

@@ -12,6 +12,7 @@ import { desktop, openExternal } from '../../core/platform';
 import { Badge, Button, Field, NumberField, Select, Spinner, TextInput, Toggle, promptDialog, toast } from '../../components/ui';
 import { ProviderCard } from './ProviderCard';
 import { ImageGenerationSettings, SpeechSettings } from './MediaSettings';
+import { ExportFolderSettings, useExportFolder } from '../../components/ExportFolder';
 
 const REPO = 'https://github.com/tenmaryut/ultima';
 
@@ -148,6 +149,8 @@ export default function SettingsModule({ active }: ModuleProps) {
             {t('Agent AIs such as Claude Code, Codex or Antigravity can work on a big edit for an hour or more. Up to 24 hours; Stop ends a request at any time.')}
           </div>
         </section>
+
+        <ExportSettings />
 
         <ImageGenerationSettings />
 
@@ -307,6 +310,18 @@ function LocalTools() {
             </div>
           );
         })}
+    </section>
+  );
+}
+
+function ExportSettings() {
+  const t = useT();
+  const [info, setInfo] = useExportFolder();
+  if (!desktop) return null;
+  return (
+    <section className="card col" style={{ gap: 12 }}>
+      <h2 className="section-title">{t('Exports')}</h2>
+      <ExportFolderSettings info={info} onChange={setInfo} />
     </section>
   );
 }

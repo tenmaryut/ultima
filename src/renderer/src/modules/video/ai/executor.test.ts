@@ -172,6 +172,13 @@ describe('markers, tracks and the editor', () => {
     const r = run(p, [{ type: 'seek', time: 99 }, { type: 'select', clipId: b }, { type: 'export', format: 'social' }, { type: 'setWorkArea', start: 1, end: 4 }]);
     expect(r.effects).toEqual([{ kind: 'seek', time: 12 }, { kind: 'select', ids: [b] }, { kind: 'export', exportKind: 'social' }]);
     expect(r.project.workArea).toEqual({ start: 1, end: 4 });
+    expect(r.results[2].detail).toBe('social export of the whole timeline starts after this reply (the export dialog shows its progress)');
+    // the work area, the whole timeline, or a range that does not exist
+    const q = r.project;
+    expect(run(q, [{ type: 'export', format: 'mp4' }]).results[0].detail).toContain('mp4 export of the work area 1.00–4.00 s');
+    expect(run(q, [{ type: 'export', format: 'gif', range: 'all' }]).effects).toEqual([{ kind: 'export', exportKind: 'gif', range: 'all' }]);
+    expect(run(p, [{ type: 'export', range: 'work' }]).results[0].detail).toContain('there is no work area');
+    expect(run(p, [{ type: 'export', range: 'half' }]).results[0].ok).toBe(false);
   });
 });
 

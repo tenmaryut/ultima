@@ -395,7 +395,16 @@ export default function VideoModule({ active }: ModuleProps) {
       </ModuleLayout>
       <DropOverlay show={dragging} label={t('Drop to import — drop on the timeline to place it there')} />
       {dialog?.kind === 'export' && (
-        <ExportDialog project={project} lib={ed.lib} time={time} initialKind={dialog.exportKind} onClose={() => ed.setDialog(null)} onBusy={ed.setExporting} />
+        <ExportDialog
+          project={project}
+          lib={ed.lib}
+          time={time}
+          initialKind={dialog.exportKind}
+          initialRange={dialog.range}
+          autoStart={dialog.autoStart}
+          onClose={() => ed.setDialog(null)}
+          onBusy={ed.setExporting}
+        />
       )}
       {dialog?.kind === 'settings' && <ProjectSettingsDialog project={project} onApply={ed.applySettings} onClose={() => ed.setDialog(null)} />}
       {dialog?.kind === 'relink' && <RelinkDialog project={project} lib={ed.lib} onRelinked={ed.onRelinked} onClose={() => ed.setDialog(null)} />}

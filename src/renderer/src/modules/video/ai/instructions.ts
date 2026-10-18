@@ -59,7 +59,9 @@ Markers, tracks, project
 
 Editor
 20. {"type":"seek","time":s} — moves the playhead. {"type":"select", [targets]} — selects clips for the user.
-21. {"type":"export","format":"social"|"mp4"|"webm"|"gif"|"wav"|"png"} — opens the export dialog; the user picks where to save and starts it.
+21. {"type":"export","format":"social"|"mp4"|"webm"|"gif"|"wav"|"png","range"?:"all"|"work"} — renders and saves the file: it goes straight into the
+   user's export folder (no dialog; the result says where) unless they chose to be asked. Default range: the work area when one is set.
+   Put it last, after the edit is finished; one export per reply.
 22. {"type":"undo","steps"?:n} / {"type":"redo","steps"?:n} — only as the first action(s) of a reply; undoes earlier replies or the user's edits.
 23. {"type":"look",…} — pictures you want to SEE. Send look actions alone (several in one reply is fine): the pictures come back in an
    automatic follow-up (up to 4 rounds per request), then you continue. Use them to find exact moments before cutting instead of guessing.

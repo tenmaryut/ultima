@@ -40,6 +40,10 @@ export const IPC = {
   fileRecentRead: 'file:recent-read',
   fileRecentClear: 'file:recent-clear',
   grantPath: 'file:grant-path',
+  exportFolderGet: 'export-folder:get',
+  exportFolderChoose: 'export-folder:choose',
+  exportFolderSet: 'export-folder:set',
+  exportFolderOpen: 'export-folder:open',
 
   aiProviders: 'ai:providers',
   aiDetect: 'ai:detect',
@@ -91,7 +95,18 @@ export interface SaveFileOptions {
   filters?: FileFilter[];
   /** Write straight to this path (only allowed for paths the user picked earlier in this session). */
   path?: string;
+  /** An export: saved in the export folder without asking (unless the user wants to be asked). */
+  toExportFolder?: boolean;
   data: ArrayBuffer | Uint8Array | string;
+}
+
+/** Where exports are saved without a dialog. */
+export interface ExportFolderInfo {
+  path: string;
+  /** The default folder (Videos/Ultima), not one the user chose. */
+  isDefault: boolean;
+  /** The user wants a save dialog for every export. */
+  ask: boolean;
 }
 
 export interface SaveFileResult {
@@ -133,7 +148,12 @@ export interface UltimaDesktopAPI {
   files: {
     save(options: SaveFileOptions): Promise<SaveFileResult | null>;
     /** Opens a streaming writer (for large exports). Returns null if the user cancelled. */
-    openWriter(options: { suggestedName: string; filters?: FileFilter[] }): Promise<{ id: string; path: string } | null>;
+    openWriter(options: { suggestedName: string; filters?: FileFilter[]; toExportFolder?: boolean }): Promise<{ id: string; path: string } | null>;
+    exportFolder(): Promise<ExportFolderInfo>;
+    /** Lets the user pick another export folder; null when cancelled. */
+    chooseExportFolder(): Promise<ExportFolderInfo | null>;
+    setExportFolder(options: { ask?: boolean; reset?: boolean }): Promise<ExportFolderInfo>;
+    openExportFolder(): Promise<void>;
     write(id: string, chunk: Uint8Array, position?: number): Promise<void>;
     closeWriter(id: string, abort?: boolean): Promise<void>;
     /** Absolute path of a File that came from a file input or drag and drop. */
