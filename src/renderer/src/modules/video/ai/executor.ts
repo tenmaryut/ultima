@@ -76,7 +76,17 @@ export type EditorEffect =
   | { kind: 'select'; ids: string[] }
   | { kind: 'export'; exportKind: 'social' | 'mp4' | 'webm' | 'gif' | 'wav' | 'png'; range?: 'all' | 'work' }
   | { kind: 'requestImport'; what: ImportWhat; message: string }
-  | TrackEffect;
+  | TrackEffect
+  | CutoutEffect;
+
+/** Cut the subject out of a video clip after the edit (rembg reads the frames, so the editor runs it). */
+export interface CutoutEffect {
+  kind: 'cutout';
+  clipId: string;
+  model: 'people' | 'anything';
+  /** Only the subject, everything but it, or a cut-out copy in front of everything (text behind the player). */
+  mode: 'subject' | 'background' | 'front';
+}
 
 /** Track a point of a video clip after the edit (tracking reads the video, so the editor runs it), and pin clips to it. */
 export interface TrackEffect {
@@ -1041,6 +1051,19 @@ const handlers: Record<string, Handler> = {
     if (!r.count) throw new Skip(r.problem ?? 'nothing to follow');
     s.p = r.project;
     return `${effect} pulses on ${r.count} ${on} (following ${r.sourceClipIds.join(', ')}) on ${r.clipIds.join(', ')}${hasTargets ? '' : ' — a new adjustment layer, so everything below reacts'}`;
+  },
+
+  cutout(s, a) {
+    const ids = resolveClips(s.p, a, { selection: s.ctx.selection }).ids.filter((id) => getClip(s.p, id)?.kind === 'video');
+    if (ids.length !== 1) throw new Skip('cutout needs exactly one video clip ("clipId")');
+    const c = getClip(s.p, ids[0])!;
+    if (c.freeze) throw new Skip('a freeze frame: cut out the clip it comes from');
+    const model = a.model === 'people' || a.model === 'anything' ? a.model : a.model === undefined ? 'people' : null;
+    if (!model) throw new Skip('"model" is "people" (players, persons) or "anything"');
+    const mode = a.mode === undefined ? 'subject' : a.mode === 'subject' || a.mode === 'background' || a.mode === 'front' ? a.mode : null;
+    if (!mode) throw new Skip('"mode" is "subject", "background" or "front"');
+    s.effects.push({ kind: 'cutout', clipId: c.id, model, mode });
+    return `cutting out the subject of ${c.id} (${model}) runs after the other actions with rembg on this computer — it takes a while; the outcome is listed below`;
   },
 
   track(s, a) {

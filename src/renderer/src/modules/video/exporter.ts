@@ -29,6 +29,7 @@ import { speedAt } from './keyframes';
 import { TimelineMixer } from './mix';
 import { getMedia } from './model';
 import { flowPair, flowsAt, interpolateAt, opticalFlow, type FlowPair } from './flow';
+import { matteAtAsync } from './matte';
 import type { Gray } from './tracker';
 import { QUALITY_MODE_BITRATE, avcCodecString } from '../../core/utils/avc';
 
@@ -180,6 +181,7 @@ export class FrameRenderer {
   private readers = new Map<string, ClipReader | null>();
   private compositor = new Compositor();
   private frames = new Map<string, CanvasImageSource | null>();
+  private mattes = new Map<string, CanvasImageSource | null>();
 
   constructor(private job: RenderJob) {
     this.frameCount = Math.max(1, Math.round((job.range.end - job.range.start) * job.fps));
@@ -295,6 +297,8 @@ export class FrameRenderer {
     const { project, lib } = this.job;
     const t = this.time(i);
     this.frames.clear();
+    this.mattes.clear();
+    for (const n of frameNeeds(project, t)) if (n.clip.matte) this.mattes.set(n.clip.id, await matteAtAsync(n.clip, t));
     for (const n of frameNeeds(project, t)) {
       const reader = this.reader(n.clip);
       const blend = this.blendOf(n.clip, n.sourceTime, t);
@@ -325,7 +329,7 @@ export class FrameRenderer {
       ctx,
       project,
       t,
-      { video: (clip) => this.frames.get(clip.id) ?? null, image: (id) => lib.image(id) },
+      { video: (clip) => this.frames.get(clip.id) ?? null, image: (id) => lib.image(id), matte: (clip) => this.mattes.get(clip.id) ?? null },
       { scale: this.job.width / project.settings.width, captions: this.job.burnCaptions },
     );
     // release decoders of clips that won't be needed again

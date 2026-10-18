@@ -131,7 +131,12 @@ Library and files (the built-in library is made by Ultima: free to use, always a
    found — check the followers with a look afterwards.
 39. {"type":"parallax","layers":[{"clipId":id,"depth":0-1},…],"move":{"x"?:px,"y"?:px,"zoom"?:0.1},"from"?:s,"to"?:s}
    — a camera move with depth: far layers (depth 0) move a little, near ones (depth 1) the full "move" (position and zoom keyframes).
-   For a 2.5D photo: the background clip at depth 0 and a cut-out copy of the subject at depth 1, or titles in front of footage.`;
+   For a 2.5D photo: the background clip at depth 0 and a cut-out copy of the subject at depth 1, or titles in front of footage.
+40. {"type":"cutout","clipId":id,"model"?:"people"|"anything","mode"?:"subject"|"background"|"front"} — cuts the subject (a player, a person)
+   out of a video clip, frame by frame, with rembg on the user's computer (slow: about a second per frame; keep clips short). "subject"
+   (default): the clip shows only the subject; "background": everything but it (blur or grade the background alone); "front": TEXT BEHIND
+   THE PLAYER — the clip stays whole and a copy with only the subject goes on the top track, so titles on lower tracks pass behind the
+   player (add the title first, in the same reply). Needs rembg (Settings → Local creative tools); the result says if it is missing.`;
 
 const ANALYSIS = `ANALYSIS: CURRENT DOCUMENT lists what was found in each clip (timeline seconds, approximate):
 - music: tempo (BPM), every beat, bar starts, the strongest hits and where it gets louder (a drop or chorus);

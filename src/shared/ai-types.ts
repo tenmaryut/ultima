@@ -270,6 +270,21 @@ export interface RemoveBgResult {
   error?: string;
 }
 
+/** Masks of the subject (people, or anything in front) of many video frames, with rembg. */
+export interface MatteRequest {
+  requestId: string;
+  model: 'people' | 'anything';
+  /** PNG frames. */
+  frames: Uint8Array[];
+}
+
+export interface MatteResult {
+  ok: boolean;
+  /** Grey PNG masks (white = subject), one per frame. */
+  masks?: Uint8Array[];
+  error?: string;
+}
+
 export type LocalToolId = 'whisper' | 'rembg' | 'ffmpeg' | 'piper';
 
 export interface LocalToolStatus {

@@ -11,6 +11,8 @@ import type {
   ProviderInfo,
   ProviderStatus,
   RemoveBgRequest,
+  MatteRequest,
+  MatteResult,
   RemoveBgResult,
   SpeechConfig,
   SpeechProviderStatus,
@@ -60,6 +62,8 @@ export const IPC = {
   toolImageGen: 'tools:image-gen',
   toolTranscribe: 'tools:transcribe',
   toolRemoveBg: 'tools:remove-bg',
+  toolMatte: 'tools:matte',
+  toolMatteCancel: 'tools:matte-cancel',
   toolSdModels: 'tools:sd-models',
   toolTranscode: 'tools:transcode',
   toolTranscodeCancel: 'tools:transcode-cancel',
@@ -185,6 +189,9 @@ export interface UltimaDesktopAPI {
     imageGenerate(request: ImageGenRequest): Promise<ImageGenResult>;
     transcribe(request: TranscribeRequest): Promise<TranscribeResult>;
     removeBackground(request: RemoveBgRequest): Promise<RemoveBgResult>;
+    /** Masks of the subject of video frames (rembg); stoppable with cancelMatte. */
+    matte(request: MatteRequest): Promise<MatteResult>;
+    cancelMatte(requestId: string): Promise<void>;
     /** Lists checkpoints of a local Stable Diffusion WebUI (throws if it is not reachable). */
     sdModels(baseUrl: string): Promise<string[]>;
     /** Converts audio/video with the user's FFmpeg (if installed) using safe presets. */

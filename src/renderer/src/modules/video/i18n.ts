@@ -852,4 +852,28 @@ registerTranslations('id', {
     'Miringkan dan putar gambar di ruang 3D, dorong menjauh atau tarik mendekat. Animasikan dengan ◆ untuk gerakan kamera 3D.',
   '3D depth': 'Kedalaman 3D',
   '3D side color': 'Warna sisi 3D',
+
+  // Cut-out subject
+  'Cut out the subject': 'Potong subjek',
+  'Separates the player or person from the background with rembg on this computer (free; Settings → Local creative tools). It takes a while: about a second per frame.':
+    'Memisahkan pemain atau orang dari latar belakang dengan rembg di komputer ini (gratis; Pengaturan → Alat kreatif lokal). Butuh waktu: sekitar satu detik per frame.',
+  'What to cut out': 'Yang dipotong',
+  'People and players': 'Orang dan pemain',
+  'Anything in front': 'Apa pun di depan',
+  'Cut out: {count} frames ({model})': 'Terpotong: {count} frame ({model})',
+  people: 'orang',
+  anything: 'apa pun',
+  'Remove cut-out': 'Hapus potongan',
+  'Show everything but the subject': 'Tampilkan semua kecuali subjek',
+  'Subject in front of titles': 'Subjek di depan judul',
+  'Text behind the player: puts a copy with only the subject on the top track. Titles on the tracks below pass behind it.':
+    'Teks di belakang pemain: menaruh salinan yang hanya berisi subjek di trek paling atas. Judul di trek bawahnya lewat di belakangnya.',
+  'Cutting out the subject…': 'Memotong subjek…',
+  'rembg is separating the subject, frame by frame…': 'rembg sedang memisahkan subjek, frame demi frame…',
+  'Subject cut out ({count} frames)': 'Subjek terpotong ({count} frame)',
+  'Use “Subject in front of titles” for text behind the player.': 'Pakai “Subjek di depan judul” untuk teks di belakang pemain.',
+  'Cut-out cancelled': 'Pemotongan dibatalkan',
+  'Could not cut out the subject': 'Tidak dapat memotong subjek',
+  'Nothing to put in front': 'Tidak ada yang bisa ditaruh di depan',
+  'The subject is now in front: titles on the tracks below pass behind it.': 'Subjek sekarang di depan: judul di trek bawahnya lewat di belakangnya.',
 }, 'video');

@@ -1,3 +1,4 @@
+import { matteAtAsync } from '../matte';
 import type { AIImage } from '@shared/ai-types';
 import { canvasToAIImage, createCanvas, get2d } from '../../../core/utils/image';
 import { Compositor, frameNeeds, type FrameProvider } from '../compositor';
@@ -233,13 +234,19 @@ export async function programFrames(
   const needs = times.map((t) => frameNeeds(p, t));
   const wanted = needs.flat().map((n) => ({ mediaId: n.clip.mediaId ?? '', sourceTime: n.sourceTime }));
   const found = await fetchFrames(p, wanted, frames, h);
+  // cut-out masks, decoded before drawing
+  const mattes = new Map<string, CanvasImageSource | null>();
+  for (const [i, t] of times.entries()) for (const n of needs[i]) if (n.clip.matte) mattes.set(`${n.clip.id}|${t}`, await matteAtAsync(n.clip, t));
+  let now = 0;
   const provider: FrameProvider = {
     video: (clip, sourceTime) => found.get(`${clip.mediaId ?? ''}|${sourceTime.toFixed(3)}`) ?? null,
     image: (mediaId) => still(mediaId),
+    matte: (clip) => mattes.get(`${clip.id}|${now}`) ?? null,
   };
   const compositor = new Compositor();
   return times.map((t) => {
     const canvas = createCanvas(w, h);
+    now = t;
     compositor.render(get2d(canvas), p, t, provider, { scale, captions: true });
     return canvas;
   });

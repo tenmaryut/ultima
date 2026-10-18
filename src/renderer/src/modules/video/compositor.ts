@@ -20,6 +20,8 @@ export interface FrameProvider {
   video(clip: Clip, sourceTime: number): CanvasImageSource | null;
   /** Decoded still image. */
   image(mediaId: string): CanvasImageSource | null;
+  /** The cut-out mask of a clip with a matte at timeline time `t`, or null while it is being decoded. */
+  matte?(clip: Clip, t: number): CanvasImageSource | null;
 }
 
 export interface RenderOptions {
@@ -177,6 +179,9 @@ interface Picture {
   sw: number;
   sh: number;
   L: ClipLayout;
+  /** A cut-out mask over the whole source picture (opaque = keep), and whether to keep the rest instead. */
+  matte?: CanvasImageSource;
+  matteInvert?: boolean;
 }
 
 /** Layout of a frame-sized picture (adjustment layers, titles drawn into a layer). */
@@ -378,6 +383,13 @@ export class Compositor {
       return;
     }
     const pic: Picture = { src, sx: L.sx * size.w, sy: L.sy * size.h, sw: L.sw * size.w, sh: L.sh * size.h, L };
+    if (clip.kind === 'video' && clip.matte) {
+      // a cut-out: without its mask (still decoding) nothing, rather than the whole picture for a moment
+      const mask = provider.matte?.(clip, t);
+      if (!mask) return;
+      pic.matte = mask;
+      pic.matteInvert = clip.matte.invert;
+    }
     this.drawPicture(ctx, p, clip, pic, st, opts, frame, false);
   }
 
@@ -497,7 +509,7 @@ export class Compositor {
     const zoom = v.zoomBlur + m.zoomBlur;
     const glow = v.glow;
     const multi = streak > 1.5 || zoom > 0.01;
-    const useLayer = Boolean(clip.mask || st.dip || multi || glow > 0.004);
+    const useLayer = Boolean(clip.mask || pic.matte || st.dip || multi || glow > 0.004);
     const filter = cssFilter(v, s, m.blur);
     const slices = m.glitch > 0 ? glitchSlices(m.glitch, m.seed + frame) : [];
 
@@ -559,6 +571,7 @@ export class Compositor {
     }
 
     if (useLayer) {
+      if (pic.matte) this.applyMatte(target, pic.matte, Boolean(pic.matteInvert), pic, place, s);
       if (clip.mask) this.applyMask(target, clip.mask, L, place, s);
       if (st.dip) {
         target.save();
@@ -577,6 +590,19 @@ export class Compositor {
       ctx.restore();
     } else ctx.restore();
     this.drawLetterbox(ctx, v, st.alpha, W, H);
+  }
+
+  /** Keeps only the cut-out subject (or everything but it): the mask covers the whole source picture. */
+  private applyMatte(c: Ctx2D, mask: CanvasImageSource, invert: boolean, pic: Picture, place: (c: Ctx2D) => void, s: number) {
+    const L = pic.L;
+    const m = sourceSize(mask);
+    c.save();
+    c.setTransform(s, 0, 0, s, 0, 0);
+    c.globalCompositeOperation = invert ? 'destination-out' : 'destination-in';
+    place(c);
+    // the part of the mask under the (cropped) picture
+    c.drawImage(mask, L.sx * m.w, L.sy * m.h, L.sw * m.w, L.sh * m.h, L.dx, L.dy, L.dw, L.dh);
+    c.restore();
   }
 
   /** Keeps only the masked part of the layer (the mask moves with the picture). */

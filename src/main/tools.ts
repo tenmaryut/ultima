@@ -1,5 +1,5 @@
 import { BrowserWindow, dialog, ipcMain } from 'electron';
-import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type {
@@ -7,6 +7,8 @@ import type {
   ImageGenResult,
   LocalToolStatus,
   RemoveBgRequest,
+  MatteRequest,
+  MatteResult,
   RemoveBgResult,
   TranscribeRequest,
   TranscribeResult,
@@ -178,6 +180,41 @@ async function removeBackground(req: RemoveBgRequest): Promise<RemoveBgResult> {
   }
 }
 
+/** rembg models for video mattes (both under permissive licences). */
+const MATTE_MODELS: Record<MatteRequest['model'], string> = { people: 'u2net_human_seg', anything: 'isnet-general-use' };
+const runningMattes = new Map<string, RunningProcess>();
+
+/** Masks for many frames in one rembg run (the model loads once): a folder in, a folder of masks out. */
+async function matteFrames(req: MatteRequest): Promise<MatteResult> {
+  const exe = resolveTool('rembg');
+  if (!exe) return { ok: false, error: 'rembg is not installed. Install it with: pip install "rembg[cpu,cli]" (Settings → Local creative tools).' };
+  const model = MATTE_MODELS[req?.model] ?? MATTE_MODELS.anything;
+  const frames = Array.isArray(req?.frames) ? req.frames.filter((f) => f instanceof Uint8Array && f.byteLength < 8 * 1024 * 1024) : [];
+  if (!frames.length || frames.length > 400 || frames.length !== req.frames.length) return { ok: false, error: 'Unsupported frames' };
+  const dir = await mkdtemp(join(tmpdir(), 'ultima-matte-'));
+  try {
+    const input = join(dir, 'in');
+    const output = join(dir, 'out');
+    await mkdir(input);
+    await mkdir(output);
+    const names = frames.map((_, i) => `f${String(i).padStart(5, '0')}`);
+    await Promise.all(frames.map((f, i) => writeFile(join(input, `${names[i]}.png`), f)));
+    const proc = runProcess({ command: exe, args: ['p', '-m', model, '-om', input, output], cwd: dir, timeoutMs: 60 * 60_000 });
+    const id = typeof req.requestId === 'string' ? req.requestId : '';
+    if (id) runningMattes.set(id, proc);
+    const res = await proc.result.finally(() => id && runningMattes.delete(id));
+    if (res.aborted) return { ok: false, error: 'Cancelled' };
+    try {
+      const masks = await Promise.all(names.map(async (n) => new Uint8Array(await readFile(join(output, `${n}.png`)))));
+      return { ok: true, masks };
+    } catch {
+      return { ok: false, error: (res.stderr || res.spawnError || 'rembg made no masks').slice(-1200) };
+    }
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+  }
+}
+
 /* ---------------------------------- FFmpeg ---------------------------------- */
 
 const TRANSCODE_ARGS: Record<TranscodeRequest['format'], (q: 'high' | 'medium' | 'small', req: TranscodeRequest) => string[]> = {
@@ -265,6 +302,10 @@ export function registerToolsIpc(): void {
   );
   ipcMain.handle(IPC.toolTranscribe, (_event, req: TranscribeRequest) => transcribe(req));
   ipcMain.handle(IPC.toolRemoveBg, (_event, req: RemoveBgRequest) => removeBackground(req));
+  ipcMain.handle(IPC.toolMatte, (_event, req: MatteRequest) => matteFrames(req));
+  ipcMain.handle(IPC.toolMatteCancel, (_event, requestId: string) => {
+    runningMattes.get(String(requestId))?.cancel();
+  });
   ipcMain.handle(IPC.toolSdModels, async (_event, baseUrl: string) => {
     try {
       const data = (await sdRequest(baseUrl, '/sdapi/v1/sd-models', undefined, 4000)) as Array<{ title?: string }>;

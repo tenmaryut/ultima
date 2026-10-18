@@ -366,6 +366,22 @@ export interface Clip {
   opticalFlow?: boolean;
   /** Video clips: points followed through the picture (motion tracking). */
   tracks?: MotionTrack[];
+  /** Video clips: the subject cut out of the picture (a mask per source frame). */
+  matte?: ClipMatte;
+}
+
+/** A subject cut out of a video, frame by frame: low-resolution masks in source time. */
+export interface ClipMatte {
+  /** Source seconds of the first mask, and masks per second. */
+  start: number;
+  fps: number;
+  w: number;
+  h: number;
+  /** Base64 PNGs whose alpha is the mask (opaque = subject), one per frame. */
+  frames: string[];
+  /** Show everything but the subject. */
+  invert?: boolean;
+  model: 'people' | 'anything';
 }
 
 /** A point followed through a video, in source time and as fractions of the source picture. */

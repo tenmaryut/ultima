@@ -70,7 +70,8 @@ import { AnalysisStore } from './analysisStore';
 import { totalLength } from './silence';
 import { applyBeatSync, type BeatSyncOptions } from './beatsync';
 import { useTracking } from './useTracking';
-import type { TrackEffect } from './ai/executor';
+import { useCutout } from './useCutout';
+import type { CutoutEffect, TrackEffect } from './ai/executor';
 import type { TimelineApi } from './ui/Timeline';
 import type { ExportKind } from './ui/ExportDialog';
 import type { PreviewZoom } from './ui/Preview';
@@ -849,6 +850,20 @@ export function useVideoEditor(active: boolean) {
 
   /** The AI edit being applied has recorded its undo step. */
   const aiStep = useRef(false);
+  const cutout = useCutout({
+    t,
+    current: () => doc.current(),
+    lib,
+    change,
+    amend: (p) => {
+      if (aiStep.current) doc.set(p, { record: false });
+      else {
+        doc.set(p, { label: t('AI edit') });
+        aiStep.current = true;
+      }
+    },
+    setSelection: setSelectionState,
+  });
   const tracking = useTracking({
     t,
     current: () => doc.current(),
@@ -1119,7 +1134,11 @@ export function useVideoEditor(active: boolean) {
     aiStep.current = r.project !== projectRef.current;
     if (aiStep.current) doc.set(r.project, { label: t('AI edit') });
     // tracking reads the video: it runs now, and what follows the track joins this same undo step
-    const trackNotes = await tracking.runForAI(r.effects.filter((e): e is TrackEffect => e.kind === 'track'));
+    const trackNotes = [
+      // cut-outs first: a track or a title can then use the cut-out subject
+      ...(await cutout.runForAI(r.effects.filter((e): e is CutoutEffect => e.kind === 'cutout'))),
+      ...(await tracking.runForAI(r.effects.filter((e): e is TrackEffect => e.kind === 'track'))),
+    ];
     const buttons: { label: string; run: () => void }[] = [];
     for (const e of r.effects) {
       if (e.kind === 'seek') seek(e.time);
@@ -1283,6 +1302,7 @@ export function useVideoEditor(active: boolean) {
     waitForAnalysis,
     analysisOf,
     tracking,
+    cutout,
     addChapterMarkers,
     renameMarker,
     patchTrack,

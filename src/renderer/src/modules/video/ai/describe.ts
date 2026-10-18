@@ -113,6 +113,7 @@ function effectsSummary(c: Clip): string {
   if (c.reverse) parts.push('reversed');
   if (c.opticalFlow) parts.push('smooth slow motion (optical flow: new in-between frames)');
   else if (c.frameBlend) parts.push('smooth slow motion (frame blending)');
+  if (c.matte) parts.push(`cut-out: ${c.matte.invert ? 'everything but the subject' : 'only the subject'} (${c.matte.model} model, ${c.matte.frames.length} masks)`);
   if (c.tracks?.length) {
     const list = c.tracks.map((tr) => {
       const span = trackSpan(c, tr);

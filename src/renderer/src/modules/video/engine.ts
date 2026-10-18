@@ -1,3 +1,4 @@
+import { matteAt, onMatteReady } from './matte';
 import type { Clip, Project } from './types';
 import { Compositor, frameNeeds, type FrameProvider } from './compositor';
 import type { MediaLibrary } from './media';
@@ -88,7 +89,12 @@ export class PreviewEngine {
       pointerEvents: 'none',
       zIndex: '-1',
     });
-    this.unsubscribe = lib.subscribe(() => this.invalidate());
+    const offLib = lib.subscribe(() => this.invalidate());
+    const offMatte = onMatteReady(() => this.invalidate());
+    this.unsubscribe = () => {
+      offLib();
+      offMatte();
+    };
   }
 
   attach(canvas: HTMLCanvasElement): void {
@@ -468,6 +474,7 @@ export class PreviewEngine {
       return slot.snapValid ? slot.snapshot : null;
     },
     image: (id) => this.lib.image(id),
+    matte: (clip, t) => matteAt(clip, t),
   };
 
   private draw(t: number) {

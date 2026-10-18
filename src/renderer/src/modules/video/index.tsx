@@ -292,6 +292,7 @@ export default function VideoModule({ active }: ModuleProps) {
             onSeek={ed.seek}
             onRenameMarker={(id) => void ed.renameMarker(id)}
             tracking={ed.tracking}
+            cutout={ed.cutout}
           />
         }
         bottom={
@@ -396,6 +397,25 @@ export default function VideoModule({ active }: ModuleProps) {
         />
       </ModuleLayout>
       <DropOverlay show={dragging} label={t('Drop to import — drop on the timeline to place it there')} />
+      {ed.cutout.job && (
+        <Modal
+          title={t('Cutting out the subject…')}
+          onClose={ed.cutout.cancel}
+          footer={
+            <Button variant="danger" onClick={ed.cutout.cancel}>
+              {t('Cancel')}
+            </Button>
+          }
+        >
+          <div className="col" style={{ gap: 8 }}>
+            <div className="row">
+              <span className="grow">{t('rembg is separating the subject, frame by frame…')}</span>
+              <span className="mono">{Math.round(ed.cutout.job.progress * 100)}%</span>
+            </div>
+            <ProgressBar value={ed.cutout.job.progress} />
+          </div>
+        </Modal>
+      )}
       {ed.tracking.job && (
         <Modal
           title={t('Tracking…')}

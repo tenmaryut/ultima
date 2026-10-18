@@ -1,4 +1,4 @@
-import type { AudioFx, BlendMode, CaptionStyle, Clip, ClipKind, ClipMask, ColorGrade, CurveChannel, Easing, FontAsset, HueRange, Keyframe, KeyProp, LookId, LutAsset, MediaRef, MotionTrack, Project, TitleStyle, Track, Transition, VisualProps } from './types';
+import type { AudioFx, BlendMode, CaptionStyle, Clip, ClipKind, ClipMask, ColorGrade, CurveChannel, Easing, FontAsset, HueRange, Keyframe, KeyProp, LookId, ClipMatte, LutAsset, MediaRef, MotionTrack, Project, TitleStyle, Track, Transition, VisualProps } from './types';
 import { AUDIO_KEY_PROPS, EASINGS, KEY_PROPS, KEY_RANGES } from './keyframes';
 import { BLEND_IDS, DEFAULT_AUDIO_FX, DEFAULT_SETTINGS, DEFAULT_VISUAL, MAX_SPEED, MAX_VOLUME_DB, MIN_SPEED, MIN_VOLUME_DB, TRANSITION_KINDS, defaultCaptionStyle, defaultTitle } from './presets';
 import { CURVE_CHANNELS, HUE_RANGE_IDS, LOOK_IDS, cleanCurve, isIdentityCurve } from './grade';
@@ -57,6 +57,22 @@ function parseKeyList(v: unknown, range: [number, number], maxT: number): Keyfra
     .map((k) => ({ t: clampNum(k.t as number, 0, maxT), v: clampNum(k.v as number, range[0], range[1]), ease: (EASINGS.includes(k.ease as Easing) ? k.ease : 'linear') as Easing }))
     .sort((a, b) => a.t - b.t);
   return list.length ? list : undefined;
+}
+
+/** A cut-out subject (at most 1800 masks of base64 PNG). */
+export function parseMatte(v: unknown): ClipMatte | undefined {
+  if (!isObj(v) || !Array.isArray(v.frames) || !v.frames.length) return undefined;
+  const frames = v.frames.slice(0, 1800).filter((f): f is string => typeof f === 'string' && f.length < 4_000_000 && /^[A-Za-z0-9+/=]+$/.test(f));
+  if (frames.length !== Math.min(1800, v.frames.length)) return undefined;
+  return {
+    start: n(v.start, 0, 0, 1e7),
+    fps: n(v.fps, 15, 1, 120),
+    w: Math.round(n(v.w, 0, 1, 4096)),
+    h: Math.round(n(v.h, 0, 1, 4096)),
+    frames,
+    invert: v.invert === true ? true : undefined,
+    model: v.model === 'people' ? 'people' : 'anything',
+  };
 }
 
 /** Motion tracks of a video clip (at most 20, each at most 20 000 points). */
@@ -376,6 +392,7 @@ export function parseProject(input: string | unknown): Project {
       frameBlend: kind === 'video' && c.frameBlend === true ? true : undefined,
       opticalFlow: kind === 'video' && c.opticalFlow === true ? true : undefined,
       tracks: kind === 'video' ? parseMotionTracks(c.tracks) : undefined,
+      matte: kind === 'video' ? parseMatte(c.matte) : undefined,
     });
   }
 
