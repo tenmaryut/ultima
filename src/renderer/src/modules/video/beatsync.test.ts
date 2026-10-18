@@ -53,6 +53,9 @@ describe('beat times', () => {
     expect(beats.times).toEqual([1, 1.5, 2, 2.5, 3]);
     expect(beatTimes(p, analysis, { effect: 'impact', on: 'beats', from: 1, to: 3, every: 2 }).times).toEqual([1, 2, 3]);
     expect(beatTimes(p, analysis, { effect: 'impact', on: 'bars' }).times).toEqual([0, 2, 4, 6, 8, 10]);
+    // a song that starts later on the timeline, 1 s into its file: its bars move with it
+    const later = updateClip(p, music, (c) => ({ ...c, start: 3, in: 1, duration: 6 }));
+    expect(beatTimes(later, analysis, { effect: 'impact', on: 'bars' }).times).toEqual([4, 6, 8]);
   });
 
   it('follows every clip with sound for hits and loud moments, once per moment', () => {

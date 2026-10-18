@@ -81,7 +81,8 @@ function clipTimes(c: Clip, a: MediaAnalysis, on: BeatSource): number[] {
   const au = a.audio;
   if (!au) return [];
   const source = on === 'beats' ? au.beats?.beats : on === 'bars' ? au.beats?.downbeats : on === 'hits' ? au.hits : au.loud.map((m) => m.time);
-  return (source ?? []).map((t) => timeOfSource(c, t)).filter((t): t is number => t !== null).map((t) => +(c.start + t).toFixed(4));
+  // timeOfSource answers in timeline seconds already
+  return (source ?? []).map((t) => timeOfSource(c, t)).filter((t): t is number => t !== null).map((t) => +t.toFixed(4));
 }
 
 /** Clips with sound and an analysis, with their beat steadiness. */
