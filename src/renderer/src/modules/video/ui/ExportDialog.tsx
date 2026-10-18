@@ -36,6 +36,8 @@ interface ExportDialogProps {
   initialRange?: 'all' | 'work';
   /** Start right away (the AI asked for the export): it goes into the export folder unless the user wants to be asked. */
   autoStart?: boolean;
+  /** Waits for sounds the project uses that are still being made (generated music). */
+  prepare?: () => Promise<void>;
   onClose: () => void;
   onBusy: (busy: boolean) => void;
 }
@@ -54,7 +56,7 @@ function frameRates(projectFps: number): number[] {
   return [...new Set([projectFps, 24, 25, 30, 50, 60])].sort((a, b) => a - b);
 }
 
-export function ExportDialog({ project, lib, time, initialKind = 'mp4', initialRange, autoStart, onClose, onBusy }: ExportDialogProps) {
+export function ExportDialog({ project, lib, time, initialKind = 'mp4', initialRange, autoStart, prepare, onClose, onBusy }: ExportDialogProps) {
   const t = useT();
   const tools = useAISettings((s) => s.tools);
   const { width: W, height: H, fps } = project.settings;
@@ -141,6 +143,10 @@ export function ExportDialog({ project, lib, time, initialKind = 'mp4', initialR
       burnCaptions: burn,
     };
     try {
+      if (prepare) {
+        setStage(t('Making the generated sounds…'));
+        await prepare();
+      }
       let result: { path?: string } | null = null;
       if (kind === 'social') {
         const upload = {

@@ -1,5 +1,6 @@
 import { LOOKS } from '../grade';
 import { OVERLAYS, SFX, STICKERS } from '../library';
+import { GENRES } from '../music';
 import { AUDIO_PRESETS, BLEND_IDS, TRANSITION_KINDS } from '../presets';
 
 /* What the Video Editor AI can do, and the exact JSON of every action (part of its system prompt). */
@@ -111,7 +112,7 @@ Sound
 33. {"type":"duck", [targets], "trigger"?:targets, "amount"?:-1..-40 dB (default -12),"attack"?:s,"release"?:s,"threshold"?:dB} — auto ducking: lowers the targeted sound (usually the music) wherever the trigger sound is loud (voice, commentary, game sound; default: every other audio clip). It writes volume keyframes that can be edited later; run it again after changing the edit.
 
 Library and files (the built-in library is made by Ultima: free to use, always available)
-34. {"type":"addSfx","sound":SFX,"at":s | "times":[s,…],"volume"?:dB,"track"?:"A3"} — a sound effect on a free audio track; "times" puts one at each time (a whoosh on every transition, a hitmarker on every kill, an impact on the drop).
+34. {"type":"addSfx","sound":SFX,"at":s | "times":[s,…] | "endAt":s | "endTimes":[s,…],"volume"?:dB,"track"?:"A3","duration"?:s,"pitch"?:semitones,"brightness"?:-1..1,"variation"?:n} — a sound effect on a free audio track; "times" puts one at each time (a whoosh on every transition, a hitmarker on every kill, an impact on the drop). "endAt" makes it END at that time: a riser, snareRoll, reverseCymbal or reverseWhoosh into a drop or a kill. "duration"/"pitch"/"brightness"/"variation" make a custom version of it for this project (any length 0.03-30 s: a riser exactly as long as the build-up; lower pitch = bigger, brightness < 0 = darker; another "variation" = another take).
    SFX: ${SFX.map((x) => `${x.id} (${x.description}, ${x.duration} s)`).join(' · ')}
 35. {"type":"addGraphic","graphic":STICKER|OVERLAY,"start"?:s,"duration"?:s|"full","position"?:POSITION|{"x":0-1,"y":0-1},"scale"?,"rotation"?,"opacity"?,"blendMode"?,"props"?:{…setClip props…}} — an image clip; animate it with keyframes (pop in with scale, fade with opacity).
    STICKER (30% of the frame high by default, on a free track above the footage): ${STICKERS.map((x) => `${x.id} (${x.description})`).join(' · ')}
@@ -141,7 +142,15 @@ Library and files (the built-in library is made by Ultima: free to use, always a
    of a clip (a song, or a video's sound): "instrumental" = the song without vocals, "vocals" = only the singing/speech in the middle of a
    stereo mix, "drums" = only the drums and hits, "melody" = everything but the drums. Adds the part as a new audio clip in sync on a
    free audio track and mutes the original sound. "auto" uses Demucs (a free local AI, much cleaner) when installed, else the built-in
-   separation (fast; vocals need stereo music).`;
+   separation (fast; vocals need stereo music).
+42. {"type":"generateMusic","genre":GENRE,"bpm"?:n,"key"?:"F# minor","start"?:s,"length"?:s|"full","dropAt"?:s,"variation"?:n,"volume"?:dB,"track"?:"A2"} — makes a
+   ROYALTY-FREE song on the user's computer (no download, no copyright claims) and puts it on a free audio track from "start" (default 0) for
+   "length" seconds (default: the whole timeline). Its first drop lands exactly at "dropAt" (a timeline second: the best kill, the clutch, the
+   first big moment; the tempo is nudged up to 4 % so it lands on a bar). The result lists its beats, bars, drops and parts (intro, build,
+   drop, break, outro) so cuts and beat effects can follow it in the same reply. Another "variation" = another song in the same style.
+   GENRE: ${GENRES.map((g) => `${g.id} (${g.description}, ${g.bpm} BPM)`).join(' · ')}
+   For a montage: the music's drop on the best moment, a riser or snareRoll ending on it ("endAt"), an impact or crash at it, cuts on the
+   bars after it, beatSync effects on the beats.`;
 
 const ANALYSIS = `ANALYSIS: CURRENT DOCUMENT lists what was found in each clip (timeline seconds, approximate):
 - music: tempo (BPM), every beat, bar starts, the strongest hits and where it gets louder (a drop or chorus);

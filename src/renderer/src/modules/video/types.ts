@@ -6,6 +6,8 @@
  * Units: times in seconds, positions in project pixels, colors as CSS strings.
  */
 
+import type { MusicSpec } from './music';
+
 export type TrackKind = 'video' | 'audio' | 'caption';
 /** "adjustment": a layer without a picture whose color and effects apply to everything below it. */
 export type ClipKind = 'video' | 'audio' | 'image' | 'title' | 'caption' | 'adjustment';
@@ -53,7 +55,12 @@ export interface MediaRef {
   /** Absolute path on disk (desktop) — only used to help the user relink. */
   path?: string;
   lastModified?: number;
+  /** A sound made by Ultima: its recipe (the file is made again from it, like the built-in library). */
+  generated?: GeneratedSound;
 }
+
+/** The recipe of a generated sound: a song from the music generator, or a custom version of a library sound. */
+export type GeneratedSound = ({ type: 'music' } & MusicSpec) | { type: 'sfx'; sound: string; duration: number; pitch: number; brightness: number; seed: number };
 
 export interface Track {
   id: string;

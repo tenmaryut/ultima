@@ -228,7 +228,7 @@ export default function VideoModule({ active }: ModuleProps) {
     ) : ed.leftTab === 'graphics' ? (
       <GraphicsPanel onAdd={(id) => ed.addTitle(id)} onAddAdjustment={ed.addAdjustment} onImportFont={() => void ed.importFont()} />
     ) : ed.leftTab === 'library' ? (
-      <LibraryPanel onAdd={ed.addLibraryItem} />
+      <LibraryPanel onAdd={ed.addLibraryItem} timelineLength={duration} playhead={() => time.get()} onMusic={ed.generateMusic} onSound={ed.addSoundVariant} />
     ) : (
       <CaptionsPanel
         project={project}
@@ -463,6 +463,7 @@ export default function VideoModule({ active }: ModuleProps) {
           initialKind={dialog.exportKind}
           initialRange={dialog.range}
           autoStart={dialog.autoStart}
+          prepare={() => ed.ensureMade(project)}
           onClose={() => ed.setDialog(null)}
           onBusy={ed.setExporting}
         />

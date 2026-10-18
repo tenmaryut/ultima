@@ -37,9 +37,8 @@ import {
   freezeFrameAt,
   setSpeedRamp,
   findTopVideoTrack,
-  findFreeAudioTrack,
 } from '../model';
-import { OVERLAYS, SFX, STICKERS, findLibraryItem, libraryMediaId, libraryMediaRef, type LibraryItem } from '../library';
+import { OVERLAYS, SFX, SFX_LIMITS, STICKERS, findLibraryItem, libraryMediaId, libraryMediaRef, type LibraryItem } from '../library';
 import {
   AUDIO_PRESETS,
   BLEND_IDS,
@@ -67,6 +66,8 @@ import { BEAT_EFFECTS, BEAT_SOURCES, applyBeatSync, isBeatEffect, isBeatSource }
 import { applyParallax, depthFactor, type ParallaxLayer } from '../parallax';
 import { isStemKind } from '../stems';
 import { soundClipOf } from '../stemsClip';
+import { GENRES, MUSIC_LIMITS, SCALES, parseKey, type GenreInfo, type ScaleName } from '../music';
+import { addMusic, placeSound, sfxVariantRef, withPlannedAnalysis } from '../generated';
 
 /* Validates and applies the Video Editor AI's actions, reporting what happened to each one. */
 
@@ -181,6 +182,14 @@ export function findMedia(p: Project, ref: unknown): MediaRef | undefined {
 
 /** Whole-timeline length requests: "full", "all" or "end". */
 const isFull = (v: unknown) => v === 'full' || v === 'all' || v === 'end';
+
+/** A genre by id, name or a common other name. */
+function findGenre(v: string): GenreInfo | undefined {
+  const k = v.toLowerCase().replace(/[^a-z&]/g, '');
+  const alias: Record<string, string> = { drumandbass: 'dnb', 'drum&bass': 'dnb', 'd&b': 'dnb', drumbass: 'dnb', jungle: 'dnb', lofihiphop: 'lofi', chill: 'lofi', hiphop: 'lofi', trailer: 'cinematic', epic: 'cinematic', orchestral: 'cinematic', house: 'edm', electro: 'edm', bigroom: 'edm', future: 'edm', brostep: 'dubstep', riddim: 'dubstep', driftphonk: 'phonk', brazilianphonk: 'phonk', hiphoptrap: 'trap', drill: 'trap' };
+  const id = alias[k] ?? k;
+  return GENRES.find((g) => g.id === id || g.label.toLowerCase().replace(/[^a-z&]/g, '') === id);
+}
 
 function fontNote(font: string, fonts: string[] | undefined): string {
   if (!fonts?.length) return '';
@@ -1150,32 +1159,82 @@ const handlers: Record<string, Handler> = {
   addSfx(s, a) {
     const item = findLibraryItem(a.sound ?? a.name ?? a.sfx, ['sfx']);
     if (!item) throw new Skip(`unknown sound ${String(a.sound ?? a.name ?? '')} (use ${SFX.map((x) => x.id).join(', ')})`);
-    const raw = Array.isArray(a.times) ? a.times : [finite(a.at) ? a.at : finite(a.start) ? a.start : s.ctx.playhead];
+    // "endAt"/"endTimes": the sound ends there (a riser or a snare roll into a drop)
+    const endAt = a.endAt !== undefined || a.endTimes !== undefined;
+    const raw = Array.isArray(a.endTimes) ? a.endTimes : endAt ? [a.endAt] : Array.isArray(a.times) ? a.times : [finite(a.at) ? a.at : finite(a.start) ? a.start : s.ctx.playhead];
     const times = raw.filter(finite).slice(0, 100).map((t) => clampNum(t, 0, 1e6));
-    if (!times.length) throw new Skip('addSfx needs "at" (or "times")');
-    s.p = withLibraryMedia(s.p, item);
-    const ref = getMedia(s.p, libraryMediaId(item))!;
+    if (!times.length) throw new Skip(endAt ? '"endAt" must be a time in seconds' : 'addSfx needs "at" (or "times")');
+    // a custom version: its own length, pitch, brightness or take
+    const custom = a.duration !== undefined || a.pitch !== undefined || a.brightness !== undefined || a.variation !== undefined;
+    if (a.duration !== undefined && (!finite(a.duration) || a.duration < SFX_LIMITS.minDuration || a.duration > SFX_LIMITS.maxDuration)) throw new Skip(`"duration" is ${SFX_LIMITS.minDuration}–${SFX_LIMITS.maxDuration} seconds`);
+    for (const k of ['pitch', 'brightness', 'variation'] as const) if (a[k] !== undefined && !finite(a[k])) throw new Skip(`"${k}" must be a number`);
+    const ref = custom
+      ? sfxVariantRef(item, { duration: a.duration as number | undefined, pitch: a.pitch as number | undefined, brightness: a.brightness as number | undefined, seed: finite(a.variation) ? Math.abs(Math.round(a.variation)) : undefined })
+      : libraryMediaRef(item);
     const volume = finite(a.volume) ? clampNum(a.volume, MIN_VOLUME_DB, MAX_VOLUME_DB) : 0;
-    const ids: string[] = [];
-    for (const start of times) {
-      let trackId: string;
-      if (a.track !== undefined) {
-        const r = trackOrCreate(s.p, a.track, 'audio');
-        if (!r.track) throw new Skip(`unknown audio track ${String(a.track)}`);
-        if (r.track.locked) throw new Skip(`track ${r.track.name} is locked`);
-        s.p = r.project;
-        trackId = r.track.id;
-      } else {
-        // a free audio track, so it never cuts other sound
-        const r = findFreeAudioTrack(s.p, start, start + ref.duration);
-        s.p = r.project;
-        trackId = r.trackId;
-      }
-      const clip = makeClip('audio', trackId, start, ref.duration, { mediaId: ref.id, name: item.label, volume });
-      s.p = insertClips(s.p, [clip]);
-      ids.push(clip.id);
+    let trackId: string | undefined;
+    if (a.track !== undefined) {
+      const r = trackOrCreate(s.p, a.track, 'audio');
+      if (!r.track) throw new Skip(`unknown audio track ${String(a.track)}`);
+      if (r.track.locked) throw new Skip(`track ${r.track.name} is locked`);
+      s.p = r.project;
+      trackId = r.track.id;
     }
-    return `added "${item.label}" ${ids.length}× (${ids.join(', ')}) at ${times.map(sec).join(', ')}`;
+    const r = placeSound(custom ? s.p : withLibraryMedia(s.p, item), ref, item.label, times, { endAt, volume, trackId });
+    if (!r.clipIds.length) throw new Skip('the sound would end before 0 s');
+    s.p = r.project;
+    const what = custom ? `"${ref.name.replace(/\.wav$/, '')}" (${ref.id}, made for this project)` : `"${item.label}"`;
+    return `added ${what} ${r.clipIds.length}× (${r.clipIds.join(', ')}) ${endAt ? 'ending at' : 'at'} ${times.map(sec).join(', ')}`;
+  },
+
+  generateMusic(s, a) {
+    const want = typeof a.genre === 'string' ? a.genre : typeof a.style === 'string' ? a.style : 'phonk';
+    const genre = findGenre(want);
+    if (!genre) throw new Skip(`"genre" is one of ${GENRES.map((g) => g.id).join(', ')}`);
+    let root: number | undefined;
+    let scale: ScaleName | undefined;
+    if (a.key !== undefined) {
+      const k = parseKey(a.key);
+      if (!k) throw new Skip('"key" is like "F#", "F# minor", "Am" or "C phrygian"');
+      root = k.root;
+      scale = k.scale;
+    }
+    if (a.scale !== undefined) {
+      if (typeof a.scale !== 'string' || !(a.scale in SCALES)) throw new Skip(`"scale" is one of ${Object.keys(SCALES).join(', ')}`);
+      scale = a.scale as ScaleName;
+    }
+    const start = clampNum(finite(a.start) ? a.start : 0, 0, 1e6);
+    const end = timelineDuration(s.p);
+    const asked = a.length ?? a.duration;
+    if (asked !== undefined && !isFull(asked) && !finite(asked)) throw new Skip('"length" is seconds or "full"');
+    const length = clampNum(finite(asked) ? asked : end - start >= MUSIC_LIMITS.minLength ? end - start : 30, MUSIC_LIMITS.minLength, MUSIC_LIMITS.maxLength);
+    if (a.dropAt !== undefined && (!finite(a.dropAt) || a.dropAt < start || a.dropAt >= start + length)) throw new Skip('"dropAt" must be a timeline second from "start" to the end of the music');
+    if (a.bpm !== undefined && (!finite(a.bpm) || a.bpm < MUSIC_LIMITS.minBpm || a.bpm > MUSIC_LIMITS.maxBpm)) throw new Skip(`"bpm" is ${MUSIC_LIMITS.minBpm}–${MUSIC_LIMITS.maxBpm}`);
+    let trackId: string | undefined;
+    if (a.track !== undefined) {
+      const r = trackOrCreate(s.p, a.track, 'audio');
+      if (!r.track) throw new Skip(`unknown audio track ${String(a.track)}`);
+      if (r.track.locked) throw new Skip(`track ${r.track.name} is locked`);
+      s.p = r.project;
+      trackId = r.track.id;
+    }
+    const r = addMusic(s.p, {
+      genre: genre.id,
+      bpm: finite(a.bpm) ? a.bpm : undefined,
+      root,
+      scale,
+      length,
+      start,
+      dropAt: finite(a.dropAt) ? a.dropAt : undefined,
+      seed: finite(a.variation ?? a.seed) ? Math.abs(Math.round((a.variation ?? a.seed) as number)) : undefined,
+      volume: finite(a.volume) ? clampNum(a.volume, MIN_VOLUME_DB, MAX_VOLUME_DB) : undefined,
+      trackId,
+    });
+    s.p = r.project;
+    const clip = getClip(s.p, r.clipId)!;
+    const parts = r.sections.map((x) => `${x.kind} ${x.start.toFixed(2)}–${x.end.toFixed(2)}`).join(', ');
+    const tempo = finite(a.bpm) && Math.abs(r.spec.bpm - a.bpm) > 0.01 ? ` (asked ${a.bpm}: nudged so the drop lands on a bar)` : '';
+    return `added music ${r.clipId} "${clip.name}" on ${trackName(s.p, clip.trackId)} at ${sec(clip.start)}–${sec(clipEnd(clip))}: ${r.spec.bpm} BPM${tempo}, a beat every ${r.beat.toFixed(3)} s, bars from ${sec(r.firstBar)} every ${r.bar.toFixed(3)} s; ${r.drops.length ? `the drop lands at ${r.drops.map(sec).join(' and ')}` : 'no drop within the clip'}; parts (s): ${parts}${r.trim ? `; the start of its intro is cut (${r.trim.toFixed(2)} s) so the drop lands on time` : ''}. The file is made in the background (a few seconds); beat effects can follow it right away`;
   },
 
   addGraphic(s, a) {
@@ -1256,6 +1315,8 @@ export const VIDEO_ACTION_TYPES = Object.keys(handlers);
 /** Validates and applies AI actions. Never throws for bad input — bad actions are skipped with a reason. */
 export function applyAIActions(project: Project, actions: unknown[], ctx: ExecContext): AIApplyResult {
   const s: State = { p: project, ctx, effects: [], initial: project };
+  // generated songs are known exactly, also one added earlier in this same reply
+  s.ctx = { ...ctx, analysis: withPlannedAnalysis(() => s.p, ctx.analysis) };
   const results: ActionResult[] = [];
   const notes: string[] = [];
   let applied = 0;

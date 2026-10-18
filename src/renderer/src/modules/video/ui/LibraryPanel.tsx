@@ -3,7 +3,9 @@ import { Play, Plus, Square } from 'lucide-react';
 import { useT } from '../../../core/i18n';
 import { getAudioContext } from '../../../core/utils/audio';
 import { IconButton } from '../../../components/ui';
-import { OVERLAYS, SFX, SFX_RATE, STICKERS, drawOverlay, drawSticker, renderSfx, type LibraryItem } from '../library';
+import { OVERLAYS, SFX, SFX_RATE, STICKERS, drawOverlay, drawSticker, renderSfx, type LibraryItem, type SfxVariant } from '../library';
+import type { Genre } from '../music';
+import { MusicGenerator, SoundMaker } from './GeneratePanel';
 
 /* Built-in sound effects, stickers and overlays: click to add at the playhead. */
 
@@ -21,7 +23,15 @@ function Thumb({ item }: { item: LibraryItem }) {
   return <canvas ref={ref} width={item.kind === 'sticker' ? 96 : 160} height={item.kind === 'sticker' ? 96 : 90} className={`vd-lib-thumb ${item.kind}`} />;
 }
 
-export const LibraryPanel = memo(function LibraryPanel({ onAdd }: { onAdd: (item: LibraryItem) => void }) {
+interface LibraryPanelProps {
+  onAdd: (item: LibraryItem) => void;
+  timelineLength: number;
+  playhead: () => number;
+  onMusic: (o: { genre: Genre; bpm: number; key: string; length: number; dropAt?: number; variation: number }) => Promise<void>;
+  onSound: (item: LibraryItem, v: SfxVariant, mode: 'start' | 'end') => void;
+}
+
+export const LibraryPanel = memo(function LibraryPanel({ onAdd, timelineLength, playhead, onMusic, onSound }: LibraryPanelProps) {
   const t = useT();
   const [playing, setPlaying] = useState<string | null>(null);
   const source = useRef<AudioBufferSourceNode | null>(null);
@@ -61,6 +71,11 @@ export const LibraryPanel = memo(function LibraryPanel({ onAdd }: { onAdd: (item
 
   return (
     <>
+      <div className="vd-section-title">{t('Music generator')}</div>
+      <MusicGenerator timelineLength={timelineLength} playhead={playhead} onAdd={onMusic} />
+      <div className="vd-hint">{t('Royalty-free songs made on this computer, with the drop where you want it. The same settings always make the same song.')}</div>
+      <div className="vd-section-title">{t('Make a sound effect')}</div>
+      <SoundMaker onAdd={onSound} />
       <div className="vd-section-title">{t('Sound effects')}</div>
       <div className="vd-lib-sounds">
         {SFX.map((item) => (

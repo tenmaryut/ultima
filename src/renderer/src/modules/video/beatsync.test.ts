@@ -156,7 +156,7 @@ describe('applying', () => {
     expect(valueAt(getClip(onClip.project, v)!, 'rgbSplit', 1)).toBe(52);
     expect(run([{ type: 'beatSync', effect: 'explode' }]).results[0].detail).toContain('"effect" must be one of impact, shake');
     expect(run([{ type: 'beatSync', on: 'loud', from: 6, to: 9 }]).results[0].detail).toContain('no loud found in 6.00–9.00 s');
-    expect(applyAIActions(p, [{ type: 'beatSync' }], { playhead: 0 }).results[0].detail).toContain('not available');
+    expect(applyAIActions(p, [{ type: 'beatSync' }], { playhead: 0 }).results[0].detail).toContain('no clip with analysed sound');
     expect(VIDEO_AI_INSTRUCTIONS).toContain('{"type":"beatSync"');
   });
 });

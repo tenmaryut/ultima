@@ -4,6 +4,7 @@ import { BLEND_IDS, DEFAULT_AUDIO_FX, DEFAULT_SETTINGS, DEFAULT_VISUAL, MAX_SPEE
 import { CURVE_CHANNELS, HUE_RANGE_IDS, LOOK_IDS, cleanCurve, isIdentityCurve } from './grade';
 import { createProject, normalizeLinks, trackKindForClip } from './model';
 import { clampNum } from './time';
+import { normalizeGenerated } from './generated';
 
 /* .ultima project files: serialization and strict validation (pure). */
 
@@ -326,6 +327,8 @@ export function parseProject(input: string | unknown): Project {
       fps: kind === 'video' && typeof m.fps === 'number' && m.fps > 0 && m.fps <= 1000 ? m.fps : undefined,
       path: typeof m.path === 'string' ? m.path.slice(0, 4000) : undefined,
       lastModified: typeof m.lastModified === 'number' ? m.lastModified : undefined,
+      // a sound made by Ultima keeps its recipe (only for its own kind of id)
+      generated: kind === 'audio' && m.id.startsWith('lib_gen_') ? normalizeGenerated(m.generated) : undefined,
     });
   }
 

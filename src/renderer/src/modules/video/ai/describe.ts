@@ -4,6 +4,7 @@ import { KEY_PROPS, speedAt, timeOfSource } from '../keyframes';
 import { trackSpan, trackSureness } from '../tracking';
 import { EFFECT_PROPS } from '../presets';
 import { isLibraryMedia } from '../library';
+import { describeGenerated, musicDrops } from '../generated';
 import { formatTimecode } from '../time';
 import type { MediaAnalysis } from '../analysisStore';
 
@@ -249,6 +250,12 @@ function analysisLines(p: Project, ctx: DescribeContext): string[] {
 }
 
 /** Plain-text summary of the project for the AI. */
+/** Where a generated song's drops land on the timeline. */
+function musicSummary(p: Project, c: Clip): string {
+  const drops = musicDrops(p, c.id);
+  return drops.length ? `its drop${drops.length > 1 ? 's land' : ' lands'} at ${drops.map((t) => `${s2(t)} s`).join(' and ')}` : '';
+}
+
 export function describeProject(p: Project, ctx: DescribeContext): string {
   const { width, height, fps, background } = p.settings;
   const dur = timelineDuration(p);
@@ -274,7 +281,7 @@ export function describeProject(p: Project, ctx: DescribeContext): string {
         src = ` | media ${media.id}, source ${s2(c.in)}–${s2(sourceOut(c))} s of ${s2(media.duration)} s${c.reverse ? ' (played backwards)' : ''}${room > 0.05 ? ` (end can extend ${s2(room)} s)` : ''}`;
       }
     } else if (c.kind === 'image' && media) src = ` | media ${media.id}`;
-    const fx = [effectsSummary(c), gradeSummary(c, p)].filter(Boolean).join(', ');
+    const fx = [effectsSummary(c), gradeSummary(c, p), musicSummary(p, c)].filter(Boolean).join(', ');
     lines.push(
       `- ${c.id} | ${c.kind} ${label} | ${getTrack(p, c.trackId)?.name ?? '?'} | ${s2(c.start)}–${s2(clipEnd(c))} s${src}${c.linkId ? ` | linked ${c.linkId}` : ''}${fx ? ` | ${fx}` : ''}${c.kind === 'title' ? titleSummary(c) : ''}`,
     );
@@ -304,7 +311,8 @@ export function describeProject(p: Project, ctx: DescribeContext): string {
       const size = m.kind !== 'audio' && m.width ? ` ${m.width}×${m.height}` : '';
       const len = m.kind !== 'image' ? `, ${m.duration.toFixed(1)} s` : '';
       const sound = m.kind === 'video' ? (m.hasAudio ? ', with sound' : ', no sound') : '';
-      lines.push(`- ${m.id} | ${m.kind} "${m.name}"${size}${len}${sound}${isLibraryMedia(m.id) ? ' | built-in library' : ''} | on the timeline ${uses.get(m.id) ?? 0}×`);
+      const made = m.generated ? ` | ${describeGenerated(m.generated)}` : isLibraryMedia(m.id) ? ' | built-in library' : '';
+      lines.push(`- ${m.id} | ${m.kind} "${m.name}"${size}${len}${sound}${made} | on the timeline ${uses.get(m.id) ?? 0}×`);
     }
     if (p.media.length > 60) lines.push(`… and ${p.media.length - 60} more media items.`);
   }

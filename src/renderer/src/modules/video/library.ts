@@ -37,6 +37,12 @@ export const SFX: LibraryItem[] = [
   { id: 'ding', kind: 'sfx', label: 'Ding', description: 'bright bell', duration: 1.4 },
   { id: 'shutter', kind: 'sfx', label: 'Camera shutter', description: 'photo snap for freeze frames', duration: 0.3 },
   { id: 'heartbeat', kind: 'sfx', label: 'Heartbeat', description: 'two low thumps', duration: 1.1 },
+  { id: 'snareRoll', kind: 'sfx', label: 'Snare roll', description: 'snare hits speeding up into a drop (end it on the drop)', duration: 2 },
+  { id: 'reverseCymbal', kind: 'sfx', label: 'Reverse cymbal', description: 'cymbal swelling into a cut or a drop (end it there)', duration: 2 },
+  { id: 'crash', kind: 'sfx', label: 'Crash cymbal', description: 'cymbal crash on a drop or a big hit', duration: 2.5 },
+  { id: 'downlifter', kind: 'sfx', label: 'Downlifter', description: 'falling sweep after a drop or a big moment', duration: 2 },
+  { id: 'braam', kind: 'sfx', label: 'Braam', description: 'huge trailer brass hit', duration: 3 },
+  { id: 'laser', kind: 'sfx', label: 'Laser', description: 'sci-fi zap', duration: 0.5 },
 ];
 
 export const STICKERS: LibraryItem[] = [
@@ -85,6 +91,14 @@ const ALIASES: Record<string, string> = {
   drop: 'bassDrop',
   rise: 'riser',
   buildup: 'riser',
+  cymbal: 'crash',
+  reversecrash: 'reverseCymbal',
+  roll: 'snareRoll',
+  drumroll: 'snareRoll',
+  fall: 'downlifter',
+  zap: 'laser',
+  pew: 'laser',
+  horn: 'braam',
   camera: 'shutter',
   bell: 'ding',
   notification: 'ding',
@@ -114,6 +128,20 @@ export function findLibraryItem(ref: unknown, kinds?: LibraryKind[]): LibraryIte
 
 /** Samples of a sound effect (mono). */
 export const sfxLength = (item: LibraryItem) => Math.round((item.duration ?? 1) * SFX_RATE);
+
+/** Settings for a custom version of a sound effect (none set: the library's own). */
+export interface SfxVariant {
+  /** Seconds (the item's own length when not set). */
+  duration?: number;
+  /** Semitones up (+) or down (−). */
+  pitch?: number;
+  /** −1 (darker) … 1 (brighter). */
+  brightness?: number;
+  /** Another take of the same sound (0 = the library's own). */
+  seed?: number;
+}
+
+export const SFX_LIMITS = { minDuration: 0.03, maxDuration: 30, pitch: 24 };
 
 /** The media reference of a library item (also before its file exists). */
 export function libraryMediaRef(item: LibraryItem): MediaRef {
@@ -151,106 +179,160 @@ function svf() {
 
 const env = (t: number, attack: number, decay: number) => (t < attack ? t / attack : Math.exp(-(t - attack) / decay));
 
-/** A sound effect as mono samples (−1…1), always the same for the same id. */
-export function renderSfx(item: LibraryItem): Float32Array {
-  const n = sfxLength(item);
+/**
+ * A sound effect as mono samples (−1…1), always the same for the same id and variant. A variant stretches the
+ * sound to its length, moves its pitch (frequencies and filters), its brightness (filters only) and its noise.
+ */
+export function renderSfx(item: LibraryItem, variant: SfxVariant = {}): Float32Array {
+  const own = item.duration ?? 1;
+  const length = variant.duration ?? own;
+  const n = Math.max(1, Math.round(length * SFX_RATE));
   const out = new Float32Array(n);
-  const r = rng(item.id.split('').reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7));
+  const r = rng(item.id.split('').reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) + (variant.seed ?? 0) * 7919);
   const noise = () => r() * 2 - 1;
   const d = n / SFX_RATE;
+  // time on the sound's own envelopes, frequency and filter factors
+  const k = length / own;
+  const P = Math.pow(2, (variant.pitch ?? 0) / 12);
+  const B = Math.pow(2, (variant.brightness ?? 0) * 1.5) * P;
   const filt = svf();
   const filt2 = svf();
   let phase = 0;
   let phase2 = 0;
+  const saw = (ph: number) => 2 * (ph / (2 * Math.PI) - Math.floor(ph / (2 * Math.PI))) - 1;
+  // the snare roll: hits closer and closer together, the last ones right before the end
+  const hits: number[] = [];
+  if (item.id === 'snareRoll') for (let t = 0; t < d - 0.03; ) {
+    hits.push(t);
+    t += (0.24 * Math.pow(1 - t / d, 1.6) + 0.028) * Math.min(1, k);
+  }
+  let hit = 0;
   for (let i = 0; i < n; i++) {
     const t = i / SFX_RATE;
+    const ts = t / k;
     const x = t / d;
     let v = 0;
     switch (item.id) {
       case 'whoosh':
       case 'swipe': {
         const bell = Math.sin(Math.PI * Math.pow(x, 0.8)) ** 2;
-        const cutoff = 300 + 3200 * Math.sin(Math.PI * x);
+        const cutoff = (300 + 3200 * Math.sin(Math.PI * x)) * B;
         v = filt(noise(), cutoff, 1.4).band * bell * 2.2;
         break;
       }
       case 'reverseWhoosh': {
         const rise = Math.pow(x, 2.5);
-        v = filt(noise(), 200 + 5000 * x * x, 1.2).band * rise * 2.4 * (x > 0.97 ? (1 - x) / 0.03 : 1);
+        v = filt(noise(), (200 + 5000 * x * x) * B, 1.2).band * rise * 2.4 * (x > 0.97 ? (1 - x) / 0.03 : 1);
         break;
       }
       case 'riser': {
-        const f = 120 * Math.pow(2, x * 3.2);
+        const f = 120 * Math.pow(2, x * 3.2) * P;
         phase += (2 * Math.PI * f) / SFX_RATE;
         phase2 += (2 * Math.PI * f * 1.502) / SFX_RATE;
         const tone = 0.5 * Math.sin(phase) + 0.25 * Math.sin(phase2);
-        v = (tone + filt(noise(), 400 + 7000 * x, 1).band * 0.8) * Math.pow(x, 1.6) * (x > 0.985 ? (1 - x) / 0.015 : 1);
+        v = (tone + filt(noise(), (400 + 7000 * x) * B, 1).band * 0.8) * Math.pow(x, 1.6) * (x > 0.985 ? (1 - x) / 0.015 : 1);
         break;
       }
       case 'impact': {
-        const f = 38 + 90 * Math.exp(-t * 18);
+        const f = (38 + 90 * Math.exp(-ts * 18)) * P;
         phase += (2 * Math.PI * f) / SFX_RATE;
-        const body = Math.sin(phase) * env(t, 0.003, 0.45);
-        const crack = filt(noise(), 2500, 0.8).low * env(t, 0.001, 0.05);
-        const tail = filt2(noise(), 300, 0.7).low * env(t, 0.01, 0.6) * 0.8;
+        const body = Math.sin(phase) * env(ts, 0.003, 0.45);
+        const crack = filt(noise(), 2500 * B, 0.8).low * env(ts, 0.001, 0.05);
+        const tail = filt2(noise(), 300 * B, 0.7).low * env(ts, 0.01, 0.6) * 0.8;
         v = Math.tanh((body * 1.4 + crack * 1.5 + tail) * 1.3);
         break;
       }
       case 'boom': {
-        const f = 32 + 60 * Math.exp(-t * 6);
+        const f = (32 + 60 * Math.exp(-ts * 6)) * P;
         phase += (2 * Math.PI * f) / SFX_RATE;
-        const rumble = filt(noise(), 180 + 900 * Math.exp(-t * 3), 0.7).low;
-        v = Math.tanh((Math.sin(phase) * env(t, 0.005, 0.8) + rumble * 2.2 * env(t, 0.01, 0.9)) * 1.5);
+        const rumble = filt(noise(), (180 + 900 * Math.exp(-ts * 3)) * B, 0.7).low;
+        v = Math.tanh((Math.sin(phase) * env(ts, 0.005, 0.8) + rumble * 2.2 * env(ts, 0.01, 0.9)) * 1.5);
         break;
       }
       case 'bassDrop': {
-        const f = 30 + 130 * Math.exp(-t * 2.4);
+        const f = (30 + 130 * Math.exp(-ts * 2.4)) * P;
         phase += (2 * Math.PI * f) / SFX_RATE;
-        v = Math.tanh(Math.sin(phase) * 2.2) * 0.85 * env(t, 0.004, 0.7);
+        v = Math.tanh(Math.sin(phase) * 2.2) * 0.85 * env(ts, 0.004, 0.7);
         break;
       }
       case 'glitch': {
-        const block = Math.floor(t * 40);
-        const br = rng(block * 977 + 13);
+        const block = Math.floor(ts * 40);
+        const br = rng(block * 977 + 13 + (variant.seed ?? 0) * 7919);
         const on = br() > 0.35;
-        const f = 80 + br() * 1600;
+        const f = (80 + br() * 1600) * P;
         phase += (2 * Math.PI * f) / SFX_RATE;
         const crushed = Math.round(noise() * 3) / 3;
         v = on ? (br() > 0.5 ? Math.sign(Math.sin(phase)) * 0.45 : crushed * 0.5) * (1 - x * 0.4) : 0;
         break;
       }
       case 'hitmarker': {
-        phase += (2 * Math.PI * 3100) / SFX_RATE;
-        phase2 += (2 * Math.PI * 4650) / SFX_RATE;
-        v = (Math.sin(phase) * 0.6 + Math.sin(phase2) * 0.3 + noise() * 0.15) * env(t, 0.0005, 0.025);
+        phase += (2 * Math.PI * 3100 * P) / SFX_RATE;
+        phase2 += (2 * Math.PI * 4650 * P) / SFX_RATE;
+        v = (Math.sin(phase) * 0.6 + Math.sin(phase2) * 0.3 + noise() * 0.15) * env(ts, 0.0005, 0.025);
         break;
       }
       case 'click':
-        v = filt(noise(), 3000, 0.8).band * env(t, 0.0003, 0.006) * 3;
+        v = filt(noise(), 3000 * B, 0.8).band * env(ts, 0.0003, 0.006) * 3;
         break;
       case 'pop': {
-        const f = 300 + 900 * Math.exp(-t * 40);
+        const f = (300 + 900 * Math.exp(-ts * 40)) * P;
         phase += (2 * Math.PI * f) / SFX_RATE;
-        v = Math.sin(phase) * env(t, 0.002, 0.04) * 0.9;
+        v = Math.sin(phase) * env(ts, 0.002, 0.04) * 0.9;
         break;
       }
       case 'ding': {
         const partials = [1, 2.76, 5.4, 8.93];
-        for (let k = 0; k < partials.length; k++) v += Math.sin(2 * Math.PI * 1320 * partials[k] * t) * env(t, 0.002, 0.5 / (k + 1)) * (0.5 / (k + 1));
+        for (let p = 0; p < partials.length; p++) v += Math.sin(2 * Math.PI * 1320 * P * partials[p] * t) * env(ts, 0.002, 0.5 / (p + 1)) * (0.5 / (p + 1));
         break;
       }
       case 'shutter': {
-        const click = (at: number) => (t >= at ? filt(noise(), 3500, 0.9).band * env(t - at, 0.0005, 0.012) * 2.5 : 0);
-        v = click(0) + click(0.11) + filt2(noise(), 900, 0.7).low * env(t, 0.005, 0.05) * 0.4;
+        const click = (at: number) => (ts >= at ? filt(noise(), 3500 * B, 0.9).band * env(ts - at, 0.0005, 0.012) * 2.5 : 0);
+        v = click(0) + click(0.11) + filt2(noise(), 900 * B, 0.7).low * env(ts, 0.005, 0.05) * 0.4;
         break;
       }
       case 'heartbeat': {
         const thump = (at: number, amp: number) => {
-          if (t < at) return 0;
-          const tt = t - at;
-          return Math.sin(2 * Math.PI * (48 + 30 * Math.exp(-tt * 30)) * tt) * env(tt, 0.004, 0.09) * amp;
+          if (ts < at) return 0;
+          const tt = ts - at;
+          return Math.sin(2 * Math.PI * (48 + 30 * Math.exp(-tt * 30)) * P * tt) * env(tt, 0.004, 0.09) * amp;
         };
         v = Math.tanh((thump(0.02, 1) + thump(0.3, 0.75)) * 1.6);
+        break;
+      }
+      case 'snareRoll': {
+        while (hit + 1 < hits.length && hits[hit + 1] <= t) hit++;
+        const tt = t - hits[hit];
+        const lift = Math.pow(2, (5 * x) / 12);
+        const body = Math.sin(2 * Math.PI * 190 * P * lift * tt) * Math.exp(-tt / 0.03) * 0.6;
+        v = (body + filt(noise(), 2400 * B * lift, 0.8).band * 1.4 * Math.exp(-tt / 0.05)) * (0.25 + 0.75 * x * x) * Math.min(1, tt / 0.0005);
+        break;
+      }
+      case 'reverseCymbal':
+      case 'crash': {
+        const e = item.id === 'crash' ? env(ts, 0.001, 0.85) : Math.exp(-(d - t) / (0.45 * k)) * (x > 0.99 ? (1 - x) / 0.01 : 1);
+        v = (filt(noise(), 4800 * B, 0.7).high * 0.7 + filt2(noise(), 8000 * B, 0.8).band * 0.6) * e;
+        break;
+      }
+      case 'downlifter': {
+        const f = 400 * Math.pow(60 / 400, x) * P;
+        phase += (2 * Math.PI * f) / SFX_RATE;
+        v = (filt(noise(), 6000 * Math.pow(150 / 6000, x) * B, 1.4).band * 1.6 + Math.sin(phase) * 0.35) * Math.pow(1 - x, 1.4) * Math.min(1, t / 0.01);
+        break;
+      }
+      case 'braam': {
+        // a low note and its fifth, the filter swelling open, driven hard
+        phase += (2 * Math.PI * 55 * P) / SFX_RATE;
+        phase2 += (2 * Math.PI * 55 * 1.4983 * P) / SFX_RATE;
+        const cut = (150 + 2200 * (ts < 0.2 ? ts / 0.2 : Math.exp(-(ts - 0.2) / 0.9))) * B;
+        const s = saw(phase) + saw(phase2) * 0.8 + saw(phase * 1.006) * 0.7;
+        v = Math.tanh(filt(s, cut, 1.2).low * 1.8 + Math.sin(phase * 0.5) * 0.5) * (ts < 0.06 ? ts / 0.06 : Math.exp(-(ts - 0.06) / 2));
+        break;
+      }
+      case 'laser': {
+        const f = 2400 * Math.pow(180 / 2400, Math.min(1, ts / 0.35)) * P;
+        phase += (2 * Math.PI * f) / SFX_RATE;
+        phase2 += (2 * Math.PI * f * 2.01) / SFX_RATE;
+        v = Math.sin(phase + 1.5 * Math.sin(phase2)) * env(ts, 0.002, 0.18);
         break;
       }
       default:
@@ -271,8 +353,8 @@ export function renderSfx(item: LibraryItem): Float32Array {
 }
 
 /** A sound effect as a 16-bit stereo WAV file. */
-export function sfxWav(item: LibraryItem): Uint8Array {
-  const mono = renderSfx(item);
+export function sfxWav(item: LibraryItem, variant?: SfxVariant): Uint8Array {
+  const mono = renderSfx(item, variant);
   const n = mono.length;
   const bytes = new Uint8Array(44 + n * 4);
   const v = new DataView(bytes.buffer);

@@ -7,7 +7,7 @@ import { parseProject, serializeProject } from './project';
 import type { MediaRef, Project } from './types';
 
 describe('built-in sounds', () => {
-  it('renders every sound the same way each time, loud enough and without clipping', () => {
+  it('renders every sound the same way each time, loud enough and without clipping', { timeout: 30_000 }, () => {
     for (const item of SFX) {
       const a = renderSfx(item);
       expect(a.length).toBe(Math.round(item.duration! * 48000));

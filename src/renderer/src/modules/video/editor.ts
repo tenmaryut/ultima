@@ -61,7 +61,9 @@ import { parseSubtitles, serializeSrt, serializeVtt } from './captions';
 import { DEFAULT_STILL_DURATION, DEFAULT_TITLE_DURATION, DEFAULT_VISUAL, TRANSITIONS, titlePreset } from './presets';
 import { RAMP_PRESETS, rampPreset, type RampPreset } from './keyframes';
 import { encodeLut, parseCube } from './grade';
-import { isLibraryMedia, libraryFile, libraryItemOf, type LibraryItem } from './library';
+import { isLibraryMedia, libraryFile, libraryItemOf, type LibraryItem, type SfxVariant } from './library';
+import { generatedFile, musicDrops, withPlannedAnalysis } from './generated';
+import type { Genre } from './music';
 import type { ImportWhat } from './ai/executor';
 import { applyAIActions, describeProject, formatResults } from './aiActions';
 import { clipFrameSheets, lookSheet, planSourceLook, sourceLookSheet, type FrameSource } from './ai/frames';
@@ -123,6 +125,8 @@ export function useVideoEditor(active: boolean) {
   const projectRef = useLatest(project);
   const lib = useMemo(() => new MediaLibrary(), []);
   const analysis = useMemo(() => new AnalysisStore(lib), [lib]);
+  /** Analysis results; generated songs are known exactly from their plan (also before their file is made). */
+  const analysisGet = useMemo(() => withPlannedAnalysis(() => doc.current(), (id) => analysis.get(id)), [analysis, doc]);
   const libVersion = useSyncExternalStore(lib.subscribe, lib.getVersion);
   const folders = useMemo(() => new FolderLibrary(), []);
   const folderVersion = useSyncExternalStore(folders.subscribe, folders.getVersion);
@@ -233,20 +237,37 @@ export function useVideoEditor(active: boolean) {
   }, [project.fonts, tRef]);
   const fontList = useMemo(() => [...new Set([...project.fonts.map((f) => f.family), ...fonts])], [project.fonts, fonts]);
 
-  // built-in library items (sound effects, stickers, overlays) are made when a project uses them
-  const making = useRef(new Set<string>());
+  // built-in library items (sound effects, stickers, overlays) and generated sounds are made when a project uses them
+  const making = useRef(new Map<string, Promise<void>>());
+  /** Makes the files of the library items and generated sounds a project uses; resolves once they all exist. */
+  const ensureMade = useCallback(
+    (p: Project): Promise<void> => {
+      const jobs: Promise<void>[] = [];
+      for (const m of p.media) {
+        if (!isLibraryMedia(m.id) || lib.has(m.id)) continue;
+        let job = making.current.get(m.id);
+        if (!job) {
+          const item = libraryItemOf(m.id);
+          const made = item ? libraryFile(item) : m.generated ? generatedFile(m.generated) : null;
+          if (!made) continue;
+          job = made
+            .then((file) => lib.add(file, m.id))
+            .then(
+              () => undefined,
+              () => undefined,
+            )
+            .finally(() => making.current.delete(m.id));
+          making.current.set(m.id, job);
+        }
+        jobs.push(job);
+      }
+      return Promise.all(jobs).then(() => undefined);
+    },
+    [lib],
+  );
   useEffect(() => {
-    for (const m of project.media) {
-      if (!isLibraryMedia(m.id) || lib.has(m.id) || making.current.has(m.id)) continue;
-      const item = libraryItemOf(m.id);
-      if (!item) continue;
-      making.current.add(m.id);
-      void libraryFile(item)
-        .then((file) => lib.add(file, m.id))
-        .catch(() => undefined)
-        .finally(() => making.current.delete(m.id));
-    }
-  }, [project.media, lib]);
+    void ensureMade(project);
+  }, [project.media, ensureMade]);
   useEffect(() => {
     if (!active) return;
     const track = (e: KeyboardEvent) => (shiftRef.current = e.shiftKey);
@@ -538,6 +559,35 @@ export function useVideoEditor(active: boolean) {
     if (added.length) setSelectionState(added);
   };
 
+  /** Adds a song from the music generator at the start of the timeline; resolves once its sound is made. */
+  const generateMusic = async (o: { genre: Genre; bpm: number; key: string; length: number; dropAt?: number; variation: number }) => {
+    const before = doc.current();
+    const r = applyAIActions(before, [{ type: 'generateMusic', start: 0, ...o }], { playhead: playhead() });
+    if (!r.applied) {
+      toast.error(t('Could not make the music'), r.results[0]?.detail);
+      return;
+    }
+    const added = r.project.clips.filter((c) => !before.clips.some((x) => x.id === c.id)).map((c) => c.id);
+    change(r.project, { label: t('Generate music') });
+    setSelectionState(added);
+    await ensureMade(r.project);
+    const drops = added.length ? musicDrops(r.project, added[0]) : [];
+    toast.success(t('Music added'), drops.length ? t('The drop lands at {time} s.', { time: drops[0].toFixed(2) }) : undefined);
+  };
+
+  /** Adds a custom version of a library sound at the playhead, or ending at it. */
+  const addSoundVariant = (item: LibraryItem, v: SfxVariant, mode: 'start' | 'end') => {
+    const before = doc.current();
+    const at = playhead();
+    const r = applyAIActions(before, [{ type: 'addSfx', sound: item.id, duration: v.duration, pitch: v.pitch, brightness: v.brightness, variation: v.seed, ...(mode === 'end' ? { endAt: at } : { at }) }], { playhead: at });
+    if (!r.applied) {
+      toast.error(t('Could not add {name}', { name: t(item.label) }), r.results[0]?.detail);
+      return;
+    }
+    change(r.project, { label: t('Add {name}', { name: t(item.label) }) });
+    setSelectionState(r.project.clips.filter((c) => !before.clips.some((x) => x.id === c.id)).map((c) => c.id));
+  };
+
   /** Adds color lookup tables from .cube files to the project; returns their ids. */
   const addLutFiles = async (files: File[]): Promise<string[]> => {
     const ids: string[] = [];
@@ -566,7 +616,7 @@ export function useVideoEditor(active: boolean) {
 
   /** Lowers an audio clip wherever the other sound is loud (auto ducking); returns what happened. */
   const duckClip = (clipId: string, amount: number) => {
-    const r = applyAIActions(doc.current(), [{ type: 'duck', clipId, amount }], { playhead: playhead(), analysis: (id) => analysis.get(id) });
+    const r = applyAIActions(doc.current(), [{ type: 'duck', clipId, amount }], { playhead: playhead(), analysis: analysisGet });
     const res = r.results[0];
     if (res?.ok) {
       change(r.project, { label: t('Auto ducking') });
@@ -831,7 +881,7 @@ export function useVideoEditor(active: boolean) {
 
   /** Beat effects: pulses on the beats, bars, hits or loud moments of the sound on the timeline. */
   const applyBeat = (o: BeatSyncOptions) => {
-    const r = applyBeatSync(projectRef.current, (id) => analysis.get(id), o);
+    const r = applyBeatSync(projectRef.current, analysisGet, o);
     if (!r.count) {
       toast.warning(t('Nothing to follow yet.'));
       return;
@@ -848,7 +898,7 @@ export function useVideoEditor(active: boolean) {
     media.forEach((m) => void analysis.ensure(m));
     await analysis.waitFor(media, 30_000);
   }, [analysis, lib, projectRef]);
-  const analysisOf = useCallback((id: string) => analysis.get(id), [analysis]);
+  const analysisOf = useCallback((id: string) => analysisGet(id), [analysisGet]);
 
   /** The AI edit being applied has recorded its undo step. */
   const aiStep = useRef(false);
@@ -1104,7 +1154,7 @@ export function useVideoEditor(active: boolean) {
       playhead: playhead(),
       selection: selectionRef.current,
       fonts: aiFonts(),
-      analysis: (id) => analysis.get(id),
+      analysis: analysisGet,
       folders: folderContext(p),
     });
     if (!images || !p.clips.length) return { summary };
@@ -1137,7 +1187,7 @@ export function useVideoEditor(active: boolean) {
       sound.forEach((m) => void analysis.ensure(m));
       await analysis.waitFor(sound, 30_000);
     }
-    const r = applyAIActions(projectRef.current, rest, { playhead: playhead(), selection: selectionRef.current, fonts: aiFonts(), analysis: (id) => analysis.get(id) });
+    const r = applyAIActions(projectRef.current, rest, { playhead: playhead(), selection: selectionRef.current, fonts: aiFonts(), analysis: analysisGet });
     aiStep.current = r.project !== projectRef.current;
     if (aiStep.current) doc.set(r.project, { label: t('AI edit') });
     // tracking reads the video: it runs now, and what follows the track joins this same undo step
@@ -1303,6 +1353,9 @@ export function useVideoEditor(active: boolean) {
     duckClip,
     importFont,
     addLibraryItem,
+    generateMusic,
+    addSoundVariant,
+    ensureMade,
     addCaptionAtPlayhead,
     onAutoCaptions,
     applyCuts,
