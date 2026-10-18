@@ -278,6 +278,20 @@ export interface MatteRequest {
   frames: Uint8Array[];
 }
 
+/** One stem of a song with Demucs: the stem alone and everything without it (16-bit WAV in, WAV out). */
+export interface StemsRequest {
+  requestId: string;
+  wav: Uint8Array;
+  stem: 'vocals' | 'drums' | 'bass' | 'other';
+}
+
+export interface StemsResult {
+  ok: boolean;
+  only?: Uint8Array;
+  without?: Uint8Array;
+  error?: string;
+}
+
 export interface MatteResult {
   ok: boolean;
   /** Grey PNG masks (white = subject), one per frame. */
@@ -285,7 +299,7 @@ export interface MatteResult {
   error?: string;
 }
 
-export type LocalToolId = 'whisper' | 'rembg' | 'ffmpeg' | 'piper';
+export type LocalToolId = 'whisper' | 'rembg' | 'ffmpeg' | 'piper' | 'demucs';
 
 export interface LocalToolStatus {
   id: LocalToolId;

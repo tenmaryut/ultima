@@ -155,7 +155,11 @@ registerTranslations('id', {
   'Whisper (speech to text)': 'Whisper (ucapan ke teks)',
   'Automatic captions in Video and transcripts in Audio.': 'Subtitle otomatis di Video dan transkrip di Audio.',
   'rembg (background removal)': 'rembg (hapus latar belakang)',
-  'One-click background removal in Photo.': 'Hapus latar belakang sekali klik di Foto.',
+  'One-click background removal in Photo, and cutting the subject out of clips in Video.':
+    'Hapus latar belakang sekali klik di Foto, dan memotong subjek dari klip di Video.',
+  'Demucs (stem separation)': 'Demucs (pemisahan stem)',
+  'Splits songs into vocals, drums, bass and the rest in Video, better than the built-in separation.':
+    'Memisahkan lagu menjadi vokal, drum, bas, dan sisanya di Video, lebih baik daripada pemisahan bawaan.',
   'Extra import/export formats for video and audio.': 'Format impor/ekspor tambahan untuk video dan audio.',
   'Set path': 'Atur lokasi',
   'Program name or full path': 'Nama program atau lokasi lengkap',

@@ -15,6 +15,8 @@ import { ProjectPanel } from './ProjectPanel';
 import { has3D } from '../warp3d';
 import { TrackingPanel } from './TrackingPanel';
 import { CutoutPanel } from './CutoutPanel';
+import { StemsPanel } from './StemsPanel';
+import type { StemsApi } from '../useStems';
 import type { TrackingApi } from '../useTracking';
 import type { CutoutApi } from '../useCutout';
 
@@ -34,6 +36,7 @@ interface InspectorProps {
   onRenameMarker: (id: string) => void;
   tracking: TrackingApi;
   cutout: CutoutApi;
+  stems: StemsApi;
 }
 
 const KIND_ICON = { video: Video, image: ImageIcon, audio: Music, title: Type, caption: Captions, adjustment: SlidersHorizontal };
@@ -364,6 +367,8 @@ export function Inspector(props: InspectorProps) {
           onDuck={props.onDuck}
         />
       )}
+
+      {(clip.kind === 'audio' || (clip.kind === 'video' && getMedia(project, clip.mediaId)?.hasAudio)) && <StemsPanel key={`stems-${clip.id}`} clip={clip} stems={props.stems} />}
 
       {visual && (
         <Panel title={t('Opacity fades')} defaultOpen={false}>

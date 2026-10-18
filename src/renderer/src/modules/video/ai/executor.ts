@@ -65,6 +65,8 @@ import { Skip, findTrack, resolveClips, trackOrCreate } from './targets';
 import { finite, isObj, plainText, safeColor, sec, type Obj } from './util';
 import { BEAT_EFFECTS, BEAT_SOURCES, applyBeatSync, isBeatEffect, isBeatSource } from '../beatsync';
 import { applyParallax, depthFactor, type ParallaxLayer } from '../parallax';
+import { isStemKind } from '../stems';
+import { soundClipOf } from '../stemsClip';
 
 /* Validates and applies the Video Editor AI's actions, reporting what happened to each one. */
 
@@ -77,7 +79,16 @@ export type EditorEffect =
   | { kind: 'export'; exportKind: 'social' | 'mp4' | 'webm' | 'gif' | 'wav' | 'png'; range?: 'all' | 'work' }
   | { kind: 'requestImport'; what: ImportWhat; message: string }
   | TrackEffect
-  | CutoutEffect;
+  | CutoutEffect
+  | StemsEffect;
+
+/** Split the sound of a clip into a stem after the edit (the editor runs the separation). */
+export interface StemsEffect {
+  kind: 'stems';
+  clipId: string;
+  stem: 'instrumental' | 'vocals' | 'drums' | 'melody';
+  engine: 'auto' | 'builtin' | 'demucs';
+}
 
 /** Cut the subject out of a video clip after the edit (rembg reads the frames, so the editor runs it). */
 export interface CutoutEffect {
@@ -1051,6 +1062,25 @@ const handlers: Record<string, Handler> = {
     if (!r.count) throw new Skip(r.problem ?? 'nothing to follow');
     s.p = r.project;
     return `${effect} pulses on ${r.count} ${on} (following ${r.sourceClipIds.join(', ')}) on ${r.clipIds.join(', ')}${hasTargets ? '' : ' — a new adjustment layer, so everything below reacts'}`;
+  },
+
+  stems(s, a) {
+    // a video and its linked sound count once
+    const bySound = new Map<string, string>();
+    for (const id of resolveClips(s.p, a, { selection: s.ctx.selection }).ids) {
+      const c = getClip(s.p, id);
+      if (!c || !(c.kind === 'audio' || (c.kind === 'video' && getMedia(s.p, c.mediaId)?.hasAudio))) continue;
+      const key = soundClipOf(s.p, c)?.id ?? id;
+      if (!bySound.has(key)) bySound.set(key, id);
+    }
+    const ids = [...bySound.values()];
+    if (ids.length !== 1) throw new Skip('stems needs exactly one clip with sound ("clipId")');
+    const stem = a.stem ?? a.keep;
+    if (!isStemKind(stem)) throw new Skip('"stem" is "instrumental" (no vocals), "vocals", "drums" or "melody" (no drums)');
+    const engine = a.engine === undefined ? 'auto' : a.engine === 'auto' || a.engine === 'builtin' || a.engine === 'demucs' ? a.engine : null;
+    if (!engine) throw new Skip('"engine" is "auto", "builtin" or "demucs"');
+    s.effects.push({ kind: 'stems', clipId: ids[0], stem, engine });
+    return `separating ${stem} from ${ids[0]} runs after the other actions (it takes a while); the outcome is listed below`;
   },
 
   cutout(s, a) {

@@ -136,7 +136,12 @@ Library and files (the built-in library is made by Ultima: free to use, always a
    out of a video clip, frame by frame, with rembg on the user's computer (slow: about a second per frame; keep clips short). "subject"
    (default): the clip shows only the subject; "background": everything but it (blur or grade the background alone); "front": TEXT BEHIND
    THE PLAYER — the clip stays whole and a copy with only the subject goes on the top track, so titles on lower tracks pass behind the
-   player (add the title first, in the same reply). Needs rembg (Settings → Local creative tools); the result says if it is missing.`;
+   player (add the title first, in the same reply). Needs rembg (Settings → Local creative tools); the result says if it is missing.
+41. {"type":"stems","clipId":id,"stem":"instrumental"|"vocals"|"drums"|"melody","engine"?:"auto"|"builtin"|"demucs"} — splits the sound
+   of a clip (a song, or a video's sound): "instrumental" = the song without vocals, "vocals" = only the singing/speech in the middle of a
+   stereo mix, "drums" = only the drums and hits, "melody" = everything but the drums. Adds the part as a new audio clip in sync on a
+   free audio track and mutes the original sound. "auto" uses Demucs (a free local AI, much cleaner) when installed, else the built-in
+   separation (fast; vocals need stereo music).`;
 
 const ANALYSIS = `ANALYSIS: CURRENT DOCUMENT lists what was found in each clip (timeline seconds, approximate):
 - music: tempo (BPM), every beat, bar starts, the strongest hits and where it gets louder (a drop or chorus);

@@ -293,6 +293,7 @@ export default function VideoModule({ active }: ModuleProps) {
             onRenameMarker={(id) => void ed.renameMarker(id)}
             tracking={ed.tracking}
             cutout={ed.cutout}
+            stems={ed.stems}
           />
         }
         bottom={
@@ -397,6 +398,25 @@ export default function VideoModule({ active }: ModuleProps) {
         />
       </ModuleLayout>
       <DropOverlay show={dragging} label={t('Drop to import — drop on the timeline to place it there')} />
+      {ed.stems.job && (
+        <Modal
+          title={t('Separating the sound…')}
+          onClose={ed.stems.cancel}
+          footer={
+            <Button variant="danger" onClick={ed.stems.cancel}>
+              {t('Cancel')}
+            </Button>
+          }
+        >
+          <div className="col" style={{ gap: 8 }}>
+            <div className="row">
+              <span className="grow">{ed.stems.job.engine === 'demucs' ? t('Demucs is splitting the song (this can take a few minutes)…') : t('Splitting the sound…')}</span>
+              {ed.stems.job.engine === 'builtin' && <span className="mono">{Math.round(ed.stems.job.progress * 100)}%</span>}
+            </div>
+            {ed.stems.job.engine === 'builtin' ? <ProgressBar value={ed.stems.job.progress} /> : <Spinner size={16} />}
+          </div>
+        </Modal>
+      )}
       {ed.cutout.job && (
         <Modal
           title={t('Cutting out the subject…')}

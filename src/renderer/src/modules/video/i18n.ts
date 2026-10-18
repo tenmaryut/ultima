@@ -876,4 +876,28 @@ registerTranslations('id', {
   'Could not cut out the subject': 'Tidak dapat memotong subjek',
   'Nothing to put in front': 'Tidak ada yang bisa ditaruh di depan',
   'The subject is now in front: titles on the tracks below pass behind it.': 'Subjek sekarang di depan: judul di trek bawahnya lewat di belakangnya.',
+
+  // Stems
+  'Separate the sound (stems)': 'Pisahkan suara (stem)',
+  Keep: 'Simpan',
+  Engine: 'Mesin',
+  'Remove vocals (instrumental)': 'Hapus vokal (instrumental)',
+  'Vocals only': 'Hanya vokal',
+  'Drums only': 'Hanya drum',
+  'Remove drums': 'Hapus drum',
+  'Automatic (Demucs)': 'Otomatis (Demucs)',
+  'Automatic (built-in)': 'Otomatis (bawaan)',
+  'Built-in (fast)': 'Bawaan (cepat)',
+  'Demucs (best)': 'Demucs (terbaik)',
+  'Demucs (not installed)': 'Demucs (belum terpasang)',
+  Separate: 'Pisahkan',
+  'Adds the part you keep as a new audio clip in sync and mutes the original sound. The built-in separation works best on stereo music; Demucs (free, Settings → Local creative tools) is cleaner.':
+    'Menambahkan bagian yang disimpan sebagai klip audio baru yang selaras dan membisukan suara aslinya. Pemisahan bawaan paling baik untuk musik stereo; Demucs (gratis, Pengaturan → Alat kreatif lokal) lebih bersih.',
+  'Separating the sound…': 'Memisahkan suara…',
+  'Demucs is splitting the song (this can take a few minutes)…': 'Demucs sedang memisahkan lagu (bisa beberapa menit)…',
+  'Splitting the sound…': 'Memisahkan suara…',
+  'Separate stems': 'Pisahkan stem',
+  '{stem}: a new clip in sync, the original sound is muted': '{stem}: klip baru yang selaras, suara aslinya dibisukan',
+  'Separation cancelled': 'Pemisahan dibatalkan',
+  'Could not separate the sound': 'Tidak dapat memisahkan suara',
 }, 'video');

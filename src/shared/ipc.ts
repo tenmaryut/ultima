@@ -13,6 +13,8 @@ import type {
   RemoveBgRequest,
   MatteRequest,
   MatteResult,
+  StemsRequest,
+  StemsResult,
   RemoveBgResult,
   SpeechConfig,
   SpeechProviderStatus,
@@ -63,6 +65,8 @@ export const IPC = {
   toolTranscribe: 'tools:transcribe',
   toolRemoveBg: 'tools:remove-bg',
   toolMatte: 'tools:matte',
+  toolStems: 'tools:stems',
+  toolStemsCancel: 'tools:stems-cancel',
   toolMatteCancel: 'tools:matte-cancel',
   toolSdModels: 'tools:sd-models',
   toolTranscode: 'tools:transcode',
@@ -128,7 +132,7 @@ export interface RecentFile {
 export interface MainAIConfig {
   executablePaths: Partial<Record<ProviderId, string>>;
   custom: CustomCliConfig | null;
-  toolCommands: Partial<Record<'whisper' | 'rembg' | 'piper', string>>;
+  toolCommands: Partial<Record<'whisper' | 'rembg' | 'piper' | 'demucs', string>>;
   speech?: SpeechConfig;
 }
 
@@ -185,13 +189,16 @@ export interface UltimaDesktopAPI {
   };
   tools: {
     detect(): Promise<LocalToolStatus[]>;
-    setCommand(tool: 'whisper' | 'rembg' | 'piper', command: string | null): Promise<boolean>;
+    setCommand(tool: 'whisper' | 'rembg' | 'piper' | 'demucs', command: string | null): Promise<boolean>;
     imageGenerate(request: ImageGenRequest): Promise<ImageGenResult>;
     transcribe(request: TranscribeRequest): Promise<TranscribeResult>;
     removeBackground(request: RemoveBgRequest): Promise<RemoveBgResult>;
     /** Masks of the subject of video frames (rembg); stoppable with cancelMatte. */
     matte(request: MatteRequest): Promise<MatteResult>;
     cancelMatte(requestId: string): Promise<void>;
+    /** Splits a song with Demucs (if installed); stoppable with cancelStems. */
+    stems(request: StemsRequest): Promise<StemsResult>;
+    cancelStems(requestId: string): Promise<void>;
     /** Lists checkpoints of a local Stable Diffusion WebUI (throws if it is not reachable). */
     sdModels(baseUrl: string): Promise<string[]>;
     /** Converts audio/video with the user's FFmpeg (if installed) using safe presets. */

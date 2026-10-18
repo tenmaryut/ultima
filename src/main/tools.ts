@@ -9,6 +9,8 @@ import type {
   RemoveBgRequest,
   MatteRequest,
   MatteResult,
+  StemsRequest,
+  StemsResult,
   RemoveBgResult,
   TranscribeRequest,
   TranscribeResult,
@@ -42,7 +44,7 @@ function resolveTool(tool: LocalToolStatus['id']): string | null {
 
 async function detectTools(): Promise<LocalToolStatus[]> {
   return Promise.all(
-    (['whisper', 'rembg', 'ffmpeg', 'piper'] as const).map(async (id) => {
+    (['whisper', 'rembg', 'ffmpeg', 'piper', 'demucs'] as const).map(async (id) => {
       const location = resolveTool(id);
       if (!location) return { id, available: false };
       const version = id === 'ffmpeg' ? await readVersion(location, ['-version'], 8000) : undefined;
@@ -215,6 +217,37 @@ async function matteFrames(req: MatteRequest): Promise<MatteResult> {
   }
 }
 
+/* ---------------------------------- Demucs ---------------------------------- */
+
+const runningStems = new Map<string, RunningProcess>();
+
+/** One stem of a song with Demucs (htdemucs, two stems): the stem alone and the rest. */
+async function separateStems(req: StemsRequest): Promise<StemsResult> {
+  const exe = resolveTool('demucs');
+  if (!exe) return { ok: false, error: 'Demucs is not installed. Install it with: pip install demucs (Settings → Local creative tools).' };
+  if (!(req?.wav instanceof Uint8Array) || req.wav.byteLength > 1024 * 1024 * 1024) return { ok: false, error: 'Unsupported sound' };
+  const stem = ['vocals', 'drums', 'bass', 'other'].includes(req.stem) ? req.stem : 'vocals';
+  const dir = await mkdtemp(join(tmpdir(), 'ultima-demucs-'));
+  try {
+    const input = join(dir, 'song.wav');
+    await writeFile(input, req.wav);
+    const proc = runProcess({ command: exe, args: ['-n', 'htdemucs', `--two-stems=${stem}`, '-o', join(dir, 'out'), input], cwd: dir, timeoutMs: 3 * 60 * 60_000 });
+    const id = typeof req.requestId === 'string' ? req.requestId : '';
+    if (id) runningStems.set(id, proc);
+    const res = await proc.result.finally(() => id && runningStems.delete(id));
+    if (res.aborted) return { ok: false, error: 'Cancelled' };
+    try {
+      const folder = join(dir, 'out', 'htdemucs', 'song');
+      const [only, without] = await Promise.all([readFile(join(folder, `${stem}.wav`)), readFile(join(folder, `no_${stem}.wav`))]);
+      return { ok: true, only: new Uint8Array(only), without: new Uint8Array(without) };
+    } catch {
+      return { ok: false, error: (res.stderr || res.spawnError || 'Demucs made no stems').slice(-1200) };
+    }
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+  }
+}
+
 /* ---------------------------------- FFmpeg ---------------------------------- */
 
 const TRANSCODE_ARGS: Record<TranscodeRequest['format'], (q: 'high' | 'medium' | 'small', req: TranscodeRequest) => string[]> = {
@@ -276,8 +309,8 @@ export function registerToolsIpc(): void {
     runningTranscodes.get(String(requestId))?.cancel();
   });
   ipcMain.handle(IPC.toolsDetect, () => detectTools());
-  ipcMain.handle(IPC.toolsSetCommand, async (event, tool: 'whisper' | 'rembg' | 'piper', command: string | null) => {
-    if (tool !== 'whisper' && tool !== 'rembg' && tool !== 'piper') return false;
+  ipcMain.handle(IPC.toolsSetCommand, async (event, tool: 'whisper' | 'rembg' | 'piper' | 'demucs', command: string | null) => {
+    if (tool !== 'whisper' && tool !== 'rembg' && tool !== 'piper' && tool !== 'demucs') return false;
     const commands = { ...aiConfig.get().toolCommands };
     if (!command) delete commands[tool];
     else {
@@ -303,6 +336,10 @@ export function registerToolsIpc(): void {
   ipcMain.handle(IPC.toolTranscribe, (_event, req: TranscribeRequest) => transcribe(req));
   ipcMain.handle(IPC.toolRemoveBg, (_event, req: RemoveBgRequest) => removeBackground(req));
   ipcMain.handle(IPC.toolMatte, (_event, req: MatteRequest) => matteFrames(req));
+  ipcMain.handle(IPC.toolStems, (_event, req: StemsRequest) => separateStems(req));
+  ipcMain.handle(IPC.toolStemsCancel, (_event, requestId: string) => {
+    runningStems.get(String(requestId))?.cancel();
+  });
   ipcMain.handle(IPC.toolMatteCancel, (_event, requestId: string) => {
     runningMattes.get(String(requestId))?.cancel();
   });

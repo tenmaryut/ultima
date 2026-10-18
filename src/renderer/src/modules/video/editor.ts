@@ -7,6 +7,7 @@ import { useT } from '../../core/i18n';
 import { rememberRecent } from '../../core/open';
 import { desktop, listSystemFonts, pathForFile, pickFiles, saveFile } from '../../core/platform';
 import { useAppStore } from '../../core/store';
+import { useAISettings } from '../../core/ai/settings';
 import { fileBaseName, fileExtension } from '../../core/utils/format';
 import { canvasToAIImage } from '../../core/utils/image';
 import { uid } from '../../core/utils/id';
@@ -71,7 +72,8 @@ import { totalLength } from './silence';
 import { applyBeatSync, type BeatSyncOptions } from './beatsync';
 import { useTracking } from './useTracking';
 import { useCutout } from './useCutout';
-import type { CutoutEffect, TrackEffect } from './ai/executor';
+import { useStems } from './useStems';
+import type { CutoutEffect, StemsEffect, TrackEffect } from './ai/executor';
 import type { TimelineApi } from './ui/Timeline';
 import type { ExportKind } from './ui/ExportDialog';
 import type { PreviewZoom } from './ui/Preview';
@@ -850,18 +852,29 @@ export function useVideoEditor(active: boolean) {
 
   /** The AI edit being applied has recorded its undo step. */
   const aiStep = useRef(false);
+  /** Adds what an AI request finished later (a cut-out, a stem, a track) to the AI edit's undo step. */
+  const amendAI = (p: Project) => {
+    if (aiStep.current) doc.set(p, { record: false });
+    else {
+      doc.set(p, { label: t('AI edit') });
+      aiStep.current = true;
+    }
+  };
   const cutout = useCutout({
     t,
     current: () => doc.current(),
     lib,
     change,
-    amend: (p) => {
-      if (aiStep.current) doc.set(p, { record: false });
-      else {
-        doc.set(p, { label: t('AI edit') });
-        aiStep.current = true;
-      }
-    },
+    amend: amendAI,
+    setSelection: setSelectionState,
+  });
+  const stems = useStems({
+    t,
+    current: () => doc.current(),
+    lib,
+    demucsAvailable: () => Boolean(useAISettings.getState().tools.find((x) => x.id === 'demucs')?.available),
+    change,
+    amend: amendAI,
     setSelection: setSelectionState,
   });
   const tracking = useTracking({
@@ -871,13 +884,7 @@ export function useVideoEditor(active: boolean) {
     playhead,
     seek,
     change,
-    amend: (p) => {
-      if (aiStep.current) doc.set(p, { record: false });
-      else {
-        doc.set(p, { label: t('AI edit') });
-        aiStep.current = true;
-      }
-    },
+    amend: amendAI,
     selection: () => selectionRef.current,
     setSelection: setSelectionState,
   });
@@ -1137,6 +1144,7 @@ export function useVideoEditor(active: boolean) {
     const trackNotes = [
       // cut-outs first: a track or a title can then use the cut-out subject
       ...(await cutout.runForAI(r.effects.filter((e): e is CutoutEffect => e.kind === 'cutout'))),
+      ...(await stems.runForAI(r.effects.filter((e): e is StemsEffect => e.kind === 'stems'))),
       ...(await tracking.runForAI(r.effects.filter((e): e is TrackEffect => e.kind === 'track'))),
     ];
     const buttons: { label: string; run: () => void }[] = [];
@@ -1303,6 +1311,7 @@ export function useVideoEditor(active: boolean) {
     analysisOf,
     tracking,
     cutout,
+    stems,
     addChapterMarkers,
     renameMarker,
     patchTrack,

@@ -261,8 +261,13 @@ function LocalTools() {
     },
     rembg: {
       label: 'rembg (background removal)',
-      what: 'One-click background removal in Photo.',
+      what: 'One-click background removal in Photo, and cutting the subject out of clips in Video.',
       install: 'pip install "rembg[cpu,cli]"',
+    },
+    demucs: {
+      label: 'Demucs (stem separation)',
+      what: 'Splits songs into vocals, drums, bass and the rest in Video, better than the built-in separation.',
+      install: 'pip install demucs',
     },
     ffmpeg: {
       label: 'FFmpeg',
@@ -277,7 +282,7 @@ function LocalTools() {
       <div className="muted">{t('These free tools run on your own computer and unlock extra AI features. Ultima finds them automatically.')}</div>
       {!desktop && <div className="muted">{t('These tools need the Ultima desktop app.')}</div>}
       {desktop &&
-        (['whisper', 'rembg', 'ffmpeg'] as const).map((id) => {
+        (['whisper', 'rembg', 'demucs', 'ffmpeg'] as const).map((id) => {
           const st = tools.find((x) => x.id === id);
           const info = toolInfo[id];
           return (
