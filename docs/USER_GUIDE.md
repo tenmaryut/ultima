@@ -375,9 +375,12 @@ saturation, temperature, hue, blur); Chroma key for green or blue screens.
 - *Speed curve* (Inspector → Speed, or right-click a clip): Montage hit (fast → slow-mo → fast), Slow-mo in the
   middle, Speed up in the middle, Slow to fast and Fast to slow. *A new curve keeps* the clip length (cuts stay on
   the beat) or all content (the clip gets longer or shorter and the clips after it move).
-- *Play backwards* reverses a clip and its sound. *Smooth slow motion* blends neighbouring frames on export when a
-  clip plays slower than it was recorded. *Freeze frame at the playhead* holds that frame for one second and moves
-  everything after it.
+- *Play backwards* reverses a clip and its sound. *Freeze frame at the playhead* holds that frame for one second and
+  moves everything after it.
+- *Smooth slow motion (on export)*, for clips that play slower than they were recorded: *Blend frames (fast)* mixes
+  neighbouring frames; *Optical flow* works out how every part of the picture moves and makes real in-between frames
+  from it (Twixtor-style slow motion — the sharpest, a little slower to export). Footage recorded at a high frame rate
+  still looks best.
 
 **Effects, color grading and compositing** (Inspector):
 - *Effects*: camera shake (strength and speed), glow, RGB split, motion blur (with direction), zoom blur, vignette,
@@ -396,12 +399,59 @@ saturation, temperature, hue, blur); Chroma key for green or blue screens.
   color, effects, mask and transform apply to everything on the tracks below it — one grade, one shake or one
   letterbox for the whole video.
 
+**3D** (Inspector → *3D*): *Tilt (X)*, *Turn (Y)*, *Depth (Z)* and *Perspective* turn a clip, title, sticker or
+adjustment layer in 3D space — a card flip, footage leaning back, a title flying in from the depth. Every value can be
+animated with ◆. Titles also get *3D depth* (extruded letters) with a *3D side color*. The assistant can build a
+parallax shot: layers that drift at different depths.
+
+**Motion tracking** (Inspector → *Motion tracking*, video clips): *Track something…*, then draw a box on the picture
+around what should be followed — an enemy, a car, a face. Ultima follows it through the clip (when it is covered for
+a moment, the track carries on along its path and picks it up again) and draws its path on the preview. *Pin to it* a *Crosshair*, a *Circle*, a
+*Text*, or the titles and stickers you selected: they follow it with keyframes you can still edit.
+
+**Cut out the subject** (Inspector, video clips; desktop app with rembg — see
+[Local creative tools](AI_SETUP.md#optional-local-creative-tools)): separates the player or person (*People and
+players*) or whatever is in front (*Anything in front*) from the background, frame by frame (about a second per
+frame, so keep clips short). *Show everything but the subject* puts effects or a grade on the background only.
+*Subject in front of titles* is the classic **text behind the player**: a copy with only the subject goes on the top
+track, so titles on the tracks below pass behind them.
+
+**Beat effects** (*AI → Beat effects…*): a *Shake*, *Zoom punch*, *Flash*, *RGB split*, *Glow pulse*, *Zoom blur* or
+*Impact* (zoom, shake and flash together) on every beat, every bar, the strongest hits or the loud moments (shots,
+kills) of the sound on the timeline — every time, every 2nd or every 4th, with a strength, from the music or the game
+sound you choose, over the whole timeline or the work area, on a new adjustment layer or on the selected clips. It is
+made of keyframes, so you can still change it.
+
+**Separate the sound (stems)** (Inspector, audio clips and videos with sound): keep *Remove vocals (instrumental)*,
+*Vocals only*, *Drums only* or *Remove drums*. The part you keep comes back as a new audio clip in sync (same timing,
+speed and direction), saved as a WAV in your export folder, and the original sound is muted — not deleted. The
+*Built-in* separation is fast and needs no download (vocals can only be told apart in stereo music); *Demucs*, a free
+AI you can install (see [Local creative tools](AI_SETUP.md#optional-local-creative-tools)), is much cleaner and is
+used automatically once it is found.
+
 **Library** (left panel → *Library*): sound effects made by Ultima — whoosh, swipe, reverse whoosh, riser, impact,
-boom, bass drop, glitch, hitmarker, click, pop, ding, camera shutter, heartbeat (▷ listens, + adds at the playhead on
-a free audio track) — plus stickers (hit marker, crosshair, arrow, circle, comic burst, speech bubble, star, heart,
-lightning, check and cross marks) and overlays (light leak, film dust, bokeh, lens flare, scanlines) that land above
-your footage in the right blend mode. They are free to use anywhere and are made again whenever a project needs
-them. **Fonts**: *Titles → Import font…* (or drop a TTF, OTF or WOFF file) stores the font inside the project, so
+boom, bass drop, glitch, hitmarker, click, pop, ding, camera shutter, heartbeat, snare roll, reverse cymbal, crash
+cymbal, downlifter, braam and laser (▷ listens, + adds at the playhead on a free audio track) — plus stickers (hit
+marker, crosshair, arrow, circle, comic burst, speech bubble, star, heart, lightning, check and cross marks) and
+overlays (light leak, film dust, bokeh, lens flare, scanlines) that land above your footage in the right blend mode.
+They are free to use anywhere and are made again whenever a project needs them.
+
+**Music generator** (*Library* tab): royalty-free songs made on your computer, so a montage never gets a copyright
+claim. Choose a *Style* — Phonk, Trap, EDM, Dubstep, Drum & bass, Lo-fi or Cinematic — a tempo, a key (or the
+style's usual scale), the length (↔ makes it as long as the timeline) and **Drop at**: the second of the timeline
+where the drop should hit (⌖ takes the playhead — put it on your best kill). The song is built around it — intro,
+build-up, drop, break, a second drop, outro — and its drop lands exactly there (the tempo moves by up to 4 %, or the
+start of the intro is cut). *Variation* makes another song in the same style (🎲 picks one at random); the same
+settings always make the same song. *Listen* plays it first, *Add to the timeline* puts it on a free audio track.
+Beat effects and the assistant follow its beats exactly.
+
+**Make a sound effect** (*Library* tab): any library sound at the length you need (a riser exactly as long as your
+build-up), higher or lower (*Pitch*), brighter or darker, or another take of it (*Variation*). *Add at the playhead*
+starts it there; *End at the playhead* makes it end there — a riser, snare roll or reverse cymbal that lands on the
+drop or the kill.
+
+Projects keep only the settings of generated songs and sounds; Ultima makes them again when it opens the project, and
+an export waits until they are ready. **Fonts**: *Titles → Import font…* (or drop a TTF, OTF or WOFF file) stores the font inside the project, so
 titles look the same on every computer.
 
 **Sound effects and ducking** (Inspector → *Sound effects*, for audio clips and a video's sound): presets (Muffled,
@@ -438,18 +488,27 @@ linked folder are added to the project by themselves.
 
 It can add clips from the Media bin; split, trim, move, shift, delete and duplicate clips, close gaps and remove a
 time range; link and unlink sound; change one clip, a whole track or all clips at once; animate with keyframes
-(zoom, pan, shake, fades, volume, muffle); add speed curves, reverse clips and freeze frames; add effects, looks,
-LUTs, curves, HSL changes, masks, blend modes and adjustment layers; add sound effects and duck the music; add
-sounds, stickers and overlays from the library; ask you for files it needs (a song, a logo, a font, a LUT — you get a
-button to pick them); restyle titles; add transitions in and out; add,
-move, rename and delete markers; add, mute, lock and delete tracks; set the work area; move the playhead; undo; and
-open the export dialog. After you press *Apply* (or with *Apply AI edits automatically* on) the
+(zoom, pan, shake, fades, volume, muffle); add speed curves, reverse clips and freeze frames, with optical-flow slow
+motion; add effects, looks, LUTs, curves, HSL changes, masks, blend modes and adjustment layers; turn clips and
+titles in 3D, extrude titles and build parallax shots; put beat effects on the music's beats and bars or on the
+loud moments; track something in a clip and pin a crosshair, circle or text to it (it can put a grid on the frames
+it looks at to place the box precisely); cut the subject out, also for text behind the player; separate stems; make
+royalty-free music with the drop on the moment it picks, and sound effects of any length that end on it; add sound
+effects and duck the music; add sounds, stickers and overlays from the library; ask you for files it needs (a song,
+a logo, a font, a LUT — you get a button to pick them); restyle titles; add transitions in and out; add, move,
+rename and delete markers; add, mute, lock and delete tracks; set the work area; move the playhead; undo; and export
+— straight into your export folder, unless you asked to be asked. After you press *Apply* (or with *Apply AI edits automatically* on) the
 AI is told what happened to every step, and *What happened to each step* shows you the same list.
 
 **Export** (Ctrl+E): MP4 (H.264 + AAC) or WebM (VP9 + Opus) for the whole timeline or the work area, with
 resolution, frame rate, quality or bitrate, audio and *Burn captions into the picture*; *MP4/MOV via FFmpeg*
 (desktop app with FFmpeg); GIF (up to 60 s); WAV audio; or the current frame as PNG. Which encoders are available
 depends on your computer; WebM always works. MP4 files have their index at the start (fast start).
+
+**Export folder** (desktop app): exports go straight into a folder — *Videos/Ultima* in your home folder unless you
+choose another one in the export dialog or in *Settings → Exports* — named after the project, never overwriting an
+earlier file (" (2)" is added). *Show in folder* opens it. Turn on *Ask where to save every export* to pick a place
+each time instead; while it is off, the assistant can export by itself.
 
 **TikTok · Reels · Shorts** (*File → Export for TikTok · Reels · Shorts…*): TikTok, Instagram and YouTube
 re-encode every upload — no app or file can switch that off. This export gives them the cleanest possible source so

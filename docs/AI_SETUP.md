@@ -169,7 +169,8 @@ These are free programs that unlock more AI features. Ultima finds them on your 
 | Stable Diffusion WebUI, ComfyUI or LocalAI | Image generation (Photo, AI Studio) and generative fill | See [Image generation](#image-generation) |
 | Piper or your system's voices | Text to speech (AI Studio, Video, Audio) | See [Text to speech](#text-to-speech) |
 | Whisper | Automatic captions (Video) and transcripts (Audio) | `pip install -U openai-whisper` (needs FFmpeg) — or [whisper.cpp](https://github.com/ggml-org/whisper.cpp) `whisper-cli` with `WHISPER_CPP_MODEL=/path/to/ggml-base.bin` — or `pip install whisper-ctranslate2` |
-| rembg | One-click background removal (Photo) | `pip install "rembg[cpu,cli]"` (Ultima uses the `isnet-general-use` model) |
+| rembg | One-click background removal (Photo) and cutting the subject out of clips (Video) | `pip install "rembg[cpu,cli]"` (Ultima uses the `isnet-general-use` model, and `u2net_human_seg` for people) |
+| Demucs | Cleaner stem separation in Video: vocals, drums and the rest (the built-in separation works without it) | `pip install demucs` (the first run downloads its model, about 80 MB; without a graphics card a song takes a few minutes) |
 | FFmpeg | MP3/FLAC export, MP4/MOV/GIF conversion | `brew install ffmpeg` · `winget install ffmpeg` · `sudo apt install ffmpeg` |
 
 ## Image generation

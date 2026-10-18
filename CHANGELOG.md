@@ -2,6 +2,52 @@
 
 All notable changes to Ultima are listed here. Versions follow [semantic versioning](https://semver.org).
 
+## [0.4.0] — 2026-10-18
+
+Everything a pro game montage needs, in the Video Editor and for its AI: optical-flow slow motion, motion tracking,
+3D, text behind the player, effects on the beat, stems — and royalty-free music with the drop on your best kill.
+
+### Video Editor
+
+- **Optical-flow slow motion** (Inspector → Speed → *Smooth slow motion*): new in-between frames made from the motion
+  in the picture, Twixtor-style, on export; *Blend frames* stays as the fast option.
+- **Motion tracking** (Inspector → *Motion tracking*): draw a box around what moves — an enemy, a car, a face — and
+  Ultima follows it through the clip, also past short moments where it is covered. Pin a crosshair, a circle, a text
+  or selected titles and stickers to it.
+- **3D**: tilt, turn, depth and perspective for clips, titles, stickers and adjustment layers, all animatable; titles
+  with 3D depth (extruded letters) and a side color; parallax moves.
+- **Cut out the subject** (desktop app with rembg): masks of the player or person in every frame. Show only the
+  subject or everything but it, or put the subject in front of your titles — text behind the player.
+- **Beat effects** (*AI → Beat effects…*): shake, zoom punch, flash, RGB split, glow pulse, zoom blur or all-in-one
+  impact on every beat, bar, strongest hit or loud moment of the music or the game sound, as editable keyframes.
+- **Separate the sound (stems)**: remove the vocals, keep only the vocals or the drums, or remove the drums. The part
+  you keep is a new audio clip in sync and the original is muted. Built in (no download), or with Demucs when it is
+  installed — much cleaner.
+- **Music generator** (*Library* tab): royalty-free songs made on your computer in seven styles — phonk, trap, EDM,
+  dubstep, drum & bass, lo-fi and cinematic — with intro, build-up, drop, break and outro, and the drop exactly at
+  the second you choose. The same settings always make the same song; a variation makes another.
+- **Make a sound effect**: any library sound at any length, pitch and brightness, or another take of it — placed at
+  the playhead or ending on it (a riser that lands on the drop). Six new library sounds: snare roll, reverse cymbal,
+  crash cymbal, downlifter, braam and laser.
+- **Export folder**: exports go straight into *Videos/Ultima* (or a folder you choose in the export dialog or
+  *Settings → Exports*) without a dialog, never overwriting a file, with *Show in folder*. Turn on *Ask where to save
+  every export* to choose each time.
+
+### Video Editor AI
+
+- New actions for all of the above: beat effects, motion tracking (it can put a grid on the frames it looks at to
+  place the box precisely), optical-flow slow motion, 3D and parallax, cut-outs, stems, music generation and custom
+  sound effects that end on a moment.
+- Music it generates is known to the beat right away: the result lists its beats, bars, drops and parts, and beat
+  effects can follow it in the same reply.
+- It can export by itself (the whole timeline or the work area) into the export folder and is told where the file
+  went.
+
+### Settings
+
+- *Exports*: the export folder and *Ask where to save every export*.
+- *Local creative tools*: Demucs for stem separation; rembg now also cuts out subjects in Video.
+
 ## [0.3.0] — 2026-10-17
 
 Link the folder where your clips are saved and the Video Editor — and its AI — work with it directly.

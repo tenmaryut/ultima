@@ -381,9 +381,12 @@ suhu, rona, blur); *Chroma key (layar hijau)* untuk layar hijau atau biru.
 - *Kurva kecepatan* (Inspektor → Kecepatan, atau klik kanan klip): Montage hit (cepat → slow-mo → cepat), Slow-mo di
   tengah, Dipercepat di tengah, Lambat ke cepat, dan Cepat ke lambat. *Kurva baru mempertahankan* panjang klip (potongan
   tetap pas dengan beat) atau semua isi (klip menjadi lebih panjang atau pendek dan klip sesudahnya ikut bergeser).
-- *Putar mundur* membalik klip beserta suaranya. *Slow motion halus* membaurkan frame yang berdekatan saat ekspor jika
-  klip diputar lebih lambat dari rekamannya. *Bekukan frame di playhead* menahan frame itu selama satu detik dan menggeser
-  semua yang ada sesudahnya.
+- *Putar mundur* membalik klip beserta suaranya. *Bekukan frame di playhead* menahan frame itu selama satu detik dan
+  menggeser semua yang ada sesudahnya.
+- *Slow motion halus (saat ekspor)*, untuk klip yang diputar lebih lambat dari rekamannya: *Campur frame (cepat)*
+  membaurkan frame yang berdekatan; *Optical flow* menghitung gerak setiap bagian gambar lalu membuat frame sisipan yang
+  sungguhan (slow motion ala Twixtor — paling tajam, ekspornya sedikit lebih lama). Rekaman ber-frame rate tinggi tetap
+  memberi hasil terbaik.
 
 **Efek, gradasi warna, dan komposisi** (Inspektor):
 - *Efek*: guncangan kamera (kekuatan dan kecepatan), pendar (glow), pecah RGB, motion blur (dengan arah), zoom blur,
@@ -402,12 +405,59 @@ suhu, rona, blur); *Chroma key (layar hijau)* untuk layar hijau atau biru.
   warna, warna, efek, mask, dan transformasinya berlaku untuk semua yang ada di trek di bawahnya — satu gradasi, satu
   guncangan, atau satu letterbox untuk seluruh video.
 
+**3D** (Inspektor → *3D*): *Miring (X)*, *Putar (Y)*, *Kedalaman (Z)*, dan *Perspektif* memutar klip, judul, stiker,
+atau layer penyesuaian di ruang 3D — kartu yang berbalik, rekaman yang condong ke belakang, judul yang terbang dari
+kejauhan. Semua nilainya bisa dianimasikan dengan ◆. Judul juga punya *Kedalaman 3D* (huruf timbul) dengan *Warna sisi
+3D*. Asisten bisa membuat shot parallax: layer-layer yang bergeser pada kedalaman berbeda.
+
+**Pelacakan gerak** (Inspektor → *Pelacakan gerak*, klip video): *Lacak sesuatu…*, lalu gambar kotak pada gambar di
+sekitar yang ingin diikuti — musuh, mobil, wajah. Ultima mengikutinya sepanjang klip (jika tertutup sebentar, jejaknya
+terus berjalan mengikuti arahnya lalu menemukannya lagi) dan menggambar jalurnya di pratinjau. *Tempelkan* *Crosshair*,
+*Lingkaran*, *Teks*, atau judul dan stiker yang Anda pilih: semuanya mengikuti dengan keyframe yang masih bisa diubah.
+
+**Potong subjek** (Inspektor, klip video; aplikasi desktop dengan rembg — lihat
+[Alat kreatif lokal](AI_SETUP.md#alat-kreatif-lokal-opsional)): memisahkan pemain atau orang (*Orang dan pemain*) atau
+apa pun yang ada di depan (*Apa pun di depan*) dari latarnya, frame demi frame (sekitar satu detik per frame, jadi
+pakailah klip pendek). *Tampilkan semua kecuali subjek* memberi efek atau gradasi hanya pada latarnya. *Subjek di depan
+judul* adalah **teks di belakang pemain** yang terkenal itu: salinan berisi subjek saja ditaruh di trek paling atas,
+sehingga judul di trek bawahnya lewat di belakangnya.
+
+**Efek ketukan** (*AI → Efek ketukan…*): *Guncangan*, *Zoom hentak*, *Kilat*, *Pecah RGB*, *Denyut cahaya*, *Zoom
+blur*, atau *Hentakan* (zoom, guncangan, dan kilatan sekaligus) di setiap ketukan, setiap birama, hentakan terkuat,
+atau momen keras (tembakan, kill) dari suara di timeline — setiap kali, setiap ke-2, atau setiap ke-4, dengan
+kekuatannya, mengikuti musik atau suara game yang Anda pilih, di seluruh timeline atau area kerja, pada layer
+penyesuaian baru atau pada klip yang dipilih. Semuanya berupa keyframe, jadi masih bisa diubah.
+
+**Pisahkan suara (stem)** (Inspektor, klip audio dan video bersuara): simpan *Hapus vokal (instrumental)*, *Hanya
+vokal*, *Hanya drum*, atau *Hapus drum*. Bagian yang disimpan kembali sebagai klip audio baru yang selaras (waktu,
+kecepatan, dan arah yang sama), disimpan sebagai WAV di folder ekspor Anda, dan suara aslinya dibisukan — tidak
+dihapus. Pemisahan *Bawaan* cepat dan tidak perlu unduhan apa pun (vokal hanya bisa dipisahkan pada musik stereo);
+*Demucs*, AI gratis yang bisa Anda pasang (lihat [Alat kreatif lokal](AI_SETUP.md#alat-kreatif-lokal-opsional)), jauh
+lebih bersih dan otomatis dipakai begitu ditemukan.
+
 **Pustaka** (panel kiri → *Pustaka*): efek suara buatan Ultima — whoosh, swipe, whoosh terbalik, riser, hentakan,
-ledakan, bass drop, glitch, hitmarker, klik, pop, ding, rana kamera, detak jantung (▷ untuk mendengarkan, + untuk menambah
-di playhead pada trek audio yang kosong) — serta stiker (hit marker, crosshair, panah, lingkaran, ledakan komik, balon
-kata, bintang, hati, petir, centang, dan tanda silang) dan overlay (light leak, debu film, bokeh, lens flare, garis TV)
-yang ditaruh di atas rekaman Anda dengan mode campur yang sesuai. Semuanya bebas dipakai di mana saja dan dibuat ulang
-setiap kali proyek membutuhkannya. **Font**: *Judul → Impor font…* (atau seret file TTF, OTF, atau WOFF) menyimpan font di
+ledakan, bass drop, glitch, hitmarker, klik, pop, ding, rana kamera, detak jantung, snare roll, simbal terbalik, simbal
+crash, downlifter, braam, dan laser (▷ untuk mendengarkan, + untuk menambah di playhead pada trek audio yang kosong) —
+serta stiker (hit marker, crosshair, panah, lingkaran, ledakan komik, balon kata, bintang, hati, petir, centang, dan
+tanda silang) dan overlay (light leak, debu film, bokeh, lens flare, garis TV) yang ditaruh di atas rekaman Anda dengan
+mode campur yang sesuai. Semuanya bebas dipakai di mana saja dan dibuat ulang setiap kali proyek membutuhkannya.
+
+**Generator musik** (tab *Pustaka*): lagu bebas royalti yang dibuat di komputer Anda, jadi montage tidak pernah kena
+klaim hak cipta. Pilih *Gaya* — Phonk, Trap, EDM, Dubstep, Drum & bass, Lo-fi, atau Sinematik — tempo, kunci nada (atau
+tangga nada yang biasa untuk gaya itu), panjangnya (↔ membuatnya sepanjang timeline), dan **Drop di**: detik di timeline
+tempat drop harus menghantam (⌖ mengambil posisi playhead — taruh di kill terbaik Anda). Lagunya disusun di sekitar titik
+itu — intro, build-up, drop, jeda, drop kedua, outro — dan drop-nya jatuh tepat di sana (tempo digeser paling banyak 4 %,
+atau awal intronya dipotong). *Variasi* membuat lagu lain dengan gaya yang sama (🎲 memilih secara acak); pengaturan yang
+sama selalu menghasilkan lagu yang sama. *Dengarkan* memutarnya dulu, *Tambahkan ke timeline* menaruhnya di trek audio
+yang kosong. Efek ketukan dan asisten mengikuti ketukannya dengan tepat.
+
+**Buat efek suara** (tab *Pustaka*): suara pustaka mana pun dengan panjang yang Anda perlukan (riser yang tepat sepanjang
+build-up Anda), lebih tinggi atau rendah (*Nada*), lebih terang atau gelap, atau versi lain darinya (*Variasi*).
+*Tambah di playhead* memulainya di sana; *Berakhir di playhead* membuatnya berakhir di sana — riser, snare roll, atau
+simbal terbalik yang mendarat tepat di drop atau kill.
+
+Proyek hanya menyimpan pengaturan lagu dan suara hasil generator; Ultima membuatnya lagi saat proyek dibuka, dan ekspor
+menunggu sampai semuanya siap. **Font**: *Judul → Impor font…* (atau seret file TTF, OTF, atau WOFF) menyimpan font di
 dalam proyek, jadi judul tampil sama di komputer mana pun.
 
 **Efek suara dan ducking** (Inspektor → *Efek suara*, untuk klip audio dan suara sebuah video): preset (Teredam, Bawah
@@ -445,18 +495,29 @@ kill dan headshot dipastikan, bukan ditebak. Klip dari folder terhubung yang dip
 
 Asisten bisa menambah klip dari bin Media; membelah, memangkas, memindahkan, menggeser, menghapus, dan menggandakan
 klip, merapatkan celah, dan membuang rentang waktu; menautkan dan melepas suara; mengubah satu klip, satu trek, atau
-semua klip sekaligus; menganimasikan dengan keyframe (zoom, geser, guncangan, fade, volume, efek teredam); menambah kurva kecepatan,
-memutar mundur klip, dan membekukan frame; menambah efek, tampilan warna, LUT, kurva, perubahan HSL, mask, mode campur,
-dan layer penyesuaian; menambah efek suara dan melakukan ducking pada musik; menambah suara, stiker, dan overlay dari
-pustaka; meminta file yang dibutuhkannya (lagu, logo, font, LUT — Anda mendapat tombol untuk memilihnya); mengubah gaya judul; menambah transisi masuk dan keluar; menambah, memindahkan, mengganti nama,
-dan menghapus penanda; menambah, membisukan, mengunci, dan menghapus trek; mengatur area kerja; memindahkan playhead;
-membatalkan (undo); dan membuka dialog ekspor. Setelah Anda menekan *Terapkan* (atau jika *Terapkan editan AI secara
+semua klip sekaligus; menganimasikan dengan keyframe (zoom, geser, guncangan, fade, volume, efek teredam); menambah
+kurva kecepatan, memutar mundur klip, dan membekukan frame, dengan slow motion optical flow; menambah efek, tampilan
+warna, LUT, kurva, perubahan HSL, mask, mode campur, dan layer penyesuaian; memutar klip dan judul dalam 3D, membuat
+huruf timbul, dan menyusun shot parallax; menaruh efek ketukan di ketukan dan birama musik atau di momen keras;
+melacak sesuatu di klip lalu menempelkan crosshair, lingkaran, atau teks padanya (asisten bisa memberi kisi pada frame
+yang dilihatnya agar kotaknya pas); memotong subjek, termasuk untuk teks di belakang pemain; memisahkan stem; membuat
+musik bebas royalti dengan drop di momen yang dipilihnya, dan efek suara sepanjang apa pun yang berakhir tepat di momen
+itu; menambah efek suara dan melakukan ducking pada musik; menambah suara, stiker, dan overlay dari pustaka; meminta
+file yang dibutuhkannya (lagu, logo, font, LUT — Anda mendapat tombol untuk memilihnya); mengubah gaya judul; menambah
+transisi masuk dan keluar; menambah, memindahkan, mengganti nama, dan menghapus penanda; menambah, membisukan,
+mengunci, dan menghapus trek; mengatur area kerja; memindahkan playhead; membatalkan (undo); dan mengekspor — langsung
+ke folder ekspor Anda, kecuali Anda meminta untuk selalu ditanya. Setelah Anda menekan *Terapkan* (atau jika *Terapkan editan AI secara
 otomatis* menyala), AI diberi tahu hasil setiap langkah, dan *Hasil tiap langkah* menampilkan daftar yang sama untuk Anda.
 
 **Ekspor** (Ctrl+E): MP4 (H.264 + AAC) atau WebM (VP9 + Opus) untuk seluruh timeline atau area kerja, dengan resolusi,
 frame rate, kualitas atau bitrate, audio, dan *Tanamkan subtitle ke gambar*; *MP4/MOV lewat FFmpeg* (aplikasi desktop
 dengan FFmpeg); GIF (hingga 60 detik); audio WAV; atau frame saat ini sebagai PNG. Encoder yang tersedia tergantung
 komputer Anda; WebM selalu bisa. Indeks file MP4 diletakkan di awal (fast start).
+
+**Folder ekspor** (aplikasi desktop): hasil ekspor langsung masuk ke sebuah folder — *Videos/Ultima* di folder pribadi
+Anda, kecuali Anda memilih folder lain di dialog ekspor atau di *Pengaturan → Ekspor* — dengan nama proyek, tanpa pernah
+menimpa file sebelumnya (ditambah " (2)"). *Tampilkan di folder* membukanya. Nyalakan *Tanyakan lokasi simpan setiap
+ekspor* untuk memilih tempat setiap kali; selama pilihan itu mati, asisten bisa mengekspor sendiri.
 
 **TikTok · Reels · Shorts** (*File → Ekspor untuk TikTok · Reels · Shorts…*): TikTok, Instagram, dan YouTube selalu
 meng-encode ulang setiap unggahan — tidak ada aplikasi atau file yang bisa mematikannya. Ekspor ini memberi mereka sumber

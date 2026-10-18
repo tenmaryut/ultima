@@ -170,7 +170,8 @@ Program gratis ini membuka fitur AI tambahan. Ultima menemukannya otomatis di `P
 | Stable Diffusion WebUI, ComfyUI, atau LocalAI | Pembuatan gambar (Foto, Studio AI) dan generative fill | Lihat [Pembuatan gambar](#pembuatan-gambar) |
 | Piper atau suara bawaan sistem | Teks ke suara (Studio AI, Video, Audio) | Lihat [Teks ke suara](#teks-ke-suara) |
 | Whisper | Subtitle otomatis (Video) dan transkrip (Audio) | `pip install -U openai-whisper` (butuh FFmpeg) — atau [whisper.cpp](https://github.com/ggml-org/whisper.cpp) `whisper-cli` dengan `WHISPER_CPP_MODEL=/lokasi/ggml-base.bin` — atau `pip install whisper-ctranslate2` |
-| rembg | Hapus latar belakang sekali klik (Foto) | `pip install "rembg[cpu,cli]"` (Ultima memakai model `isnet-general-use`) |
+| rembg | Hapus latar belakang sekali klik (Foto) dan memotong subjek dari klip (Video) | `pip install "rembg[cpu,cli]"` (Ultima memakai model `isnet-general-use`, dan `u2net_human_seg` untuk orang) |
+| Demucs | Pemisahan stem yang lebih bersih di Video: vokal, drum, dan sisanya (pemisahan bawaan bekerja tanpanya) | `pip install demucs` (saat pertama dijalankan, modelnya diunduh, sekitar 80 MB; tanpa kartu grafis satu lagu butuh beberapa menit) |
 | FFmpeg | Ekspor MP3/FLAC, konversi MP4/MOV/GIF | `brew install ffmpeg` · `winget install ffmpeg` · `sudo apt install ffmpeg` |
 
 ## Pembuatan gambar
