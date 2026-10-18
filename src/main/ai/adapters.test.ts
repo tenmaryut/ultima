@@ -1,14 +1,29 @@
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { AIRunRequest } from '@shared/ai-types';
-import { ADAPTERS, AGY_TOOL_DENIED_MESSAGE, agyError, agyPrintTimeout, classifyError, isUnknownOptionError, safeModel, type ParseState } from './adapters';
+import {
+  ADAPTERS,
+  AGY_RETRY_NOTE,
+  AGY_STARTUP_MS,
+  AGY_TOOL_DENIED_AGAIN_MESSAGE,
+  agyError,
+  agyPrintTimeout,
+  agyStreamComplete,
+  agyStreamResult,
+  classifyError,
+  isUnknownOptionError,
+  safeModel,
+  type ParseState,
+} from './adapters';
 
 const base: AIRunRequest = { requestId: 'r1', providerId: 'claude', prompt: 'Make it brighter', system: 'You edit photos.' };
-const ctx = (request: Partial<AIRunRequest> = {}, compat = false, platform: NodeJS.Platform = 'linux', executable?: string) => ({
+const ctx = (request: Partial<AIRunRequest> = {}, compat = false, platform: NodeJS.Platform = 'linux', executable?: string, avoidStdin?: boolean) => ({
   request: { ...base, ...request },
   cwd: '/tmp/x',
   compat,
   platform,
   executable,
+  avoidStdin,
 });
 /** Where Antigravity's installer puts agy on Windows (this user folder name has a backtick). */
 const AGY_EXE = 'C:\\Users\\PC`\\AppData\\Local\\agy\\bin\\agy.exe';
@@ -111,44 +126,135 @@ describe('antigravity adapter', () => {
     expect(inv.files ?? []).toEqual([]);
   });
 
-  it('uses a prompt file only for cmd shims and prompts too long for the command line', () => {
-    const shim = ADAPTERS.antigravity(ctx({ providerId: 'antigravity' }, false, 'win32', 'C:\\Users\\me\\AppData\\Roaming\\npm\\agy.cmd'));
-    expect(shim.args[0]).toBe(PROMPT_FILE_ARG);
-    expect(shim.files?.find((f) => f.name === 'ultima-prompt.md')?.text).toContain('Make it brighter');
-    expect(ADAPTERS.antigravity(ctx({ providerId: 'antigravity' }, false, 'win32')).args[0]).toBe(PROMPT_FILE_ARG);
-
-    const long = ADAPTERS.antigravity(ctx({ providerId: 'antigravity', prompt: 'x'.repeat(31_000) }, false, 'win32', AGY_EXE));
-    expect(long.args[0]).toBe(PROMPT_FILE_ARG);
+  it('sends requests too long for the command line on stdin, so the agent has no prompt file to open', () => {
+    const viaStdin = (inv: ReturnType<typeof ADAPTERS.antigravity>) => {
+      expect(inv.args.slice(0, 4)).toEqual(['--input-format', 'stream-json', '--output-format', 'stream-json']);
+      expect(inv.args.some((a) => a.startsWith('-p'))).toBe(false);
+      expect(inv.files ?? []).toEqual([]);
+      expect(inv.stdin.endsWith('\n')).toBe(true);
+      const event = JSON.parse(inv.stdin);
+      expect(event.event).toBe('user');
+      return String(event.message.content);
+    };
+    // the Video Editor's requests are longer than the Windows command line
+    const long = ADAPTERS.antigravity(ctx({ providerId: 'antigravity', model: 'gemini-3.1-pro-high', prompt: 'x'.repeat(31_000) }, false, 'win32', AGY_EXE));
+    expect(viaStdin(long)).toContain('x'.repeat(31_000));
+    expect(viaStdin(long)).toContain('Terminal commands are blocked');
+    // its tools don't start in the current folder this way: it joins the workspace; and the time limit is per turn
+    expect(long.args.slice(4)).toEqual(['--model', 'gemini-3.1-pro-high', '--sandbox', '--disable-slash-commands', '--add-dir', '/tmp/x', '--print-timeout', '290s']);
+    expect(long.startupMs).toBe(AGY_STARTUP_MS);
     // quotes are escaped on the Windows command line, so they count twice
-    const quoted = ADAPTERS.antigravity(ctx({ providerId: 'antigravity', prompt: '"'.repeat(16_000) }, false, 'win32', AGY_EXE));
-    expect(quoted.args[0]).toBe(PROMPT_FILE_ARG);
+    expect(viaStdin(ADAPTERS.antigravity(ctx({ providerId: 'antigravity', prompt: '"'.repeat(16_000) }, false, 'win32', AGY_EXE)))).toContain('"'.repeat(16_000));
+    // npm's .cmd shims can't carry a prompt at all
+    expect(viaStdin(ADAPTERS.antigravity(ctx({ providerId: 'antigravity' }, false, 'win32', 'C:\\Users\\me\\AppData\\Roaming\\npm\\agy.cmd')))).toContain('Make it brighter');
+    expect(viaStdin(ADAPTERS.antigravity(ctx({ providerId: 'antigravity' }, false, 'win32')))).toContain('Make it brighter');
+    // attached images stay files the agent opens with its file viewer, named by full path
+    const withImage = ADAPTERS.antigravity(ctx({ providerId: 'antigravity', prompt: 'x'.repeat(31_000), images: [{ mime: 'image/png', base64: 'x' }] }, false, 'win32', AGY_EXE));
+    expect(withImage.files?.map((f) => f.name)).toEqual(['image-1.png']);
+    expect(JSON.parse(withImage.stdin).message.content).toContain(`Attached image(s): ${join('/tmp/x', 'image-1.png')} — open them`);
+    // what fits stays on the command line
     const fits = ADAPTERS.antigravity(ctx({ providerId: 'antigravity', prompt: 'x'.repeat(25_000) }, false, 'win32', AGY_EXE));
     expect(fits.args[0]).toContain('x'.repeat(25_000));
+    expect(fits.startupMs).toBeUndefined();
+  });
+
+  it('falls back to a prompt file when stdin did not work, and for older versions', () => {
+    const viaFile = ADAPTERS.antigravity(ctx({ providerId: 'antigravity', prompt: 'x'.repeat(31_000) }, false, 'win32', AGY_EXE, true));
+    expect(viaFile.args[0]).toBe(PROMPT_FILE_ARG);
+    expect(viaFile.files?.find((f) => f.name === 'ultima-prompt.md')?.text).toContain('x'.repeat(31_000));
+    expect(viaFile.args).toEqual(expect.arrayContaining(['--sandbox', '--print-timeout']));
+    expect(viaFile.stdin).toBe('');
+    const shim = ADAPTERS.antigravity(ctx({ providerId: 'antigravity' }, false, 'win32', 'C:\\Users\\me\\AppData\\Roaming\\npm\\agy.cmd', true));
+    expect(shim.args[0]).toBe(PROMPT_FILE_ARG);
+    const old = ADAPTERS.antigravity(ctx({ providerId: 'antigravity', prompt: 'x'.repeat(31_000) }, true, 'win32', AGY_EXE));
+    expect(old.args[0]).toBe(PROMPT_FILE_ARG);
+    expect(old.args).not.toContain('--input-format');
+  });
+
+  it('reads the stream-json events: the result, the streamed text, and a run that never answered', () => {
+    const inv = ADAPTERS.antigravity(ctx({ providerId: 'antigravity', prompt: 'x'.repeat(31_000) }, false, 'win32', AGY_EXE));
+    const lines = (...events: unknown[]) => events.map((e) => JSON.stringify(e)).join('\n');
+    const init = { event: 'init', conversation_id: 'c1', init: { tools: ['view_file'] } };
+    const delta = (text: string) => ({ event: 'step_update', step_update: { step_type: 'agent_response', text_delta: text } });
+    const done = { event: 'result', conversation_id: 'c1', result: { status: 'SUCCESS', response: 'Warmer now.', usage: {} } };
+    const ok: ParseState = { text: '' };
+    expect(inv.finalize(lines(init, delta('Warmer'), delta(' now.'), done), ok, '')).toBe('Warmer now.');
+    expect(ok.isError).toBeUndefined();
+    expect(ok.fallback).toBeUndefined();
+    // no response field: the streamed text is the answer, and tool steps are not part of it
+    const tool = { event: 'step_update', step_update: { step_type: 'tool', tool_name: 'view_file', text_delta: 'reading' } };
+    expect(agyStreamResult(lines(init, tool, delta('{"actions":[]}'), { event: 'result', result: { status: 'SUCCESS' } })).text).toBe('{"actions":[]}');
+    // a flat result event works too
+    expect(agyStreamResult(lines({ event: 'result', status: 'SUCCESS', response: 'Flat.' })).text).toBe('Flat.');
+    const failed: ParseState = { text: '' };
+    inv.finalize(lines(init, { event: 'result', result: { status: 'ERROR', error: 'You have reached your quota limit. It resets in 3 hours.' } }), failed, '');
+    expect(failed.isError).toBe(true);
+    expect(classifyError(failed.error!)).toBe('rate-limited');
+    // nothing this way of running agy prints: try the prompt file instead
+    const unknown: ParseState = { text: '' };
+    expect(inv.finalize('', unknown, 'Error: stdin is not a terminal')).toBe('');
+    expect(unknown.fallback).toBe(true);
+    // the result line is how Ultima knows the answer is complete
+    expect(agyStreamComplete(lines(init, delta('Hi')))).toBe(false);
+    expect(agyStreamComplete(`${lines(init, done)}\n`)).toBe(true);
+    expect(agyStreamComplete('')).toBe(false);
+    expect(inv.isComplete).toBe(agyStreamComplete);
   });
 
   it('inlines long prompts on macOS and Linux up to 100 KB', () => {
     const big = ADAPTERS.antigravity(ctx({ providerId: 'antigravity', prompt: 'y'.repeat(60_000) }));
     expect(big.args[0]).toContain('y'.repeat(60_000));
     const huge = ADAPTERS.antigravity(ctx({ providerId: 'antigravity', prompt: 'y'.repeat(120_000) }, false, 'darwin'));
-    expect(huge.args[0]).toBe(PROMPT_FILE_ARG);
+    expect(huge.args).toContain('--input-format');
+    expect(JSON.parse(huge.stdin).message.content).toContain('y'.repeat(120_000));
   });
 
-  it('explains a tool that headless mode denied instead of suggesting to allow commands', () => {
+  it('asks again once when headless mode denied a tool, and explains it instead of suggesting to allow commands', () => {
     const inv = ADAPTERS.antigravity(ctx({ providerId: 'antigravity' }));
     const viaStderr: ParseState = { text: '' };
     expect(inv.finalize('', viaStderr, `error: ${AGY_DENIED}`)).toBe('');
-    expect(viaStderr).toMatchObject({ isError: true, error: AGY_TOOL_DENIED_MESSAGE });
+    expect(viaStderr).toMatchObject({ isError: true, error: AGY_TOOL_DENIED_AGAIN_MESSAGE, retryNote: AGY_RETRY_NOTE });
     const viaJson: ParseState = { text: '' };
     inv.finalize(JSON.stringify({ status: 'ERROR', error: AGY_DENIED }), viaJson, '');
-    expect(viaJson.error).toBe(AGY_TOOL_DENIED_MESSAGE);
+    expect(viaJson).toMatchObject({ error: AGY_TOOL_DENIED_AGAIN_MESSAGE, retryNote: AGY_RETRY_NOTE });
     const plainLine: ParseState = { text: '' };
     inv.finalize('', plainLine, AGY_DENIED);
-    expect(plainLine.error).toBe(AGY_TOOL_DENIED_MESSAGE);
-    expect(classifyError(AGY_TOOL_DENIED_MESSAGE)).toBe('failed');
+    expect(plainLine.error).toBe(AGY_TOOL_DENIED_AGAIN_MESSAGE);
+    expect(classifyError(AGY_TOOL_DENIED_AGAIN_MESSAGE)).toBe('failed');
+    expect(AGY_RETRY_NOTE).toMatch(/Terminal commands are blocked/);
     // the agent got past the denied tool and answered: keep the answer
     const answered: ParseState = { text: '' };
     expect(inv.finalize('{"status":"SUCCESS","response":"Done."}', answered, `note: ${AGY_DENIED}`)).toBe('Done.');
     expect(answered.isError).toBeUndefined();
+    expect(answered.retryNote).toBeUndefined();
+    // the stdin route lists denied actions in its result
+    const stream = ADAPTERS.antigravity(ctx({ providerId: 'antigravity', prompt: 'x'.repeat(31_000) }, false, 'win32', AGY_EXE));
+    const denied: ParseState = { text: '' };
+    stream.finalize(JSON.stringify({ event: 'result', result: { status: 'SUCCESS', response: '', denied_actions: [{ tool: 'run_command' }] } }), denied, '');
+    expect(denied).toMatchObject({ isError: true, error: AGY_TOOL_DENIED_AGAIN_MESSAGE, retryNote: AGY_RETRY_NOTE });
+    expect(denied.fallback).toBeUndefined();
+    // what it said before the denied tool ended the turn is not the answer
+    const lines = [
+      { event: 'step_update', step_update: { step_type: 'agent_response', text_delta: 'Let me read the clip list first.' } },
+      { event: 'result', result: { status: 'SUCCESS', response: '', denied_actions: [{ tool: 'run_command' }] } },
+    ].map((e) => JSON.stringify(e));
+    const announced: ParseState = { text: '' };
+    expect(stream.finalize(lines.join('\n'), announced, '')).toBe('');
+    expect(announced).toMatchObject({ isError: true, retryNote: AGY_RETRY_NOTE });
+    // denied actions next to the result rather than in it
+    const beside: ParseState = { text: '' };
+    stream.finalize(JSON.stringify({ event: 'result', result: { status: 'SUCCESS', response: '' }, denied_actions: [{ tool: 'run_command' }] }), beside, '');
+    expect(beside).toMatchObject({ isError: true, retryNote: AGY_RETRY_NOTE });
+    // it got past the denied tool and answered: keep the answer
+    const pastIt: ParseState = { text: '' };
+    const answeredLine = JSON.stringify({ event: 'result', result: { status: 'SUCCESS', response: '{"actions":[]}', denied_actions: [{ tool: 'run_command' }] } });
+    expect(stream.finalize(answeredLine, pastIt, '')).toBe('{"actions":[]}');
+    expect(pastIt.isError).toBeUndefined();
+    // …and its notice on stderr is not mistaken for a version that can't read stdin
+    const deniedQuietly: ParseState = { text: '' };
+    stream.finalize('', deniedQuietly, AGY_DENIED);
+    expect(deniedQuietly).toMatchObject({ isError: true, retryNote: AGY_RETRY_NOTE });
+    expect(deniedQuietly.fallback).toBeUndefined();
   });
 
   it('drops newer flags in compat mode', () => {
@@ -274,6 +380,8 @@ describe('helpers', () => {
     expect(isUnknownOptionError('Unknown arguments: approval-mode')).toBe(true);
     expect(isUnknownOptionError('Invalid values:\n  Argument: approval-mode, Given: "plan"')).toBe(true);
     expect(isUnknownOptionError('Error: Unknown feature flag: shell_tool')).toBe(true);
+    expect(isUnknownOptionError('Error: unknown flag: --input-format')).toBe(true);
+    expect(isUnknownOptionError('Error: unknown shorthand flag: \'x\' in -x')).toBe(true);
     expect(isUnknownOptionError('model overloaded')).toBe(false);
   });
 });

@@ -20,6 +20,7 @@ vi.mock('electron', async () => {
 
 const { aiConfig, formatLimit, runAIRequest } = await import('./ai/service');
 const { findExecutable } = await import('./ai/exec');
+const { ADAPTERS } = await import('./ai/adapters');
 const { comfyCheckpoints, generateImageWith, speak, speechStatus } = await import('./media');
 
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 1, 2, 3, 4]);
@@ -401,6 +402,116 @@ ${behaviour}`,
     expect(result.error).toContain('within the time limit (2 h)');
     expect(result.error).toContain('print timeout after 1h59m50s');
     expect(calls('agy-print-timeout')[0].args).toEqual(expect.arrayContaining(['--print-timeout', '7190s']));
+  });
+
+  /** A Video Editor request: more than fits on the command line. */
+  const montage = 'Make a montage on the beat. '.repeat(4000);
+  const DENIED = 'jetski: no output produced — a tool required the "command" permission that headless mode cannot prompt for, so it was auto-denied.';
+  /** Prints Antigravity's stream-json events for the request read from stdin (`content`). */
+  const streamAgy = (name: string, behaviour: string) =>
+    fakeAgy(
+      name,
+      `const input = fs.readFileSync(0, 'utf8');
+const content = JSON.parse(input).message.content;
+const out = (e) => console.log(JSON.stringify(e));
+const addDir = args[args.indexOf('--add-dir') + 1];
+fs.writeFileSync(path.join(process.env.HOME, '${name}.stdin'), JSON.stringify({ event: JSON.parse(input).event, length: content.length, promptFile: fs.existsSync('ultima-prompt.md'), addDirIsCwd: !!addDir && fs.realpathSync(addDir) === fs.realpathSync(process.cwd()) }));
+out({ event: 'init', conversation_id: 'c1', init: { tools: ['view_file'] } });
+${behaviour}`,
+    );
+
+  it('chat: sends a request too long for the command line on stdin and reads the stream-json answer', async () => {
+    aiConfig.update({
+      executablePaths: {
+        antigravity: streamAgy(
+          'agy-stream',
+          `out({ event: 'step_update', step_update: { step_type: 'agent_response', text_delta: 'Cut ' } });
+out({ event: 'step_update', step_update: { step_type: 'agent_response', text_delta: 'done.' } });
+out({ event: 'result', conversation_id: 'c1', result: { status: 'SUCCESS', response: 'Cut done.', usage: {} } });`,
+        ),
+      },
+    });
+    const result = await runAIRequest({ requestId: 's1', providerId: 'antigravity', prompt: montage }, () => undefined);
+    expect(result).toMatchObject({ ok: true, text: 'Cut done.' });
+    const [call] = calls('agy-stream');
+    expect(call.args.slice(0, 4)).toEqual(['--input-format', 'stream-json', '--output-format', 'stream-json']);
+    expect(call.args).toEqual(expect.arrayContaining(['--sandbox', '--add-dir', '--print-timeout', '290s']));
+    expect(call.args.some((a) => a.startsWith('-p'))).toBe(false);
+    const seen = JSON.parse(readFileSync(join(home, 'agy-stream.stdin'), 'utf8'));
+    // the whole request arrived, with no prompt file to open, and the folder of attachments is in the workspace
+    expect(seen).toMatchObject({ event: 'user', promptFile: false, addDirIsCwd: true });
+    expect(seen.length).toBeGreaterThan(montage.length);
+  });
+
+  it('chat: falls back to a prompt file when this agy cannot take the request on stdin', async () => {
+    aiConfig.update({
+      executablePaths: {
+        antigravity: fakeAgy(
+          'agy-nostdin',
+          `if (args.includes('--input-format')) { console.error('Error: unknown flag: --input-format'); process.exit(1); }
+envelope({ response: 'Read ' + fs.readFileSync('ultima-prompt.md', 'utf8').length });`,
+        ),
+      },
+    });
+    const result = await runAIRequest({ requestId: 's2', providerId: 'antigravity', prompt: montage }, () => undefined);
+    expect(result.ok).toBe(true);
+    expect(Number(result.text.replace('Read ', ''))).toBeGreaterThan(montage.length);
+    const [first, second] = calls('agy-nostdin');
+    expect(first.args).toContain('--input-format');
+    // the other flags are kept: only the way the request is sent changes
+    expect(second.args[0]).toMatch(/^-p=Read the file ultima-prompt\.md/);
+    expect(second.args).toEqual(expect.arrayContaining(['--sandbox', '--print-timeout']));
+  });
+
+  it('chat: gives up a request on stdin that agy never starts on, for the prompt file', async () => {
+    const original = ADAPTERS.antigravity;
+    ADAPTERS.antigravity = (ctx) => {
+      const invocation = original(ctx);
+      return invocation.startupMs ? { ...invocation, startupMs: 1500 } : invocation;
+    };
+    try {
+      aiConfig.update({
+        executablePaths: {
+          antigravity: fakeAgy('agy-mute', `if (args.includes('--input-format')) setTimeout(() => {}, 60000); else envelope({ response: 'From the file.' });`),
+        },
+      });
+      const started = Date.now();
+      const result = await runAIRequest({ requestId: 's3', providerId: 'antigravity', prompt: montage }, () => undefined);
+      expect(result).toMatchObject({ ok: true, text: 'From the file.' });
+      expect(Date.now() - started).toBeLessThan(15_000);
+      expect(calls('agy-mute')).toHaveLength(2);
+    } finally {
+      ADAPTERS.antigravity = original;
+    }
+  });
+
+  it('chat: asks again once, with a note, when a tool that needs approval ended the run', async () => {
+    aiConfig.update({
+      executablePaths: {
+        antigravity: streamAgy(
+          'agy-denied-once',
+          `if (!content.includes('Do not run any command')) {
+  out({ event: 'step_update', step_update: { step_type: 'agent_response', text_delta: 'Let me list the clips first.' } });
+  console.error(${JSON.stringify(DENIED)});
+  out({ event: 'result', result: { status: 'SUCCESS', response: '', denied_actions: [{ tool: 'run_command' }] } });
+} else out({ event: 'result', result: { status: 'SUCCESS', response: '{"actions":[]}' } });`,
+        ),
+      },
+    });
+    const result = await runAIRequest({ requestId: 's4', providerId: 'antigravity', prompt: montage }, () => undefined);
+    expect(result).toMatchObject({ ok: true, text: '{"actions":[]}' });
+    expect(calls('agy-denied-once')).toHaveLength(2);
+  });
+
+  it('chat: says so when the second try stops the same way', async () => {
+    aiConfig.update({ executablePaths: { antigravity: fakeAgy('agy-denied', `console.error(${JSON.stringify(DENIED)}); envelope({ response: '' });`) } });
+    const result = await runAIRequest({ requestId: 's5', providerId: 'antigravity', prompt: 'Cut on the beat' }, () => undefined);
+    expect(result).toMatchObject({ ok: false, errorKind: 'failed' });
+    expect(result.error).toContain('Ultima already asked again once');
+    const tries = calls('agy-denied');
+    expect(tries).toHaveLength(2);
+    expect(tries[0].args[0]).not.toContain('Do not run any command');
+    expect(tries[1].args[0]).toContain('Do not run any command');
   });
 });
 

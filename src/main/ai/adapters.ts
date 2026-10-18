@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import type { AIErrorKind, AIRunRequest, CliProviderId, CustomCliConfig } from '@shared/ai-types';
 
 /** Antigravity CLI waits up to a minute for a sign-in code when it is not signed in. */
@@ -29,6 +30,11 @@ export interface CliInvocation {
   failFast?: { pattern: RegExp; error: string; kind: AIErrorKind };
   /** True once stdout holds the complete answer: Ultima stops waiting for a tool that lingers after it. */
   isComplete?: (stdout: string) => boolean;
+  /**
+   * The tool must print something on stdout within this many ms; if it stays silent, this way of sending the
+   * request is given up and the adapter is asked again with `avoidStdin`.
+   */
+  startupMs?: number;
 }
 
 export interface ParseState {
@@ -38,6 +44,10 @@ export interface ParseState {
   isError?: boolean;
   /** The tool stopped at its own time limit (the one Ultima passed) before the answer was complete. */
   timedOut?: boolean;
+  /** This way of sending the request did not work: ask the adapter again with `avoidStdin`. */
+  fallback?: boolean;
+  /** Worth one more try, with this note added to the request. */
+  retryNote?: string;
 }
 
 export interface AdapterContext {
@@ -50,6 +60,8 @@ export interface AdapterContext {
   platform: NodeJS.Platform;
   /** Full path of the program that will run (decides whether a prompt fits on its command line). */
   executable?: string;
+  /** Send the prompt as an argument or a prompt file: sending it on stdin did not work (an older version). */
+  avoidStdin?: boolean;
 }
 
 const MODEL_RE = /^[\w.:/@+-]{1,80}$/;
@@ -298,6 +310,13 @@ export function agyError(stderr: string): string | null {
 const AGY_TOOL_DENIED = /headless mode cannot prompt|auto-denied|required the "?[\w-]+"? permission|dangerously-skip-permissions/i;
 export const AGY_TOOL_DENIED_MESSAGE =
   'Antigravity stopped without an answer: it tried to use a tool that needs approval (such as a terminal command on your computer), which Ultima does not allow. Please send the request again.';
+/** The same, for requests Ultima already sent again by itself. */
+export const AGY_TOOL_DENIED_AGAIN_MESSAGE =
+  'Antigravity stopped without an answer: it tried to use a tool that needs approval (such as a terminal command on your computer), which Ultima does not allow. Ultima already asked again once. Please send the request again, or pick another model.';
+
+/** Added to the request when Ultima asks again after a denied tool ended the run. */
+export const AGY_RETRY_NOTE =
+  'Note: your previous attempt at this request stopped because it tried a tool that needs approval (a terminal command). Terminal commands are blocked here. Do not run any command and do not look for other files: everything you need is in this message (attached images can be opened with your file viewing tool). Answer directly.';
 
 /** True when `text` holds Antigravity's "tool needs approval" notice. */
 export function agyToolDenied(text: string): boolean {
@@ -321,54 +340,132 @@ export function agyPrintTimeout(timeoutMs = 300_000): string {
   return `${Math.max(30, Math.round(timeoutMs / 1000) - 10)}s`;
 }
 
+/** True once Antigravity's stream-json output has printed its result event (it is the newest line). */
+export function agyStreamComplete(stdout: string): boolean {
+  const lines = stdout.trimEnd().split(/\r?\n/);
+  return asRecord(tryJson(lines[lines.length - 1] ?? ''))?.event === 'result';
+}
+
+/**
+ * The result of a stream-json run — `{"event":"result","result":{status, response, error}, denied_actions}`, its
+ * fields read from either level — with the answer: its response, or the text the agent streamed (`step_update`
+ * events with `text_delta`).
+ */
+export function agyStreamResult(stdout: string): { result: Record<string, unknown> | null; text: string } {
+  let result: Record<string, unknown> | null = null;
+  let streamed = '';
+  for (const line of stdout.split(/\r?\n/)) {
+    const event = asRecord(tryJson(line));
+    if (event?.event === 'result') result = { ...event, ...asRecord(event.result) };
+    else if (event?.event === 'step_update') {
+      const step = asRecord(event.step_update);
+      if (step && step.step_type !== 'tool' && typeof step.text_delta === 'string') streamed += step.text_delta;
+    }
+  }
+  const response = typeof result?.response === 'string' ? result.response : '';
+  return { result, text: response.trim() ? response : streamed };
+}
+
+/** Antigravity says nothing for this long on the stdin route: it is given up for the prompt-file route. */
+export const AGY_STARTUP_MS = 90_000;
+
 function antigravity(ctx: AdapterContext): CliInvocation {
   const req = ctx.request;
   const model = safeModel(req.model);
   const images = imageFiles(req);
-  const note = [
-    images.length ? `Attached image(s) in the current folder: ${images.map((f) => f.name).join(', ')} — open them with your file viewing tool.` : '',
-    'Terminal commands are blocked here: answer without running any.',
-  ];
-  const { arg, files } = promptArgument(ctx, [mergedPrompt(req), ...note].filter(Boolean).join('\n\n'));
+  const compose = (attached: string) =>
+    [mergedPrompt(req), images.length ? `${attached} — open them with your file viewing tool.` : '', 'Terminal commands are blocked here: answer without running any.']
+      .filter(Boolean)
+      .join('\n\n');
+  const prompt = compose(`Attached image(s) in the current folder: ${images.map((f) => f.name).join(', ')}`);
+  const flags = ctx.compat ? [] : ['--sandbox', '--disable-slash-commands'];
+  const failFast = {
+    pattern: AGY_SIGN_IN,
+    error: 'Antigravity CLI is not signed in. Open a terminal, run agy once and sign in with your Google account.',
+    kind: 'not-logged-in' as const,
+  };
+  // Too long for the command line (or a .cmd shim, which can't carry it): the request goes to stdin as a stream-json
+  // event, so the agent has no prompt file to open — opening one with a terminal command is what headless mode blocks.
+  // Its tools don't start in the current folder this way: the folder is added to the workspace (reading there needs
+  // no approval) and images are named by full path. Never with -p, which takes the next option as its prompt here.
+  if (!ctx.compat && !ctx.avoidStdin && !fitsArgument(ctx, prompt)) {
+    const content = compose(`Attached image(s): ${images.map((f) => join(ctx.cwd, f.name)).join(', ')}`);
+    return {
+      args: [
+        '--input-format',
+        'stream-json',
+        '--output-format',
+        'stream-json',
+        ...(model ? ['--model', model] : []),
+        ...flags,
+        '--add-dir',
+        ctx.cwd,
+        '--print-timeout',
+        agyPrintTimeout(req.timeoutMs),
+      ],
+      stdin: `${JSON.stringify({ event: 'user', message: { content } })}\n`,
+      files: images,
+      failFast,
+      isComplete: agyStreamComplete,
+      startupMs: AGY_STARTUP_MS,
+      finalize: (stdout, state, stderr) => {
+        const { result, text } = agyStreamResult(stdout);
+        // no result at all: this version doesn't take requests this way
+        if (!result && !text.trim() && !agyToolDenied(stderr)) {
+          state.fallback = true;
+          return '';
+        }
+        // a denied tool ends the turn with an empty response: what the agent streamed before it is not the answer
+        const response = typeof result?.response === 'string' ? result.response : '';
+        const cutShort = Array.isArray(result?.denied_actions) && result.denied_actions.length > 0 && !response.trim();
+        return agyFinish(result, cutShort ? '' : text, state, stderr);
+      },
+    };
+  }
+  const { arg, files } = promptArgument(ctx, prompt);
   // The prompt must be attached to the flag: "-p <prompt>" would swallow the next option.
   const args = [`-p=${arg}`, '--output-format', 'json', ...(model ? ['--model', model] : [])];
   return {
-    args: ctx.compat ? args : [...args, '--sandbox', '--disable-slash-commands', '--print-timeout', agyPrintTimeout(req.timeoutMs)],
+    args: ctx.compat ? args : [...args, ...flags, '--print-timeout', agyPrintTimeout(req.timeoutMs)],
     stdin: '',
     files: [...images, ...files],
-    failFast: {
-      pattern: AGY_SIGN_IN,
-      error: 'Antigravity CLI is not signed in. Open a terminal, run agy once and sign in with your Google account.',
-      kind: 'not-logged-in',
-    },
+    failFast,
     isComplete: agyAnswerComplete,
     finalize: (stdout, state, stderr) => {
       // {"conversation_id":…,"status":"SUCCESS"|"ERROR","response":…,"error":…,"usage":{…}}
       const obj = lastJsonObject(stdout.trim());
-      const error =
-        agyError(stderr) ??
-        (typeof obj?.error === 'string' && obj.error ? obj.error : asRecord(obj?.error)?.message) ??
-        (obj?.status === 'ERROR' ? 'Antigravity CLI reported an error.' : null);
-      const text = typeof obj?.response === 'string' ? obj.response : stdout.trim();
-      if (agyToolDenied(String(error ?? ''))) {
-        state.isError = true;
-        state.error = AGY_TOOL_DENIED_MESSAGE;
-      } else if (AGY_PRINT_TIMEOUT.test(`${error ?? ''}\n${stderr}`)) {
-        // "[agy] print timeout after 1h59m50s with turn in progress; returning partial output": not an answer
-        state.isError = true;
-        state.timedOut = true;
-        state.error = String(error ?? 'Antigravity reached its time limit.');
-      } else if (!text.trim() && agyToolDenied(stderr)) {
-        // a denied tool only matters when nothing came back; its notice can be on any stderr line
-        state.isError = true;
-        state.error = AGY_TOOL_DENIED_MESSAGE;
-      } else if (error) {
-        state.isError = true;
-        state.error = String(error);
-      }
-      return text;
+      return agyFinish(obj, typeof obj?.response === 'string' ? obj.response : stdout.trim(), state, stderr);
     },
   };
+}
+
+/** The answer of an Antigravity run from its result object, or why there is none. */
+function agyFinish(obj: Record<string, unknown> | null, text: string, state: ParseState, stderr: string): string {
+  const error =
+    agyError(stderr) ??
+    (typeof obj?.error === 'string' && obj.error ? obj.error : asRecord(obj?.error)?.message) ??
+    (obj?.status === 'ERROR' ? 'Antigravity CLI reported an error.' : null);
+  const denied = Array.isArray(obj?.denied_actions) && obj.denied_actions.length > 0;
+  const deny = () => {
+    state.isError = true;
+    // the agent may well answer when asked again, told that commands are blocked (Ultima does that once)
+    state.error = AGY_TOOL_DENIED_AGAIN_MESSAGE;
+    state.retryNote = AGY_RETRY_NOTE;
+  };
+  if (agyToolDenied(String(error ?? ''))) deny();
+  else if (AGY_PRINT_TIMEOUT.test(`${error ?? ''}\n${stderr}`)) {
+    // "[agy] print timeout after 1h59m50s with turn in progress; returning partial output": not an answer
+    state.isError = true;
+    state.timedOut = true;
+    state.error = String(error ?? 'Antigravity reached its time limit.');
+  } else if (!text.trim() && (agyToolDenied(stderr) || denied)) {
+    // a denied tool only matters when nothing came back; its notice can be on any stderr line
+    deny();
+  } else if (error) {
+    state.isError = true;
+    state.error = String(error);
+  }
+  return text;
 }
 
 /* ---------------------------------- Qwen Code ---------------------------------- */
@@ -592,7 +689,7 @@ export function classifyError(text: string): AIErrorKind {
 }
 
 export function isUnknownOptionError(text: string): boolean {
-  return /unknown option|unrecognized (option|argument)|unknown argument|unknown feature flag|unexpected argument|invalid option|invalid values?:|error: option|found argument .* which wasn't expected|unexpected value .* for/i.test(
+  return /unknown option|unknown (shorthand )?flag|unrecognized (option|argument)|unknown argument|unknown feature flag|unexpected argument|invalid option|invalid values?:|error: option|found argument .* which wasn't expected|unexpected value .* for/i.test(
     text,
   );
 }

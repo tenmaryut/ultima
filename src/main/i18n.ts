@@ -91,6 +91,8 @@ const ID: Record<string, string> = {
   'Its last message:': 'Pesan terakhirnya:',
   'Antigravity stopped without an answer: it tried to use a tool that needs approval (such as a terminal command on your computer), which Ultima does not allow. Please send the request again.':
     'Antigravity berhenti tanpa jawaban: ia mencoba memakai alat yang perlu izin (misalnya perintah terminal di komputer Anda), dan Ultima tidak mengizinkannya. Silakan kirim permintaan lagi.',
+  'Antigravity stopped without an answer: it tried to use a tool that needs approval (such as a terminal command on your computer), which Ultima does not allow. Ultima already asked again once. Please send the request again, or pick another model.':
+    'Antigravity berhenti tanpa jawaban: ia mencoba memakai alat yang perlu izin (misalnya perintah terminal di komputer Anda), dan Ultima tidak mengizinkannya. Ultima sudah meminta ulang sekali. Silakan kirim permintaan lagi, atau pilih model lain.',
 };
 
 /** Text for a main-process dialog in the current UI language. */

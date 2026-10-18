@@ -167,9 +167,13 @@ async function runCli(request: AIRunRequest, send: (delta: string) => void, star
   }
   const cwd = await mkdtemp(join(tmpdir(), 'ultima-ai-'));
   try {
-    for (const compat of [false, true]) {
+    // the usual way first; then, when a run says so, conservative flags, the prompt off stdin, or one more try with a note
+    const attempts: { compat: boolean; avoidStdin?: boolean; note?: string }[] = [{ compat: false }];
+    for (let attempt = 0; attempt < attempts.length && attempt < 5; attempt++) {
+      const { compat, avoidStdin, note } = attempts[attempt];
       if (takeCancelled(request.requestId)) return fail(request, started, 'Cancelled', 'aborted');
-      const invocation = ADAPTERS[id]({ request, cwd, compat, custom: aiConfig.get().custom, platform: process.platform, executable });
+      const req = note ? { ...request, prompt: `${request.prompt}\n\n${note}` } : request;
+      const invocation = ADAPTERS[id]({ request: req, cwd, compat, avoidStdin, custom: aiConfig.get().custom, platform: process.platform, executable });
       for (const file of invocation.files ?? []) {
         await writeFile(join(cwd, file.name), file.text !== undefined ? Buffer.from(file.text, 'utf8') : Buffer.from(file.base64 ?? '', 'base64'));
       }
@@ -190,6 +194,16 @@ async function runCli(request: AIRunRequest, send: (delta: string) => void, star
             }
           }
         : undefined;
+      // a tool that stays silent where it should start talking right away: give this way up
+      let silent = false;
+      let spoke = false;
+      const startupTimer = invocation.startupMs
+        ? setTimeout(() => {
+            if (spoke) return;
+            silent = true;
+            proc.cancel();
+          }, invocation.startupMs)
+        : undefined;
       const proc = runProcess({
         command: executable,
         args: invocation.args,
@@ -198,8 +212,9 @@ async function runCli(request: AIRunRequest, send: (delta: string) => void, star
         env,
         timeoutMs: request.timeoutMs ?? 300_000,
         onLine:
-          invocation.onLine || watch || invocation.isComplete
+          invocation.onLine || watch || invocation.isComplete || startupTimer
             ? (line) => {
+                spoke = true;
                 watch?.(line);
                 const delta = invocation.onLine?.(line, state);
                 if (delta) {
@@ -220,9 +235,14 @@ async function runCli(request: AIRunRequest, send: (delta: string) => void, star
       running.set(request.requestId, proc);
       const res = await proc.result;
       clearTimeout(stopTimer);
+      clearTimeout(startupTimer);
       running.delete(request.requestId);
 
       if (failedFast && failFast) return fail(request, started, mt(failFast.error), failFast.kind);
+      if (silent && !avoidStdin) {
+        attempts.push({ compat, avoidStdin: true, note });
+        continue;
+      }
 
       if (res.aborted && !complete) return fail(request, started, 'Cancelled', 'aborted');
       if (res.timedOut && !complete) return fail(request, started, timeoutMessage(info?.name ?? id, request.timeoutMs ?? 300_000, res.stderr), 'timeout');
@@ -245,7 +265,19 @@ async function runCli(request: AIRunRequest, send: (delta: string) => void, star
       // Stopped by Ultima after a complete answer: a normal end, whatever the exit code says.
       const code = complete ? 0 : res.code;
       const errorText = state.error || (code !== 0 ? (res.stderr || res.stdout).trim() : '');
-      if (!compat && code !== 0 && isUnknownOptionError(res.stderr)) continue; // retry with conservative flags
+      // before conservative flags: a version that can't take the prompt on stdin may still know the other flags
+      if (state.fallback && !avoidStdin) {
+        attempts.push({ compat, avoidStdin: true, note });
+        continue;
+      }
+      if (!compat && code !== 0 && isUnknownOptionError(res.stderr)) {
+        attempts.push({ compat: true, avoidStdin, note }); // retry with conservative flags
+        continue;
+      }
+      if (state.retryNote && !note) {
+        attempts.push({ compat, avoidStdin, note: state.retryNote });
+        continue;
+      }
       if (state.isError || (code !== 0 && !text)) {
         const message = (errorText || `${info?.name ?? id} exited with code ${code}`).slice(0, 1500);
         return fail(request, started, mt(message), classifyError(message));

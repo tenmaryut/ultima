@@ -2,6 +2,19 @@
 
 All notable changes to Ultima are listed here. Versions follow [semantic versioning](https://semver.org).
 
+## [0.4.2] — 2026-10-18
+
+### Fixed
+
+- **Antigravity stopped without an answer** ("it tried to use a tool that needs approval") on long requests, such as
+  the Video Editor's. A request too long for the command line was put in a file the AI had to open, and opening it
+  could need a terminal command, which Ultima blocks. Long requests now go to Antigravity directly (on standard
+  input, Antigravity 1.1.15 or newer), with the folder of attached images in its workspace and the time limit set
+  in Ultima. Older versions still get the file.
+- When a tool that needs approval ends an Antigravity run anyway, Ultima asks once more by itself and tells the AI
+  that commands are blocked. Only if that try stops the same way does the message appear, saying Ultima already
+  asked again.
+
 ## [0.4.1] — 2026-10-18
 
 ### Fixed
